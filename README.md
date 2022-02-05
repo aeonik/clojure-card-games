@@ -1,20 +1,22 @@
 # clojure-card-games
 
-FIXME: description
+Collection of simple command-line card games written in Clojure. Currently it is a work in progress. 
+
+I am starting with a two deck variant of Euchre named Karbosh. This game is similar to Indiana Double Deck Bid Euchre, but is played with 6 people instead of 4. See more here: https://en.wikipedia.org/wiki/Bid_Euchre
 
 ## Installation
 
-Download from http://example.com/FIXME.
+Download not available yet.
 
 ## Usage
 
-FIXME: explanation
+FIXME: Usage is not available yet.
 
     $ java -jar clojure-card-games-0.1.0-standalone.jar [args]
 
 ## Options
 
-FIXME: listing of options this app accepts.
+FIXME: Not available yet.
 
 ## Examples
 
