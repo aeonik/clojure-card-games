@@ -25,8 +25,27 @@
 (def hands (map vec (partition 8 shuffled-deck)))
 (pp/pprint hands)
 
-(def players [:player1 :player2 :player3 :player4 :player5 :player6])
+(def players [:player1, :player2, :player3, :player4, :player5, :player6])
+(pp/pprint players)
 
 (pp/pprint (partition 8 shuffled-deck))
 (pp/pprint (zipmap players hands))
-(pp/pprint (zipmap players (mapv hash-map (repeat :hand) hands)))
+(def game (zipmap players (mapv hash-map (repeat :hand) hands)))
+
+(pp/pprint game)
+(pp/pprint players)
+
+(def game (assoc {} :game game))
+(def game (assoc-in game [:game :player1 :team] 1))
+(def game (assoc-in game [:game :player2 :team] 2))
+(def game (assoc-in game [:game :player3 :team] 1))
+(def game (assoc-in game [:game :player4 :team] 2))
+(def game (assoc-in game [:game :player5 :team] 1))
+(def game (assoc-in game [:game :player6 :team] 2))
+(pp/pprint game)
+
+(def game-with-players
+  (reduce-kv (fn [data player team-no]
+               (assoc-in data [:game player :team] team-no))
+             {:game game}
+             {:player1 1, :player2 2, :player3 3, :player4 4, :player5 5, :player6 6}))
