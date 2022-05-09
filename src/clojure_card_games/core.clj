@@ -32,9 +32,9 @@
 
 (pp/pprint (partition 8 shuffled-deck))
 (pp/pprint (zipmap players hands))
-(def game (zipmap players (mapv hash-map (repeat :hand) hands)))
+(def players-with-hands (zipmap players (mapv hash-map (repeat :hand) hands)))
 
-(pp/pprint game)
+(pp/pprint players-with-hands)
 (pp/pprint players)
 
 (comment
@@ -43,18 +43,18 @@
    First off, def always introduces a global (top-level) Var -- you don't show much of your code but you should never use def inside a function.
    We generally think of def as introducing a single global constant.
    Second, for repeated operations on a single value where we want to accumulate the result, take a look at -> : "
-  (def game (assoc {} :game game))
-  (def game (assoc-in game [:game :player1 :team] 1))
-  (def game (assoc-in game [:game :player2 :team] 2))
-  (def game (assoc-in game [:game :player3 :team] 1))
-  (def game (assoc-in game [:game :player4 :team] 2))
-  (def game (assoc-in game [:game :player5 :team] 1))
-  (def game (assoc-in game [:game :player6 :team] 2)))
+  (def players-with-hands (assoc {} :game players-with-hands))
+  (def players-with-hands (assoc-in players-with-hands [:game :player1 :team] 1))
+  (def players-with-hands (assoc-in players-with-hands [:game :player2 :team] 2))
+  (def players-with-hands (assoc-in players-with-hands [:game :player3 :team] 1))
+  (def players-with-hands (assoc-in players-with-hands [:game :player4 :team] 2))
+  (def players-with-hands (assoc-in players-with-hands [:game :player5 :team] 1))
+  (def players-with-hands (assoc-in players-with-hands [:game :player6 :team] 2)))
 
 (comment
   "Sean Cornfield's slightly better way of doing it."
   (def game-with-players
-    (-> {:game game}
+    (-> {:game players-with-hands}
         (assoc-in [:game :player1 :team] 1)
         (assoc-in [:game :player2 :team] 2)
         (assoc-in [:game :player3 :team] 1)
@@ -68,9 +68,9 @@
    the changes you want to make as a data structure 
    -- in this case a hash map from player keys to team numbers 
    -- and then reduce over that to make the changes you need:"
-  (reduce-kv (fn [data player team-number]
-               (assoc-in data [:game player :team] team-number))
-             {:game game}
+  (reduce-kv (fn [game-state player team-number]
+               (assoc-in game-state [:game player :team] team-number))
+             {:game players-with-hands}
              {:player1 1, :player2 2, :player3 1, :player4 2, :player5 1, :player6 2}))
 
 (defn set-trump [game-with-players trump-suit]
