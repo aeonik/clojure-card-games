@@ -91,4 +91,12 @@
   (comment
     "This is a naive way of doing it. It gets the first card of each hand
    Probably want to use Dissoc instead though."
-    (map first (map :hand (vals (:game game-with-players))))))
+    (map first (map :hand (vals (:game game-with-players))))
+
+    "With threading Macro"
+    (->> game-with-players
+         (:game)
+         (vals)
+         (map :hand)
+         (map first))
+    ))
