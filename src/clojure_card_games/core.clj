@@ -88,7 +88,7 @@
 
 (defn create-trick [game]
   "Create a trick, deal one card from each player's hand to the trick"
-  (comment)
-  "This is a naive way of doing it. It gets the first card of each hand
+  (comment
+    "This is a naive way of doing it. It gets the first card of each hand
    Probably want to use Dissoc instead though."
-  (map first (map :hand (vals (:game game-with-players)))))
+    (map first (map :hand (vals (:game game-with-players))))))
