@@ -8,23 +8,23 @@
   [& args]
   (println "Hello, World!"))
 
-(def cards 
+(def cards
   "Karbosh cards."
   (vector 9 10 :J :Q :K :A))
-(def suits 
+(def suits
   "Karbosh suits."
   (vector :♥ :♠ :♦ :♣))
 
-(def karbosh-deck 
+(def karbosh-deck
   "Create karbosh deck. Two decks from 9 to Ace of each suit."
   (map vec (mapcat (partial repeat 2)
-                                   (combo/cartesian-product cards suits))))
+                   (combo/cartesian-product cards suits))))
 
-(def shuffled-deck 
+(def shuffled-deck
   "Shuffle the deck."
   (shuffle karbosh-deck))
 
-(def hands 
+(def hands
   "Break the deck into hands with 8 cards each."
   (map vec (partition 8 shuffled-deck)))
 
@@ -51,16 +51,16 @@
   (def game (assoc-in game [:game :player5 :team] 1))
   (def game (assoc-in game [:game :player6 :team] 2)))
 
-(comment 
-  "Sean Cornfield's way of doing it."
+(comment
+  "Sean Cornfield's slightly better way of doing it."
   (def game-with-players
-           (-> {:game game}
-               (assoc-in [:game :player1 :team] 1)
-               (assoc-in [:game :player2 :team] 2)
-               (assoc-in [:game :player3 :team] 1)
-               (assoc-in [:game :player4 :team] 2)
-               (assoc-in [:game :player5 :team] 1)
-               (assoc-in [:game :player6 :team] 2))))
+    (-> {:game game}
+        (assoc-in [:game :player1 :team] 1)
+        (assoc-in [:game :player2 :team] 2)
+        (assoc-in [:game :player3 :team] 1)
+        (assoc-in [:game :player4 :team] 2)
+        (assoc-in [:game :player5 :team] 1)
+        (assoc-in [:game :player6 :team] 2))))
 
 (def game-with-players
   "Thanks to Sean Cornfield for this example:
@@ -72,3 +72,15 @@
                (assoc-in data [:game player :team] team-number))
              {:game game}
              {:player1 1, :player2 2, :player3 1, :player4 2, :player5 1, :player6 2}))
+
+(defn add-trump-to-game [game trump-suit]
+  "Add random trump suit to the game using rand-nth and assoc-in"
+  (assoc-in game [:game :trump] trump-suit))
+
+(defn create-trick [game]
+  "Create a trick, deal one card from each player's hand to the trick"
+  (comment
+  "This is a naive way of doing it. It gets the first card of each hand
+   Probably want to use Dissoc instead though."
+    (map first (map :hand (vals (:game game-with-players))))
+  ))
