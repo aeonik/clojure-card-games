@@ -11,6 +11,7 @@
 (def cards
   "Karbosh cards."
   (vector 9 10 :J :Q :K :A))
+
 (def suits
   "Karbosh suits."
   (vector :♥ :♠ :♦ :♣))
@@ -20,19 +21,19 @@
   (map vec (mapcat (partial repeat 2)
                    (combo/cartesian-product cards suits))))
 
-(def shuffled-deck
+(defn shuffled-deck [karbosh-deck]
   "Shuffle the deck."
   (shuffle karbosh-deck))
 
-(def hands
+(defn shuffled-hands [shuffled-deck]
   "Break the deck into hands with 8 cards each."
   (map vec (partition 8 shuffled-deck)))
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
 (pp/pprint (partition 8 shuffled-deck))
-(pp/pprint (zipmap players hands))
-(def game (zipmap players (mapv hash-map (repeat :hand) hands)))
+(pp/pprint (zipmap players shuffled-hands))
+(def game (zipmap players (mapv hash-map (repeat :hand) shuffled-hands)))
 
 (pp/pprint game)
 (pp/pprint players)
@@ -73,14 +74,22 @@
              {:game game}
              {:player1 1, :player2 2, :player3 1, :player4 2, :player5 1, :player6 2}))
 
-(defn add-trump-to-game [game trump-suit]
+(defn set-trump [game-with-players trump-suit]
   "Add random trump suit to the game using rand-nth and assoc-in"
-  (assoc-in game [:game :trump] trump-suit))
+  (assoc-in game-with-players [:game :trump] trump-suit))
+
+(defn set-dealer [game-with-players player]
+  "Add player as dealer suit to the game using rand-nth and assoc-in"
+  (assoc-in game-with-players [:game player :dealer] true))
+
+(defn start-game [game-with-players]
+  (-> game-with-players
+      (set-trump :♠)
+      (set-dealer :player1)))
 
 (defn create-trick [game]
   "Create a trick, deal one card from each player's hand to the trick"
   (comment
   "This is a naive way of doing it. It gets the first card of each hand
    Probably want to use Dissoc instead though."
-    (map first (map :hand (vals (:game game-with-players))))
-  ))
+    (map first (map :hand (vals (:game game-with-players))))))
