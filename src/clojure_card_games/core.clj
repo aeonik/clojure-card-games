@@ -11,7 +11,6 @@
 (def cards
   "Karbosh cards."
   (vector 9 10 :J :Q :K :A))
-
 (def suits
   "Karbosh suits."
   (vector :♥ :♠ :♦ :♣))
@@ -21,19 +20,19 @@
   (map vec (mapcat (partial repeat 2)
                    (combo/cartesian-product cards suits))))
 
-(defn shuffled-deck [karbosh-deck]
+(def shuffled-deck
   "Shuffle the deck."
   (shuffle karbosh-deck))
 
-(defn shuffled-hands [shuffled-deck]
+(def hands
   "Break the deck into hands with 8 cards each."
   (map vec (partition 8 shuffled-deck)))
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
 (pp/pprint (partition 8 shuffled-deck))
-(pp/pprint (zipmap players shuffled-hands))
-(def game (zipmap players (mapv hash-map (repeat :hand) shuffled-hands)))
+(pp/pprint (zipmap players hands))
+(def game (zipmap players (mapv hash-map (repeat :hand) hands)))
 
 (pp/pprint game)
 (pp/pprint players)
