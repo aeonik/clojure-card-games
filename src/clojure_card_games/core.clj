@@ -30,12 +30,7 @@
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
-(pp/pprint (partition 8 shuffled-deck))
-(pp/pprint (zipmap players hands))
 (def players-with-hands (zipmap players (mapv hash-map (repeat :hand) hands)))
-
-(pp/pprint players-with-hands)
-(pp/pprint players)
 
 (comment
   "This is the old way of doing it. Not idiomatic in Clojure.
@@ -63,7 +58,7 @@
         (assoc-in [:game :player6 :team] 2))))
 
 (def game-with-players
-  "Thanks to Sean Cornfield for this example:
+  "Thanks to Sean Cornfield for this example: 
    A more advanced approach would be to represent 
    the changes you want to make as a data structure 
    -- in this case a hash map from player keys to team numbers 
@@ -71,7 +66,12 @@
   (reduce-kv (fn [game-state player team-number]
                (assoc-in game-state [:game player :team] team-number))
              {:game players-with-hands}
-             {:player1 1, :player2 2, :player3 1, :player4 2, :player5 1, :player6 2}))
+             {:player1 1
+              :player2 2
+              :player3 1
+              :player4 2
+              :player5 1
+              :player6 2}))
 
 (defn set-trump [game-with-players trump-suit]
   "Add random trump suit to the game using rand-nth and assoc-in"
@@ -88,7 +88,7 @@
 
 (defn create-trick [game]
   "Create a trick, deal one card from each player's hand to the trick"
-  (comment
+  (comment)
   "This is a naive way of doing it. It gets the first card of each hand
    Probably want to use Dissoc instead though."
-    (map first (map :hand (vals (:game game-with-players))))))
+  (map first (map :hand (vals (:game game-with-players)))))
