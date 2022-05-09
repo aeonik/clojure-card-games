@@ -57,8 +57,10 @@
            (-> {:game game}
                (assoc-in [:game :player1 :team] 1)
                (assoc-in [:game :player2 :team] 2)
-               (assoc-in [:game :player3 :team] 3)
-               ...etc...)))
+               (assoc-in [:game :player3 :team] 1)
+               (assoc-in [:game :player4 :team] 2)
+               (assoc-in [:game :player5 :team] 1)
+               (assoc-in [:game :player6 :team] 2))))
 
 (def game-with-players
   "Thanks to Sean Cornfield for this example:
