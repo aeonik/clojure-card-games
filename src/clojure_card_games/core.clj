@@ -8,15 +8,25 @@
   [& args]
   (println "Hello, World!"))
 
-(def cards (vector 9 10 :J :Q :K :A))
-(def suits (vector :♥ :♠ :♦ :♣))
+(def cards 
+  "Karbosh cards."
+  (vector 9 10 :J :Q :K :A))
+(def suits 
+  "Karbosh suits."
+  (vector :♥ :♠ :♦ :♣))
 
-(def karbosh-deck (map vec (mapcat (partial repeat 2)
+(def karbosh-deck 
+  "Create karbosh deck. Two decks from 9 to Ace of each suit."
+  (map vec (mapcat (partial repeat 2)
                                    (combo/cartesian-product cards suits))))
 
-(def shuffled-deck (shuffle karbosh-deck))
+(def shuffled-deck 
+  "Shuffle the deck."
+  (shuffle karbosh-deck))
 
-(def hands (map vec (partition 8 shuffled-deck)))
+(def hands 
+  "Break the deck into hands with 8 cards each."
+  (map vec (partition 8 shuffled-deck)))
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
@@ -28,7 +38,7 @@
 (pp/pprint players)
 
 (comment
-  "This is the old way of doing it. Not idiomatic.
+  "This is the old way of doing it. Not idiomatic in Clojure.
    From Sean Cornfield: The first bit of advice I'd offer is: don't treat def like an assignment would be in other languages. 
    First off, def always introduces a global (top-level) Var -- you don't show much of your code but you should never use def inside a function.
    We generally think of def as introducing a single global constant.
@@ -42,7 +52,7 @@
   (def game (assoc-in game [:game :player6 :team] 2)))
 
 (comment 
-  "Sean Cornfields way of doing it."
+  "Sean Cornfield's way of doing it."
   (def game-with-players
            (-> {:game game}
                (assoc-in [:game :player1 :team] 1)
@@ -51,7 +61,11 @@
                ...etc...)))
 
 (def game-with-players
-  "Thanks to Sean Cornfield for this example."
+  "Thanks to Sean Cornfield for this example:
+   A more advanced approach would be to represent 
+   the changes you want to make as a data structure 
+   -- in this case a hash map from player keys to team numbers 
+   -- and then reduce over that to make the changes you need:"
   (reduce-kv (fn [data player team-number]
                (assoc-in data [:game player :team] team-number))
              {:game game}
