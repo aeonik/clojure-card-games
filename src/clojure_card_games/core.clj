@@ -79,14 +79,9 @@
 
 (defn set-dealer [game-with-players player]
   "Add player as dealer suit to the game using rand-nth and assoc-in"
-  (assoc-in game-with-players [:game player :dealer] true))
+  (assoc-in game-with-players [:game :dealer] (player)))
 
-(defn start-game [game-with-players]
-  (-> game-with-players
-      (set-trump :♠)
-      (set-dealer :player1)))
-
-(defn create-trick [game]
+(defn start-trick [game-with-players]
   "Create a trick, deal one card from each player's hand to the trick"
   (comment
     "This is a naive way of doing it. It gets the first card of each hand
@@ -98,5 +93,21 @@
          (:game)
          (vals)
          (map :hand)
-         (map first))
-    ))
+         (map first)))
+  (assoc-in (:game game-with-players) [:trick trick1]))
+
+(defn get-player-hands [game]
+  (map #(% (:game game-with-players)) players))
+
+(defn play-cards [game-with-players trick card]
+  (let [dealer ((-> game-with-players 
+                    (:game) 
+                    (:dealer)))]
+    (-> game-with-players
+        (:game))))
+
+(defn start-game [game-with-players]
+  (-> game-with-players
+      (set-trump (rand-nth suits))
+      (set-dealer (rand-nth players))
+      (play-cards )))
