@@ -89,12 +89,14 @@
     (map first (map :hand (vals (:game game-with-players))))
 
     "With threading Macro"
+    "TODO - figure out how to get players associed into the trick per card"
     (->> game-with-players
          (:game)
          (vals)
          (map :hand)
-         (map first)))
-  (assoc-in (:game game-with-players) [:trick trick1]))
+         (map first)
+         (assoc-in (:game game-with-players) [:trick :trick1]))
+    ))
 
 (defn get-player-hands [game]
   (map #(% (:game game-with-players)) players))
@@ -109,5 +111,4 @@
 (defn start-game [game-with-players]
   (-> game-with-players
       (set-trump (rand-nth suits))
-      (set-dealer (rand-nth players))
-      (play-cards )))
+      (set-dealer (rand-nth players))))
