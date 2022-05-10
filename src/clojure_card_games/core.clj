@@ -101,15 +101,19 @@
 (defn get-player-hands [game-with-players]
   (map #(% (:game game-with-players)) players))
 
-(defn play-cards [game-with-players trick card]
-  "Find the dealer first, then use that for the rest of the logic"
-  (let [dealer ((-> game-with-players 
-                    (:game) 
-                    (:dealer)))]
-    (-> game-with-players
-        (:game))))
-
 (defn start-game [game-with-players]
   (-> game-with-players
       (set-trump (rand-nth suits))
       (set-dealer (rand-nth players))))
+
+(def temp-game
+  (start-game game-with-players))
+
+(defn play-cards [game-with-players trick card]
+  "Find the dealer first, then use that for the rest of the logic"
+  (let [dealer (-> temp-game
+                   (:game)
+                   (:dealer))]
+    (-> game-with-players
+        (:game)
+        (get-player-hands))))
