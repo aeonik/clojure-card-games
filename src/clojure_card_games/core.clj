@@ -30,10 +30,12 @@
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
-(def players-with-hands (zipmap players (mapv hash-map (repeat :hand) hands)))
+(def players-with-hands 
+  (zipmap players 
+          (mapv hash-map (repeat :hand) hands)))
 
 (comment
-  "This is the old way of doing it. Not idiomatic in Clojure.
+  "This is my old way of doing it. Not idiomatic in Clojure.
    From Sean Cornfield: The first bit of advice I'd offer is: don't treat def like an assignment would be in other languages. 
    First off, def always introduces a global (top-level) Var -- you don't show much of your code but you should never use def inside a function.
    We generally think of def as introducing a single global constant.
