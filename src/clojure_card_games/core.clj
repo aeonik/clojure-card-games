@@ -81,7 +81,11 @@
 
 (defn set-dealer [game-with-players player]
   "Add player as dealer suit to the game using rand-nth and assoc-in"
-  (assoc-in game-with-players [:game :dealer] (player)))
+  (assoc-in game-with-players [:game :dealer] player))
+
+(defn set-bid [game-with-players bid]
+  "Add player as dealer suit to the game using rand-nth and assoc-in"
+  (assoc-in game-with-players [:game :bid] bid))
 
 (defn start-trick [game-with-players last-trick]
   "Create a trick, deal one card from each player's hand to the trick"
@@ -106,7 +110,8 @@
 (defn start-game [game-with-players]
   (-> game-with-players
       (set-trump (rand-nth suits))
-      (set-dealer (rand-nth players))))
+      (set-dealer (rand-nth players))
+      (set-bid (rand-nth (range 1 9)))))
 
 (def temp-game
   (start-game game-with-players))
