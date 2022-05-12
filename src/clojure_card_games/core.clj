@@ -1,7 +1,8 @@
 (ns clojure-card-games.core
   (:gen-class)
   (:require [clojure.math.combinatorics :as combo]
-            [clojure.pprint :as pp]))
+            [clojure.pprint :as pp]
+            [clojure.zip :as zip]))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -31,8 +32,8 @@
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
 (def players-with-hands 
-  (zipmap players 
-          (mapv hash-map (repeat :hand) hands)))
+  (into (vector) (zipmap players
+                         (mapv hash-map (repeat :hand) hands))))
 
 (comment
   "This is my old way of doing it. Not idiomatic in Clojure.
@@ -83,7 +84,7 @@
   "Add player as dealer suit to the game using rand-nth and assoc-in"
   (assoc-in game-with-players [:game :dealer] player))
 
-(defn set-bid [game-with-players bid]
+(defn set-bid [game-with-players player bid]
   "Add player as dealer suit to the game using rand-nth and assoc-in"
   (assoc-in game-with-players [:game :bid] bid))
 
@@ -95,23 +96,36 @@
     (map first (map :hand (vals (:game game-with-players))))
 
     "With threading Macro"
-    "TODO - figure out how to get players associed into the trick per card"
-    (->> game-with-players
-         (:game)
-         (vals)
-         (map :hand)
-         (map first)
-         (assoc-in (:game game-with-players) [:tricks :trick1]))
-    ))
+    "TODO - figure out how to get players associed into the trick per card")
+
+  "This should be a function to play the trick
+   map first can be substituted with strategies or human input"
+  (->> game-with-players
+       (:game)
+       (vals)
+       (map :hand)
+       (map first))
+
+  "This line needs a lot of work. Instead of setting things,
+    we should generate the trump and bid and set it elsewhere."
+  (-> game-with-players
+      (set-trump (rand-nth suits))
+      (set-bid (rand-nth players) (rand-nth (range 1 9)))))
+
+"Get the every player after player 3 in players"
+(defn get-player-order [game-with-players]
+  "This creates a vector that shows the order of the players"
+  (concat
+   (subvec players-with-hands 3)
+   (subvec players-with-hands 0 3)))
 
 (defn get-player-hands [game-with-players]
   (map #(% (:game game-with-players)) players))
 
 (defn start-game [game-with-players]
   (-> game-with-players
-      (set-trump (rand-nth suits))
       (set-dealer (rand-nth players))
-      (set-bid (rand-nth (range 1 9)))))
+))
 
 (def temp-game
   (start-game game-with-players))
