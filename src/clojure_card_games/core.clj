@@ -31,9 +31,9 @@
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
-(def players-with-hands 
-  (into (vector) (zipmap players
-                         (mapv hash-map (repeat :hand) hands))))
+(def players-with-hands
+  (zipmap players
+          (mapv hash-map (repeat :hand) hands)))
 
 (comment
   "This is my old way of doing it. Not idiomatic in Clojure.
@@ -112,7 +112,10 @@
       (set-trump (rand-nth suits))
       (set-bid (rand-nth players) (rand-nth (range 1 9)))))
 
-"Get the every player after player 3 in players"
+"BROKEN: Get the every player after player 3 in players
+ ROOT CAUSE: This function only works if players-with-hands 
+ is a vector; currently it's a hashmap because game-with-players 
+ requires this."
 (defn get-player-order [game-with-players]
   "This creates a vector that shows the order of the players"
   (concat
