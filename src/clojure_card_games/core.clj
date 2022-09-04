@@ -12,6 +12,7 @@
 (def cards
   "Karbosh cards."
   (vector 9 10 :J :Q :K :A))
+
 (def suits
   "Karbosh suits."
   (vector :♥ :♠ :♦ :♣))
