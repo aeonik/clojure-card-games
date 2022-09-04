@@ -9,22 +9,22 @@
   [& args]
   (println "Hello, World!"))
 
-(def cards
+(defn cards []
   "Karbosh cards."
   (vector 9 10 :J :Q :K :A))
 
-(def suits
+(defn suits []
   "Karbosh suits."
   (vector :♥ :♠ :♦ :♣))
 
-(def karbosh-deck
+(defn karbosh-deck []
   "Create karbosh deck. Two decks from 9 to Ace of each suit."
   (map vec (mapcat (partial repeat 2)
-                   (combo/cartesian-product cards suits))))
+                   (combo/cartesian-product (cards) (suits)))))
 
 (def shuffled-deck
   "Shuffle the deck."
-  (shuffle karbosh-deck))
+  (shuffle (karbosh-deck)))
 
 (def hands
   "Break the deck into hands with 8 cards each."
@@ -110,7 +110,7 @@
   "This line needs a lot of work. Instead of setting things,
     we should generate the trump and bid and set it elsewhere."
   (-> game-with-players
-      (set-trump (rand-nth suits))
+      (set-trump (rand-nth (suits)))
       (set-bid (rand-nth players) (rand-nth (range 1 9)))))
 
 "BROKEN: Get the every player after player 3 in players
@@ -119,6 +119,7 @@
  requires this."
 (defn get-player-order [game-with-players]
   "This creates a vector that shows the order of the players"
+  "BROKEN: players-with-hands was changed to a map"
   (concat
    (subvec players-with-hands 3)
    (subvec players-with-hands 0 3)))
@@ -128,8 +129,7 @@
 
 (defn start-game [game-with-players]
   (-> game-with-players
-      (set-dealer (rand-nth players))
-))
+      (set-dealer (rand-nth players))))
 
 (def temp-game
   (start-game game-with-players))
