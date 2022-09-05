@@ -22,19 +22,19 @@
   (map vec (mapcat (partial repeat 2)
                    (combo/cartesian-product (cards) (suits)))))
 
-(def shuffled-deck
+(defn shuffled-deck []
   "Shuffle the deck."
   (shuffle (karbosh-deck)))
 
-(def hands
+(defn hands []
   "Break the deck into hands with 8 cards each."
-  (map vec (partition 8 shuffled-deck)))
+  (map vec (partition 8 (shuffled-deck))))
 
 (def players [:player1, :player2, :player3, :player4, :player5, :player6])
 
 (def players-with-hands
   (zipmap players
-          (mapv hash-map (repeat :hand) hands)))
+          (mapv hash-map (repeat :hand) (hands))))
 
 (comment
   "This is my old way of doing it. Not idiomatic in Clojure.
