@@ -16,3 +16,4 @@ pom.xml.asc
 .calva/
 .clerk/
 /.idea/
+clojure-card-games.iml
