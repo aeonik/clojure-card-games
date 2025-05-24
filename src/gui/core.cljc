@@ -42,12 +42,12 @@
   {:deck (logic/init-deck)})
 
 (defui root [{:keys [deck]}]
-  (ui/vertical-layout
-   [(ui/button "Shuffle"
-               (fn []
-                 [[:set :deck (logic/init-deck)]]))
-    (ui/spacer 0 20)
-    (into [] (layout-cards deck))]))
+  (ui/padding 10 10 (apply ui/vertical-layout
+                           [(ui/button "Shuffle"
+                                       (fn []
+                                         [[:set :deck (logic/init-deck)]]))
+                            (ui/spacer 0 20)
+                            (into [] (layout-cards deck))])))
 
 (defn -main []
   (println "Starting Karbosh visualizer...")
