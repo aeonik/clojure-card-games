@@ -202,14 +202,20 @@
 
       ;; Play All Tricks
       (println "Simulating all tricks...")
-      (let [state-after-tricks (loop [state init-state]
-                                 (let [remaining-players (filter #(not-empty (:hand %))
+      (let [state-after-tricks (loop [state init-state
+                                     trick-count 0]
+                                 (if (>= trick-count 8)
+                                   (do
+                                     (println "Test failed: Exceeded maximum of 8 tricks")
+                                     (is false "Test failed: Exceeded maximum of 8 tricks")
+                                     state)
+                                   (let [remaining-players (filter #(not-empty (:hand %))
                                                                  (vals (get-in state [:game :current-hand :players])))]
-                                   (if (empty? remaining-players)
-                                     state
-                                     (let [updated-state (generate-trick state)]
-                                       (println "Current Trick State: " (pr-str (get-in updated-state [:game :current-hand :current-trick])))
-                                       (recur updated-state)))))]
+                                     (if (empty? remaining-players)
+                                       state
+                                       (let [updated-state (generate-trick state)]
+                                         (println "Current Trick State: " (pr-str (get-in updated-state [:game :current-hand :current-trick])))
+                                         (recur updated-state (inc trick-count)))))))]
         ;; Validate state after all tricks
         (println "Completed Tricks: " (pr-str (get-in state-after-tricks [:game :current-hand :tricks])))
         (is (= 6 (count (get-in state-after-tricks [:game :current-hand :tricks])))
