@@ -11,6 +11,39 @@
   "Karbosh suits."
   [:♥ :♠ :♦ :♣])
 
+(defn cp [s]
+  (Character/codePointAt s 0))
+
+(defn chr [cp]
+  (String. (Character/toChars cp)))
+
+(def suit-base
+  {:♠ 0x1F0A0   ;; Spades block
+   :♥ 0x1F0B0   ;; Hearts block
+   :♦ 0x1F0C0   ;; Diamonds block
+   :♣ 0x1F0D0}) ;; Clubs block
+
+(def rank-offset
+  {1 1, 2 2, 3 3, 4 4, 5 5, 6 6, 7 7, 8 8, 9 9, 10 10  ; numeric keys
+   :A 1, :2 2, :3 3, :4 4, :5 5, :6 6, :7 7, :8 8, :9 9, :10 10
+   :J 11, :Q 12, :K 13})
+
+(defn unicode-card
+  "Return the single-glyph string for e.g. (:♥ :Q) → \"🂺\""
+  [suit rank]
+  (let [base (suit-base suit)
+        offset (rank-offset rank)]
+    (when (nil? base)
+      (throw (ex-info "Invalid suit" 
+                     {:suit suit 
+                      :valid-suits (keys suit-base)})))
+    (when (nil? offset)
+      (throw (ex-info "Invalid rank" 
+                     {:rank rank 
+                      :valid-ranks (keys rank-offset)})))
+    (let [cp (+ base offset)]
+      (chr cp))))
+
 (def players [:player1 :player2 :player3 :player4 :player5 :player6])
 
 (defn karbosh-deck []
