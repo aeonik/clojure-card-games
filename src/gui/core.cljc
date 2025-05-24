@@ -1,39 +1,54 @@
 (ns gui.core
-  (:require [clojure.math.combinatorics :as combo]
-            [cljfx :as fx]))
+  (:require [membrane.ui :as ui]
+            [membrane.java2d :as java2d]
+            [membrane.component :refer [defui make-app]]
+            [clojure-card-games.basic :as logic]))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+;; === Config ===
+(def card-width 60)
+(def card-height 90)
+(def card-margin 10)
+(def cards-per-row 8)
 
-(fx/on-fx-thread
- (fx/create-component
-  {:fx/type :stage
-   :showing true
-   :title "Cljfx example"
-   :width 300
-   :height 100
-   :scene {:fx/type :scene
-           :root {:fx/type :v-box
-                  :alignment :center
-                  :children [{:fx/type :label
-                              :text "Hello world"}]}}})) 
+(defn render-card [[rank suit]]
+  (let [label-color (case suit
+                      (:♥ :♦) [1 0 0]  ; red hearts and diamonds
+                      (:♠ :♣) [0 0 0]  ; black spades and clubs
+                      [0 0 0])         ; default black
+        card-background (ui/with-style :membrane.ui/style-stroke
+                          (ui/rectangle card-width card-height))
+        label (ui/with-color label-color
+                (ui/center
+                 (ui/label (str rank suit))
+                 [card-width card-height]))]
+    [card-background label]))
 
-(def renderer
-  (fx/create-renderer))
+(defn layout-grid
+  "Creates a grid layout function for arranging items in rows and columns"
+  [cols width height margin render]
+  (fn [coll]
+    (map-indexed
+     (fn [i item]
+       (let [x (* (mod i cols) (+ width margin))
+             y (* (quot i cols) (+ height margin))]
+         (ui/translate x y (render item))))
+     coll)))
 
-(defn root [{:keys [showing]}]
-  {:fx/type :stage
-   :showing showing
-   :scene {:fx/type :scene
-           :root {:fx/type :v-box
-                  :padding 50
-                  :children [{:fx/type :button
-                              :text "close"
-                              :on-action (fn [_]
-                                           (renderer {:fx/type root
-                                                      :showing false}))}]}}})
+(def layout-cards
+  (layout-grid cards-per-row card-width card-height card-margin render-card))
 
-(renderer {:fx/type root
-           :showing true})
+;; === State ===
+(def initial-state
+  {:deck (logic/init-deck)})
+
+(defui root [{:keys [deck]}]
+  (ui/vertical-layout
+   [(ui/button "Shuffle"
+               (fn []
+                 [[:set :deck (logic/init-deck)]]))
+    (ui/spacer 0 20)
+    (into [] (layout-cards deck))]))
+
+(defn -main []
+  (println "Starting Karbosh visualizer...")
+  (java2d/run (make-app #'root initial-state)))
