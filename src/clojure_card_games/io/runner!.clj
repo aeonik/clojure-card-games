@@ -13,15 +13,32 @@
 (defn play-game!
   ([] (play-game! nil nil))
   ([seed replay-seq]
-   (loop [game (state/init-game seed)
-          actions (seq replay-seq)]
-     (tui/print-game-state! game (get (read-config) :sort-hands? false))
-     (let [{:keys [next-seq] :as raw} (tui/get-player-action! game actions)
-           action (dissoc raw :next-seq)]
-       (if (= (:type action) :quit)
-         (do (println "Thanks for playing!") (System/exit 0))
-         (recur (state/apply-event game action)
-                next-seq))))))
+   (let [initial-seed seed]
+     (loop [game (state/init-game seed)
+            actions (seq replay-seq)
+            move-chars []
+            seed-seq [seed]]
+       (tui/print-game-state! game (get (read-config) :sort-hands? false))
+       (let [{:keys [next-seq input] :as raw} (tui/get-player-action! game actions)
+             action (dissoc raw :next-seq :input)
+             new-move-chars (if input (concat move-chars (seq input)) move-chars)]
+         (if (= (:type action) :quit)
+           (do
+             (println "Thanks for playing!")
+             (println (str "Seed: " (first seed-seq)))
+             (println (str "Move sequence: " (apply str new-move-chars)))
+             (println (str "Seed sequence: " seed-seq))
+             (System/exit 0))
+           (let [new-game (state/apply-event game action)
+                 ;; If a new hand started, derive a new seed
+                 new-seed-seq (if (and (= (:phase game) :hand-complete)
+                                       (= (:phase new-game) :bidding))
+                                (conj seed-seq (state/derive-seed game))
+                                seed-seq)]
+             (recur new-game
+                    next-seq
+                    new-move-chars
+                    new-seed-seq))))))))
 
 (defn -main [& _]
   (let [config (read-config)

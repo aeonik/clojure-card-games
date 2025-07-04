@@ -2,7 +2,7 @@
   (:require [clojure-card-games.cards :as c]))
 
 (def multipliers {:trump 100 :lead 10 :off 1})
-(def bonuses     {:right-bower 1000 :left-bower 900})
+(def bonuses     {:right-bower 2000 :left-bower 900})
 
 (defn effective-suit [[rank suit] trump]
   (if (and (= rank :J)
@@ -27,7 +27,7 @@
 (defn card-value [card trump lead]
   (let [[rank suit] card
         eff-suit (effective-suit card trump)
-        base     ({:A 8 :K 7 :Q 6 :J 5 10 4 9 3} rank)
+        base     (get {:A 8 :K 7 :Q 6 :J 5 10 4 9 3} rank 0)
         right-bower? (and (= rank :J) (= suit trump))
         left-bower?  (bower? card trump)]
     (cond

@@ -1,6 +1,7 @@
 (ns clojure-card-games.io.tui
   (:require [clojure.string :as str]
             [clojure-card-games.cards :as cards :refer [char->rank char->suit]]
+            [clojure-card-games.sorting :as sort]
             [clojure-card-games.state :as state]))
 
 ;; Pure string renderers
@@ -10,7 +11,9 @@
     (str ansi (cards/rank->str rank) (cards/suit->str suit) reset)))
 
 (defn hand->str [hand & [sort?]]
-  (let [cards (if sort? (cards/sort-hand hand) hand)]
+  (let [cards (if sort? 
+                (:sorted-hand (sort/find-best-trump hand))
+                hand)]
     (str/join " " (map card->str cards))))
 
 (defn print-hand! [hand]
@@ -95,7 +98,12 @@
      (loop [chs (seq action-seq)]
        (if (seq chs)
          (if-let [action (parse-action game chs)]
-           (assoc action :next-seq (if (= phase :trick-playing) (nnext chs) (next chs)))
+           (let [consumed (if (= phase :trick-playing)
+                            (apply str (take 2 chs))
+                            (str (first chs)))]
+             (assoc action
+                    :next-seq (if (= phase :trick-playing) (nnext chs) (next chs))
+                    :input consumed))
            (recur (next chs)))
          ;; Interactive mode
          (case phase
@@ -104,14 +112,14 @@
              (println (str "\n" (name current-player) " - Enter bid (1-8, p=pass, k=karbosh, d=double, x=quit): "))
              (let [input (read-line)]
                (if-let [action (bidding->action game (first input))]
-                 action
+                 (assoc action :input input)
                  (do (println "Invalid bid!") (recur nil)))))
            :trump-selection
            (do
              (println (str "\n" (name current-player) " - Select trump (h=♥, s=♠, d=♦, c=♣, x=quit): "))
              (let [input (read-line)]
                (if-let [action (trump-selection->action game (first input))]
-                 action
+                 (assoc action :input input)
                  (do (println "Invalid suit!") (recur nil)))))
            :trick-playing
            (let [hand (get-in game [:players current-player :hand])]
@@ -122,7 +130,7 @@
                  (let [input (read-line)]
                    (if (>= (count input) 2)
                      (if-let [action (trick->action game (first input) (second input))]
-                       action
+                       (assoc action :input input)
                        (do (println "Invalid card!") (recur nil)))
                      (do (println "Invalid input!") (recur nil)))))))
            :hand-complete {:type :new-hand}

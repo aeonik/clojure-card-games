@@ -5,10 +5,17 @@
 
 ;; Pure game state transitions (no side effects)
 
+(defn derive-seed [state]
+  (let [initial-seed (:initial-seed state)
+        hand-index (:hand-index state)]
+    (hash [initial-seed (inc hand-index)])))
+
 (defn init-game
-  ([] (init-game nil 0 [] [] [] [] :player1))
-  ([seed] (init-game seed 0 [] [] [] [] :player1))
+  ([] (init-game nil 0 [] [] [] [] :player1 nil))
+  ([seed] (init-game seed 0 [] [] [] [] :player1 seed))
   ([seed hand-index bids trumps tricks-per-hand points-per-hand dealer]
+   (init-game seed hand-index bids trumps tricks-per-hand points-per-hand dealer seed))
+  ([seed hand-index bids trumps tricks-per-hand points-per-hand dealer initial-seed]
    (let [deck (deck/shuffle-deck (deck/karbosh-deck) seed)
          hands (deck/deal-hands deck)
          players [:player1 :player2 :player3 :player4 :player5 :player6]
@@ -32,7 +39,8 @@
       :points-per-hand points-per-hand
       :hand-index hand-index
       :dealer dealer
-      :tricks-this-hand {1 0, 2 0}})))
+      :tricks-this-hand {1 0, 2 0}
+      :initial-seed initial-seed})))
 
 (defmulti apply-event (fn [state event] (:type event)))
 
@@ -150,6 +158,8 @@
         scores (:scores state)
         current-dealer (:dealer state)
         players (vec (keys (:players state)))
-        next-dealer (get players (mod (inc (.indexOf players current-dealer)) (count players)))]
-    (-> (init-game nil next-hand-index bids trumps tricks-per-hand points-per-hand next-dealer)
+        next-dealer (get players (mod (inc (.indexOf players current-dealer)) (count players)))
+        initial-seed (:initial-seed state)
+        new-seed (hash [initial-seed next-hand-index])]
+    (-> (init-game new-seed next-hand-index bids trumps tricks-per-hand points-per-hand next-dealer initial-seed)
         (assoc :scores scores))))
