@@ -1,9 +1,11 @@
 (ns clojure-card-games.basic-test
   (:require [clojure.test :refer :all]
-            [clojure-card-games.basic :as karbosh]))
+            [clojure-card-games.basic :as karbosh]
+            [zprint.core :as zp]))
 
-(defn play-trick [game-state cards]
+(defn play-trick
   "Helper to play a complete trick. cards is a vector of [player card] pairs."
+  [game-state cards]
   (reduce (fn [state [player card]]
             (karbosh/apply-event state {:type :play-card
                                         :player player
@@ -38,7 +40,7 @@
                    (karbosh/apply-event {:type :bid :player :player5 :bid-type :pass})
                    (karbosh/apply-event {:type :bid :player :player6 :bid-type :pass}))]
       (println "\nFinal game state:")
-      (clojure.pprint/pprint game)
+      (zp/zprint game)
       (println "\nPhase:" (:phase game))
       (println "Current player:" (:current-player game))
       (println "History:" (:history game))
@@ -320,21 +322,21 @@
 
       ;; Made bid with exact tricks
       (let [final-state (assoc base-state
-                          :scores {1 5, 2 3})]  ; Team 1 got 5 tricks, Team 2 got 3
+                               :scores {1 5, 2 3})]  ; Team 1 got 5 tricks, Team 2 got 3
         (is (= {1 5, 2 0}
                (karbosh/resolve-scoring final-state))
             "When making exact bid, bidding team gets points equal to tricks taken"))
 
       ;; Made bid with extra tricks
       (let [final-state (assoc base-state
-                          :scores {1 6, 2 2})]  ; Team 1 got 6 tricks, Team 2 got 2
+                               :scores {1 6, 2 2})]  ; Team 1 got 6 tricks, Team 2 got 2
         (is (= {1 6, 2 0}
                (karbosh/resolve-scoring final-state))
             "When exceeding bid, bidding team gets points equal to tricks taken"))
 
       ;; Failed bid
       (let [final-state (assoc base-state
-                          :scores {1 4, 2 4})]  ; Team 1 got 4 tricks, Team 2 got 4
+                               :scores {1 4, 2 4})]  ; Team 1 got 4 tricks, Team 2 got 4
         (is (= {1 -5, 2 4}
                (karbosh/resolve-scoring final-state))
             "When failing bid, bidding team goes down by bid amount, defenders get their tricks"))))
@@ -350,14 +352,14 @@
 
       ;; Successful karbosh
       (let [final-state (assoc base-state
-                          :scores {1 5, 2 3})]
+                               :scores {1 5, 2 3})]
         (is (= {1 15, 2 0}
                (karbosh/resolve-scoring final-state))
             "Successful karbosh awards 15 points"))
 
       ;; Failed karbosh
       (let [final-state (assoc base-state
-                          :scores {1 3, 2 5})]
+                               :scores {1 3, 2 5})]
         (is (= {1 -15, 2 5}
                (karbosh/resolve-scoring final-state))
             "Failed karbosh loses 15 points, defenders get their tricks"))))
@@ -373,14 +375,14 @@
 
       ;; Successful double karbosh
       (let [final-state (assoc base-state
-                          :scores {1 3, 2 5})]
+                               :scores {1 3, 2 5})]
         (is (= {1 0, 2 15}
                (karbosh/resolve-scoring final-state))
             "Successful double karbosh awards 15 points"))
 
       ;; Failed double karbosh
       (let [final-state (assoc base-state
-                          :scores {1 5, 2 3})]
+                               :scores {1 5, 2 3})]
         (is (= {1 5, 2 -15}
                (karbosh/resolve-scoring final-state))
             "Failed double karbosh loses 15 points, defenders get their tricks")))))
