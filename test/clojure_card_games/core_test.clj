@@ -1,7 +1,8 @@
 (ns clojure-card-games.core-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :as pp]
-            [clojure-card-games.core :refer :all]))
+            [clojure-card-games.core :refer :all]
+            [zprint.core :as zp]))
 
 (deftest test-init-deck
   (testing "Deck initialization"
@@ -120,9 +121,9 @@
           card (first (get-in game-state [:game :players player :hand]))
           updated-state (play-card game-state player card)]
       (println "Initial Game State: ")
-      (pp/pprint game-state)
+      (zp/zprint game-state)
       (println "Updated Game State: ")
-      (pp/pprint updated-state)
+      (zp/zprint updated-state)
       ;; Check card removal
       (is (not (some #{card} (get-in updated-state [:game :players player :hand])))
           "Card should be removed from player's hand")
@@ -173,67 +174,74 @@
 
 (deftest test-full-game
   (testing "Simulating a full game"
-    (let [init-state (init-game-state)]
-      (println "Init-state: " (pr-str init-state))
-      (println "Initial Setup:")
-      (println "Trump suit: " (pr-str (get-in init-state [:game :current-hand :trump])))
-      (println "Players in init-state: " (keys (get-in init-state [:game :current-hand :players])))
-      (println "Player Hands: "
-               (map #(get-in % [:hand]) (vals (get-in init-state [:game :current-hand :players]))))
+    (let [init-state      (init-game-state)
+          current-hand    (get-in init-state [:game :current-hand])
+          trump           (:trump current-hand)
+          players         (:players current-hand)
+          player-hands    (map :hand (vals players))
+          first-hand      (:hand (first (vals players)))
+          tricks          (:tricks current-hand)]
 
-      ;; Initial Setup
-      (is (= 6 (count (get-in init-state [:game :current-hand :players])))
-          "There should be 6 players in the game.")
-      (is (= 8 (count (get-in (first (vals (get-in init-state [:game :current-hand :players]))) [:hand])))
-          "Each player should start with 8 cards.")
-      (is (some #{:♥ :♠ :♦ :♣} (get-in init-state [:game :current-hand :trump]))
-          "Trump suit should be set.")
+      ;; Print Initial State
+      (println "Init-state:" (pr-str init-state))
+      (println "Trump suit:" (pr-str trump))
+      (println "Players in init-state:" (keys players))
+      (println "Player Hands:" (pr-str player-hands))
+
+      ;; Initial Setup Assertions
+      (is (= 6 (count players)) "There should be 6 players in the game.")
+      (is (= 8 (count first-hand)) "Each player should start with 8 cards.")
+      (is (#{:♥ :♠ :♦ :♣} trump) "Trump suit should be set.")
 
       ;; Simulate Bidding
       (println "Simulating bidding...")
-      (let [bidder :player1
-            bid-value 10
+      (let [bidder         :player1
+            bid-value      10
             state-after-bid (set-bid init-state bidder bid-value)]
-        (println "Bid recorded for: " bidder " with value: " bid-value)
-        (println "State after bid: " (pr-str state-after-bid))
+        (println "Bid recorded for:" bidder "with value:" bid-value)
+        (println "State after bid:" (pr-str state-after-bid))
         (is (= {:player bidder :value bid-value}
                (get-in state-after-bid [:game :bid]))
             "Bid should be recorded correctly."))
 
       ;; Play All Tricks
       (println "Simulating all tricks...")
-      (let [state-after-tricks (loop [state init-state
-                                     trick-count 0]
-                                 (if (>= trick-count 8)
-                                   (do
-                                     (println "Test failed: Exceeded maximum of 8 tricks")
-                                     (is false "Test failed: Exceeded maximum of 8 tricks")
-                                     state)
-                                   (let [remaining-players (filter #(not-empty (:hand %))
-                                                                 (vals (get-in state [:game :current-hand :players])))]
-                                     (if (empty? remaining-players)
-                                       state
-                                       (let [updated-state (generate-trick state)]
-                                         (println "Current Trick State: " (pr-str (get-in updated-state [:game :current-hand :current-trick])))
-                                         (recur updated-state (inc trick-count)))))))]
-        ;; Validate state after all tricks
-        (println "Completed Tricks: " (pr-str (get-in state-after-tricks [:game :current-hand :tricks])))
+      (let [state-after-tricks
+            (loop [state init-state, trick-count 0]
+              (if (>= trick-count 8)
+                (do
+                  (println "Test failed: Exceeded maximum of 8 tricks")
+                  (is false "Test failed: Exceeded maximum of 8 tricks")
+                  state)
+                (let [remaining-players
+                      (filter #(not-empty (:hand %))
+                              (vals (get-in state [:game :current-hand :players])))]
+                  (if (empty? remaining-players)
+                    state
+                    (let [updated-state (generate-trick state)]
+                      (println "Current Trick State:" (pr-str (get-in updated-state [:game :current-hand :current-trick])))
+                      (recur updated-state (inc trick-count)))))))]
+
+        ;; Validate post-trick state
+        (println "Completed Tricks:" (pr-str (get-in state-after-tricks [:game :current-hand :tricks])))
         (is (= 6 (count (get-in state-after-tricks [:game :current-hand :tricks])))
             "There should be one trick per player.")
-        (is (every? #(empty? (:hand %)) (vals (get-in state-after-tricks [:game :current-hand :players])))
+        (is (every? #(empty? (:hand %))
+                    (vals (get-in state-after-tricks [:game :current-hand :players])))
             "All players should have no cards left after playing tricks."))
 
       ;; Calculate Scores
       (println "Calculating scores...")
-      (let [state-after-scores (reduce score-trick init-state (get-in init-state [:game :current-hand :tricks]))]
-        (println "Updated Scores: " (pr-str (get-in state-after-scores [:game :scores])))
+      (let [state-after-scores
+            (reduce score-trick init-state tricks)]
+        (println "Updated Scores:" (pr-str (get-in state-after-scores [:game :scores])))
         (is (= 0 (reduce + (vals (get-in state-after-scores [:game :scores]))))
             "Scores should be updated correctly after all tricks."))
 
       ;; Check Game Over
       (println "Checking game over state...")
       (let [final-state (game-over? init-state)]
-        (println "Game Over State: " (pr-str final-state))
+        (println "Game Over State:" (pr-str final-state))
         (if (:over final-state)
           (is (some? (:winner final-state)) "A team should win when the game is over.")
           (is (nil? (:winner final-state)) "No winner if the game is not over."))))))

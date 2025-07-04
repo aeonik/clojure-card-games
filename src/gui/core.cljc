@@ -5,23 +5,39 @@
             [clojure-card-games.basic :as logic]))
 
 ;; === Config ===
-(def card-width 60)
-(def card-height 90)
-(def card-margin 10)
+(def font-size 180)
 (def cards-per-row 8)
 
+(defn calculate-card-dimensions [font-size]
+  (let [test-label (ui/label "A♠" (ui/font nil font-size))
+        [label-width label-height] (ui/bounds test-label)]
+    [(+ label-width 2)  ; Minimal width padding
+     (+ label-height 2)]))  ; Minimal height padding
+
+(defn center-text
+  "Centres an element that has a non-zero origin (e.g. text) inside a box
+   [box-w box-h]."
+  [elem [box-w box-h]]
+  (let [[w h]   (ui/bounds  elem)    ;; descent box
+        [ox oy] (ui/origin  elem)]   ;; ascent is -oy
+    (ui/translate
+     (- (/ box-w w 2) ox)           ;; (card-w - w)/2 - ox
+     (- (/ box-h h 2) oy)           ;; (card-h - h)/2 - oy
+     elem)))
+
+(def card-dimensions (calculate-card-dimensions font-size))
+(def card-width (first card-dimensions))
+(def card-height (second card-dimensions))
+(def card-margin 10)
+
 (defn render-card [[rank suit]]
-  (let [label-color (case suit
-                      (:♥ :♦) [1 0 0]  ; red hearts and diamonds
-                      (:♠ :♣) [0 0 0]  ; black spades and clubs
-                      [0 0 0])         ; default black
-        card-background (ui/with-style :membrane.ui/style-stroke
-                          (ui/rectangle card-width card-height))
-        label (ui/with-color label-color
-                (ui/center
-                 (ui/label (str rank suit))
-                 [card-width card-height]))]
-    [card-background label]))
+  (let [fg    (case suit (:♥ :♦) [1 0 0] [0 0 0])
+        glyph (ui/with-color fg
+                (ui/label (logic/unicode-card suit rank)
+                          (ui/font nil font-size)))]
+    [(ui/with-style :membrane.ui/style-stroke
+       (ui/rectangle card-width card-height))
+     (center-text glyph [card-width card-height])]))
 
 (defn layout-grid
   "Creates a grid layout function for arranging items in rows and columns"
