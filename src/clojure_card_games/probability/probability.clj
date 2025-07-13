@@ -1,4 +1,4 @@
-(ns clojure-card-games.probability
+(ns clojure-card-games.probability.probability
   "Monte‑Carlo + analytic helpers for Karbosh probability questions.
 
   *Pure, side‑effect‑free* — nothing here touches the REPL, I/O or your
