@@ -116,15 +116,19 @@
 (defn action! [event]
   (send! {:op :action :event event}))
 
-(defn room-param []
-  (let [params (js/URLSearchParams. (.-search js/location))]
-    (or (.get params "room")
-        (.getItem js/localStorage "karbosh-room"))))
-
-(defn player-param []
+(defn query-room-param []
   (let [params (js/URLSearchParams. (.-search js/location))
-        p (or (.get params "player")
-              (.getItem js/localStorage "karbosh-player"))]
+        room (.get params "room")]
+    (when-not (str/blank? room)
+      (str/trim room))))
+
+(defn stored-room-id []
+  (let [room (.getItem js/localStorage "karbosh-room")]
+    (when-not (str/blank? room)
+      (str/trim room))))
+
+(defn stored-player []
+  (let [p (.getItem js/localStorage "karbosh-player")]
     (when-not (str/blank? p) (keyword p))))
 
 (defn player-name []
@@ -132,10 +136,13 @@
         value (str/trim (.-value input))]
     (if (str/blank? value) "Player" value)))
 
-(defn set-share-link! [room-id player]
+(defn set-share-link! [room-id]
   (let [url (js/URL. (.-href js/location))]
-    (set! (.-search url) (str "?room=" room-id "&player=" (kw-name player)))
+    (set! (.-search url) (str "?room=" room-id))
     (text! (el "share-link") (.-href url))))
+
+(defn set-join-prompt! [text]
+  (text! (el "join-prompt") (or text "")))
 
 (defn render-status! []
   (let [{:keys [connected? room-id player error]} @app]
@@ -410,11 +417,11 @@
          (or (next-hand-controls view) ""))))
 
 (defn render-game! []
-  (let [{:keys [view room-id player play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
+  (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
     (if-not view
       (html! (el "game-root") "<section class=\"panel empty-panel\"><h2>Open a table</h2></section>")
       (do
-        (set-share-link! room-id player)
+        (set-share-link! room-id)
         (html! (el "game-root")
                (str
                 "<section class=\"table-grid\">"
@@ -587,9 +594,11 @@
           #(handle-server-message! (.-data %)))))
 
 (defn create-room! []
+  (set-join-prompt! "")
   (connect! #(send! {:op :create-room :name (player-name)})))
 
 (defn join-room! [room-id player]
+  (set-join-prompt! "")
   (connect! #(send! {:op :join-room
                      :room-id room-id
                      :player player
@@ -646,6 +655,33 @@
                            (.hasAttribute target "data-new-hand")
                            (action! {:type :new-hand}))))))
 
+(defn focus-join-flow! []
+  (let [name-input (el "player-name")
+        setup (el "setup")]
+    (when setup
+      (.scrollIntoView setup #js {:behavior "smooth" :block "start"}))
+    (when name-input
+      (.focus name-input)
+      (.select name-input))))
+
+(defn prepare-shared-room! [room]
+  (set! (.-value (el "join-room-id")) room)
+  (swap! app assoc
+         :room-id room
+         :player nil
+         :view nil
+         :error nil)
+  (set-join-prompt! (str "Enter your name to join room " room "."))
+  (render-status!)
+  (render-game!)
+  (focus-join-flow!))
+
+(defn restore-saved-room! [room]
+  (set! (.-value (el "join-room-id")) room)
+  (if-let [player (stored-player)]
+    (join-room! room player)
+    (focus-join-flow!)))
+
 (defn init! []
   (let [stored-name (.getItem js/localStorage "karbosh-name")]
     (when stored-name
@@ -653,8 +689,9 @@
   (bind-controls!)
   (render-status!)
   (render-game!)
-  (when-let [room (room-param)]
-    (set! (.-value (el "join-room-id")) room)
-    (join-room! room (player-param))))
+  (if-let [room (query-room-param)]
+    (prepare-shared-room! room)
+    (when-let [room (stored-room-id)]
+      (restore-saved-room! room))))
 
 (set! (.-onload js/window) init!)
