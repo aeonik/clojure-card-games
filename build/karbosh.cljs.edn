@@ -1,6 +1,6 @@
 {:main clojure-card-games.karbosh.client
  :output-to "karbosh/assets/js/main.js"
- :output-dir "karbosh/assets/js/out"
+ :output-dir "target/karbosh/assets/js/out"
  :asset-path "assets/js/out"
  :optimizations :advanced
  :infer-externs true}

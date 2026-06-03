@@ -43,8 +43,8 @@ From this repo, after committing and building the client:
 ```sh
 clojure -M:karbosh-cljs
 clojure -M:test -d test/clojure_card_games/karbosh
-rsync -avz deps.edn src karbosh build test dc3systems.com:~/apps/clojure-card-games/
-rsync -avz karbosh/ dc3systems.com:/var/www/dc3systems.com/public_html/karbosh/
+rsync -avz --exclude 'assets/js/out/' deps.edn src karbosh build test dc3systems.com:~/apps/clojure-card-games/
+rsync -avz --exclude 'assets/js/out/' karbosh/ dc3systems.com:/var/www/dc3systems.com/public_html/karbosh/
 ```
 
 Then ask the running JVM to reload the server-side Karbosh namespaces:
