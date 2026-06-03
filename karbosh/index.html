@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Karbosh Table | DC3 Systems</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260603-karbosh-admin-panel">
+  </head>
+  <body>
+    <aside class="sidebar" aria-label="Page navigation">
+      <div class="sidebar-inner">
+        <a class="brand" href="../index.html">DC3 Systems</a>
+        <nav>
+          <ul>
+            <li><a href="#table">Table</a></li>
+            <li><a href="#setup">Setup</a></li>
+          </ul>
+        </nav>
+      </div>
+    </aside>
+
+    <main class="page-shell">
+      <section id="table" class="section section-primary">
+        <div class="section-inner">
+          <div class="top-strip">
+            <div>
+              <p class="eyebrow">Family game</p>
+              <h1>Karbosh</h1>
+            </div>
+            <div class="connection-pill">
+              <span id="connection-status">Disconnected</span>
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div><span>Room</span><strong id="room-code">--</strong></div>
+            <div><span>Seat</span><strong id="seat-code">--</strong></div>
+            <div class="share-cell"><span>Share</span><strong id="share-link"></strong></div>
+            <button id="copy-link" type="button">Copy Link</button>
+            <button id="fill-bots" type="button">Fill Bots</button>
+          </div>
+
+          <div id="game-root"></div>
+        </div>
+      </section>
+
+      <section id="setup" class="section section-secondary">
+        <div class="section-inner setup-grid">
+          <div class="panel setup-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Table access</p>
+              <h2>Join or Create</h2>
+            </div>
+            <label>
+              <span>Name</span>
+              <input id="player-name" type="text" maxlength="24" value="Player">
+            </label>
+            <div class="setup-actions">
+              <button id="create-room" type="button">Create Table</button>
+            </div>
+          </div>
+
+          <div class="panel setup-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Existing table</p>
+              <h2>Room Code</h2>
+            </div>
+            <label>
+              <span>Code</span>
+              <input id="join-room-id" type="text" maxlength="8">
+            </label>
+            <div class="setup-actions">
+              <button id="join-room" type="button">Join Table</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="assets/js/main.js?v=20260603-karbosh-admin-panel"></script>
+  </body>
+</html>

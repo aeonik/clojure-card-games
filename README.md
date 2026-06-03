@@ -14,6 +14,22 @@ FIXME: Usage is not available yet.
 
     $ java -jar clojure-card-games-0.1.0-standalone.jar [args]
 
+## Karbosh Web App
+
+The multiplayer web app copied from `dc3systems-new` lives under
+`clojure-card-games.karbosh`.
+
+```sh
+clojure -M:karbosh-server
+```
+
+The static client is served from `karbosh/` by default. Rebuild the ClojureScript
+bundle with:
+
+```sh
+clojure -M:karbosh-cljs
+```
+
 ## Options
 
 FIXME: Not available yet.

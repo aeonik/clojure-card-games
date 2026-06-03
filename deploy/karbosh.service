@@ -1,0 +1,36 @@
+[Unit]
+Description=DC3 Systems Karbosh multiplayer server
+After=network.target
+
+[Service]
+WorkingDirectory=%h/Projects/clojure/clojure-card-games
+Environment=KARBOSH_PORT=8090
+Environment=KARBOSH_BIND=127.0.0.1
+EnvironmentFile=-%h/.config/karbosh/karbosh.env
+ExecStart=/usr/bin/clojure -M:karbosh-server
+Restart=always
+RestartSec=5
+UMask=0077
+LimitNOFILE=4096
+TasksMax=256
+MemoryMax=768M
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target
