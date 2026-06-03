@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.server-test
   (:require [clojure.core.async :as async]
+            [clojure.edn :as edn]
             [clojure.test :refer [deftest is]]
             [clojure-card-games.karbosh.admin :as admin]
             [clojure-card-games.karbosh.room :as room]
@@ -40,6 +41,52 @@
               {:headers {"authorization" "Basic YWRtaW46d3Jvbmc="}})))
     (is (not (server/admin-authorized?
               {:headers {"authorization" "Basic not-base64"}})))))
+
+(deftest admin-reload-requires-authentication-test
+  (with-redefs [server/admin-password (constantly "secret")]
+    (let [response (server/handler {:request-method :post
+                                    :uri "/karbosh/admin/reload"
+                                    :headers {"host" "dc3systems.com"}})]
+      (is (= 401 (:status response)))
+      (is (= "Authentication required" (:body response))))))
+
+(deftest admin-reload-rejects-cross-origin-post-test
+  (with-redefs [server/admin-user (constantly "admin")
+                server/admin-password (constantly "secret")
+                server/allowed-origins (constantly #{"https://dc3systems.com"})]
+    (let [response (server/handler
+                    {:request-method :post
+                     :uri "/karbosh/admin/reload"
+                     :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                               "host" "dc3systems.com"
+                               "origin" "https://evil.example"}})]
+      (is (= 403 (:status response)))
+      (is (= "Forbidden" (:body response))))))
+
+(deftest admin-reload-reloads-without-resetting-rooms-test
+  (let [old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {"ABC123" {:created-at 1 :game {} :connections {}}})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/reload-karbosh-namespaces!
+                    (fn []
+                      {:ok true
+                       :reloaded '[clojure-card-games.karbosh.server]
+                       :rooms (count @server/rooms)
+                       :open-websockets (count @server/open-websockets)})]
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/reload"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})
+              body (edn/read-string (:body response))]
+          (is (= 200 (:status response)))
+          (is (:ok body))
+          (is (= 1 (:rooms body)))
+          (is (contains? @server/rooms "ABC123"))))
+      (finally
+        (reset! server/rooms old-rooms)))))
 
 (deftest origin-allowlist-test
   (with-redefs [server/allowed-origins (constantly #{"https://dc3systems.com"})]

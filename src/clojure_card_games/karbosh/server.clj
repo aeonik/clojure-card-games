@@ -20,6 +20,15 @@
 (defonce metrics
   (atom {:started-at (System/currentTimeMillis)}))
 
+(def reloadable-namespaces
+  '[clojure-card-games.karbosh.shared.cards
+    clojure-card-games.karbosh.shared.rules
+    clojure-card-games.karbosh.shared.game
+    clojure-card-games.karbosh.room
+    clojure-card-games.karbosh.bot
+    clojure-card-games.karbosh.admin
+    clojure-card-games.karbosh.server])
+
 (def bot-action-delay-ms 1300)
 (def trick-complete-delay-ms 4850)
 
@@ -184,6 +193,42 @@
                                        :max-websocket-connections (max-websocket-connections)
                                        :max-message-bytes (max-message-bytes)}
                               :started-at (:started-at @metrics)}))))
+
+(defn reload-karbosh-namespaces! []
+  (let [started (System/nanoTime)]
+    (doseq [namespace reloadable-namespaces]
+      (require namespace :reload))
+    (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
+          result {:ok true
+                  :reloaded reloadable-namespaces
+                  :elapsed-ms elapsed-ms
+                  :rooms (count @rooms)
+                  :open-websockets (count @open-websockets)}]
+      (swap! metrics assoc
+             :last-reload-at (System/currentTimeMillis)
+             :last-reload-ms elapsed-ms)
+      (metric! :reloads)
+      result)))
+
+(defn admin-reload-response [request]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    (not (origin-allowed? request))
+    (response 403 "Forbidden")
+
+    :else
+    (try
+      (edn-response (reload-karbosh-namespaces!))
+      (catch Throwable t
+        (record-error!)
+        (response 500
+                  (str "Reload failed: " (.getMessage t))
+                  "text/plain; charset=utf-8")))))
 
 (def content-types
   {"css" "text/css; charset=utf-8"
@@ -470,6 +515,9 @@
   (or (= uri "/karbosh/admin")
       (= uri "/karbosh/admin/")))
 
+(defn admin-reload-path? [uri]
+  (= uri "/karbosh/admin/reload"))
+
 (defn handler [{:keys [uri request-method] :as request}]
   (cond
     (and (= request-method :get) (= uri "/karbosh/ws"))
@@ -479,6 +527,9 @@
 
     (and (= request-method :get) (admin-path? uri))
     (admin-dashboard-response request)
+
+    (and (= request-method :post) (admin-reload-path? uri))
+    (admin-reload-response request)
 
     (and (= request-method :get) (= uri "/karbosh/api/health"))
     (edn-response {:ok true :rooms (count @rooms)})
