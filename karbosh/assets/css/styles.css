@@ -953,6 +953,21 @@ h2 {
   justify-content: flex-end;
 }
 
+.leave-room-control {
+  justify-content: flex-end;
+}
+
+.leave-room-button {
+  border-color: rgba(255, 154, 168, 0.6);
+  background: rgba(255, 154, 168, 0.12);
+}
+
+.leave-room-button:hover,
+.leave-room-button:focus-visible {
+  border-color: rgba(255, 154, 168, 0.95);
+  background: rgba(255, 154, 168, 0.2);
+}
+
 .hand-panel {
   border-top: 1px solid var(--line);
   padding-top: 1rem;
@@ -1408,32 +1423,61 @@ input {
   color: var(--danger);
 }
 
-.join-modal-players {
+.join-teams {
   display: grid;
-  gap: 0.45rem;
-  margin: 0 0 0.65rem;
-  padding: 0;
-  list-style: none;
+  gap: 0.85rem;
+  margin-bottom: 0.65rem;
 }
 
-.join-modal-players li {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 2.6rem;
+.join-team h3 {
+  margin-bottom: 0.45rem;
+}
+
+.join-seat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.join-seat-option {
+  display: grid;
+  gap: 0.16rem;
+  min-height: 4.25rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.045);
-  padding: 0.55rem 0.7rem;
+  letter-spacing: 0;
+  padding: 0.55rem 0.6rem;
+  text-align: left;
+  text-transform: none;
 }
 
-.join-modal-players span {
+.join-seat-option span,
+.join-seat-option em {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  font-style: normal;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.join-seat-option strong {
+  overflow: hidden;
+  color: var(--white);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-seat-option.is-joinable {
+  border-color: rgba(111, 208, 199, 0.34);
+}
+
+.join-seat-option.is-selected {
+  border-color: rgba(111, 208, 199, 0.95);
+  background: rgba(111, 208, 199, 0.18);
+  box-shadow: 0 0 0 2px rgba(111, 208, 199, 0.18);
 }
 
 .join-modal-actions {
@@ -1473,6 +1517,10 @@ input {
   .debug-meta,
   .debug-hands,
   .debug-history-button {
+    grid-template-columns: 1fr;
+  }
+
+  .join-seat-grid {
     grid-template-columns: 1fr;
   }
 

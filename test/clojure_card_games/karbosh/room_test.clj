@@ -23,6 +23,26 @@
     (is (= "Guest" (get-in joined [:seats :player2 :name])))
     (is (not (room/bot-player? joined :player2)))))
 
+(deftest human-can-choose-open-seat
+  (let [joined (room/join-room (room/new-room "ABC123" 9)
+                               {:conn-id :guest
+                                :out nil
+                                :player :player4
+                                :name "Guest"})]
+    (is (= :player4 (room/connection-player joined :guest)))
+    (is (= "Guest" (get-in joined [:seats :player4 :name])))))
+
+(deftest connection-lifecycle-tracks-empty-room-time
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (assoc :empty-since 10)
+                  (room/join-room {:conn-id :human
+                                   :out nil
+                                   :name "Human"}))
+        empty (room/remove-connection state :human 1234)]
+    (is (not (contains? state :empty-since)))
+    (is (= 1234 (:empty-since empty)))
+    (is (false? (get-in empty [:seats :player1 :connected?])))))
+
 (deftest advance-bots-stops-on-human-turn
   (let [state (-> (room/new-room "ABC123" 9)
                   (room/seat-player :player2 "Human")

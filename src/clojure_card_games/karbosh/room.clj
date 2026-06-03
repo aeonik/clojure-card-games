@@ -51,20 +51,30 @@
 (defn add-connection [room conn-id player out]
   (-> room
       (assoc-in [:connections conn-id] {:player player :out out})
-      (assoc-in [:seats player :connected?] true)))
+      (assoc-in [:seats player :connected?] true)
+      (dissoc :empty-since)))
 
-(defn remove-connection [room conn-id]
-  (let [player (get-in room [:connections conn-id :player])
-        room (update room :connections dissoc conn-id)
-        bot? (bot-player? room player)
-        still-connected? (some #(= player (:player %)) (vals (:connections room)))]
-    (cond-> room
-      player (assoc-in [:seats player :connected?] (boolean (or bot? still-connected?))))))
+(defn mark-empty [room now]
+  (if (seq (:connections room))
+    (dissoc room :empty-since)
+    (assoc room :empty-since (or (:empty-since room) now))))
+
+(defn remove-connection
+  ([room conn-id]
+   (remove-connection room conn-id (System/currentTimeMillis)))
+  ([room conn-id now]
+   (let [player (get-in room [:connections conn-id :player])
+         room (update room :connections dissoc conn-id)
+         bot? (bot-player? room player)
+         still-connected? (some #(= player (:player %)) (vals (:connections room)))]
+     (-> (cond-> room
+           player (assoc-in [:seats player :connected?] (boolean (or bot? still-connected?))))
+         (mark-empty now)))))
 
 (defn player-for-join [room requested-player]
   (let [seats (:seats room)]
     (cond
-      (and requested-player (contains? seats requested-player))
+      (and requested-player (some #{requested-player} game/players))
       requested-player
 
       requested-player

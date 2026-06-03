@@ -17,6 +17,7 @@
 (defonce server (atom nil))
 (defonce bot-turns (atom {}))
 (defonce open-websockets (atom #{}))
+(defonce room-sweeper (atom nil))
 (defonce metrics
   (atom {:started-at (System/currentTimeMillis)}))
 
@@ -50,6 +51,12 @@
 (defn max-websocket-connections []
   (Long/parseLong (or (System/getenv "KARBOSH_MAX_WEBSOCKET_CONNECTIONS") "256")))
 
+(defn idle-room-ms []
+  (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_MS") "14400000")))
+
+(defn idle-room-sweep-ms []
+  (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_SWEEP_MS") "60000")))
+
 (defn static-root []
   (io/file (or (System/getenv "KARBOSH_STATIC_ROOT") "karbosh")))
 
@@ -79,6 +86,13 @@
 
 (defn html-response [body]
   (response 200 body "text/html; charset=utf-8"))
+
+(defn redirect-response [location]
+  {:status 303
+   :headers (merge security-headers
+                   {"Location" location
+                    "Content-Type" "text/plain; charset=utf-8"})
+   :body "See other"})
 
 (defn metric! [k]
   (swap! metrics update k (fnil inc 0)))
@@ -176,6 +190,8 @@
 (defn normalize-room-id [room-id]
   (some-> room-id str/upper-case str/trim not-empty))
 
+(declare start-room-sweeper!)
+
 (defn admin-dashboard-response [request]
   (cond
     (not (admin-password))
@@ -194,13 +210,15 @@
                               :limits {:max-rooms (max-rooms)
                                        :max-room-connections (max-room-connections)
                                        :max-websocket-connections (max-websocket-connections)
-                                       :max-message-bytes (max-message-bytes)}
+                                       :max-message-bytes (max-message-bytes)
+                                       :idle-room-ms (idle-room-ms)}
                               :started-at (:started-at @metrics)}))))
 
 (defn reload-karbosh-namespaces! []
   (let [started (System/nanoTime)]
     (doseq [namespace reloadable-namespaces]
       (require namespace :reload))
+    (start-room-sweeper!)
     (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
           result {:ok true
                   :reloaded reloadable-namespaces
@@ -299,6 +317,83 @@
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
   (async/put! out message))
+
+(defn notify-room! [room message]
+  (doseq [{:keys [out]} (vals (:connections room))]
+    (send-edn! out message)))
+
+(defn delete-room! [room-id reason]
+  (let [room-id (normalize-room-id room-id)
+        room (get @rooms room-id)]
+    (when room
+      (notify-room! room {:op :room-closed
+                          :room-id room-id
+                          :reason reason
+                          :message "Room closed"})
+      (swap! rooms dissoc room-id)
+      (swap! bot-turns dissoc room-id)
+      (metric! (case reason
+                 :idle :idle-room-deletes
+                 :admin :admin-room-deletes
+                 :room-deletes))
+      room)))
+
+(defn room-empty? [room]
+  (empty? (:connections room)))
+
+(defn room-empty-since [room]
+  (or (:empty-since room) (:created-at room)))
+
+(defn idle-room? [now room]
+  (and (room-empty? room)
+       (>= (- now (room-empty-since room)) (idle-room-ms))))
+
+(defn idle-room-ids [rooms now]
+  (keep (fn [[room-id room]]
+          (when (and (map? room) (idle-room? now room))
+            room-id))
+        rooms))
+
+(defn close-idle-rooms! []
+  (let [now (System/currentTimeMillis)
+        room-ids (vec (idle-room-ids @rooms now))]
+    (doseq [room-id room-ids]
+      (delete-room! room-id :idle))
+    room-ids))
+
+(defn start-room-sweeper! []
+  (when-not @room-sweeper
+    (let [stop (async/chan)]
+      (reset! room-sweeper
+              {:stop stop
+               :done (async/thread
+                       (loop []
+                         (let [[_ ch] (async/alts!! [stop (async/timeout (idle-room-sweep-ms))])]
+                           (when-not (= ch stop)
+                             (close-idle-rooms!)
+                             (recur)))))}))))
+
+(defn stop-room-sweeper! []
+  (when-let [{:keys [stop]} @room-sweeper]
+    (async/close! stop)
+    (reset! room-sweeper nil)))
+
+(defn admin-delete-room-response [request]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    (not (origin-allowed? request))
+    (response 403 "Forbidden")
+
+    :else
+    (let [room-id (selected-admin-room-id request)]
+      (when room-id
+        (delete-room! room-id :admin))
+      (redirect-response "/karbosh/admin"))))
 
 (defn broadcast-room! [room]
   (let [views (vec (room/connection-views room))]
@@ -417,23 +512,28 @@
         player (when player (keyword player))]
     (cond
       (not (contains? @rooms room-id))
-      (send-edn! out {:op :error :message "Room not found"})
+      (do
+        (send-edn! out {:op :error :message "Room not found"})
+        false)
 
       (room-connection-limit-reached? (get @rooms room-id) conn-id)
       (do
         (record-error!)
-        (send-edn! out {:op :error :message "Room connection limit reached"}))
+        (send-edn! out {:op :error :message "Room connection limit reached"})
+        false)
 
       :else
       (try
-        (update-room! room-id room/join-room
-                      {:conn-id conn-id
-                       :out out
-                       :name name
-                       :player player})
+        (boolean
+         (update-room! room-id room/join-room
+                       {:conn-id conn-id
+                        :out out
+                        :name name
+                        :player player}))
       (catch Exception e
         (record-error!)
-        (send-edn! out {:op :error :message (.getMessage e)}))))))
+        (send-edn! out {:op :error :message (.getMessage e)})
+        false)))))
 
 (defn fill-bots! [room-id out]
   (metric! :fill-bots)
@@ -471,6 +571,13 @@
   (when room-id
     (update-room! room-id room/remove-connection conn-id)))
 
+(defn leave-room! [conn-id out room-id]
+  (when room-id
+    (disconnect! conn-id room-id))
+  (send-edn! out {:op :left-room
+                  :room-id room-id
+                  :message "Left room"}))
+
 (defn handle-client-message! [conn-id out session message]
   (case (:op message)
     :create-room
@@ -478,9 +585,13 @@
       (reset! session {:room-id room-id}))
 
     :join-room
-    (do
-      (join-room! conn-id out message)
+    (when (join-room! conn-id out message)
       (reset! session {:room-id (some-> (:room-id message) str/upper-case str/trim)}))
+
+    :leave-room
+    (do
+      (leave-room! conn-id out (:room-id @session))
+      (reset! session nil))
 
     :action
     (handle-action! conn-id (:room-id @session) out message)
@@ -551,6 +662,9 @@
 (defn admin-reload-path? [uri]
   (= uri "/karbosh/admin/reload"))
 
+(defn admin-delete-room-path? [uri]
+  (= uri "/karbosh/admin/delete-room"))
+
 (defn handler [{:keys [uri request-method] :as request}]
   (let [room-preview-id (room-preview-id uri)]
     (cond
@@ -564,6 +678,9 @@
 
       (and (= request-method :post) (admin-reload-path? uri))
       (admin-reload-response request)
+
+      (and (= request-method :post) (admin-delete-room-path? uri))
+      (admin-delete-room-response request)
 
       (and (= request-method :get) (= uri "/karbosh/api/health"))
       (edn-response {:ok true :rooms (count @rooms)})
@@ -580,10 +697,12 @@
 (defn start! []
   (let [port (parse-port)
         ip (bind-address)]
+    (start-room-sweeper!)
     (reset! server (http/run-server #'handler {:ip ip :port port}))
     (println (str "Karbosh server listening on " ip ":" port))))
 
 (defn stop! []
+  (stop-room-sweeper!)
   (when-let [stop @server]
     (stop)
     (reset! server nil)))

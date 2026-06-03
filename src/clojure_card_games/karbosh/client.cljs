@@ -137,10 +137,25 @@
         value (str/trim (.-value input))]
     (if (str/blank? value) "Player" value)))
 
-(defn set-share-link! [room-id]
+(defn room-page-url [room-id]
   (let [url (js/URL. (.-href js/location))]
-    (set! (.-search url) (str "?room=" room-id))
-    (text! (el "share-link") (.-href url))))
+    (.set (.-searchParams url) "room" room-id)
+    (.-href url)))
+
+(defn set-share-link! [room-id]
+  (text! (el "share-link") (room-page-url room-id)))
+
+(defn set-room-url! [room-id]
+  (.replaceState js/history nil "" (room-page-url room-id)))
+
+(defn clear-room-url! []
+  (let [url (js/URL. (.-href js/location))]
+    (.delete (.-searchParams url) "room")
+    (.replaceState js/history nil "" (.-href url))))
+
+(defn clear-session! []
+  (.removeItem js/localStorage "karbosh-room")
+  (.removeItem js/localStorage "karbosh-player"))
 
 (defn render-status! []
   (let [{:keys [connected? room-id player error]} @app]
@@ -157,41 +172,65 @@
 
 (declare close-join-modal!
          join-from-modal!
+         select-join-player!
+         prepare-shared-room!
          join-room!)
-
-(defn occupied-preview-players [preview]
-  (filterv (complement :open?) (:players preview)))
 
 (defn joinable-seat-count [preview]
   (count (filter :joinable? (:players preview))))
 
-(defn join-modal-full? [preview]
-  (and preview (zero? (joinable-seat-count preview))))
+(defn default-join-player [preview]
+  (or (some (fn [{:keys [id joinable?]}]
+              (when joinable? id))
+            (:players preview))
+      (some-> preview :players first :id)))
 
-(defn join-modal-disabled? [loading? preview error]
-  (or loading? error (join-modal-full? preview)))
+(defn join-modal-disabled? [loading? selected-player error]
+  (or loading? error (nil? selected-player)))
 
-(defn preview-player-html [{:keys [name bot? connected?]}]
-  (str "<li><strong>" (escape-html (or name "Open")) "</strong>"
-       "<span>" (cond
-                  bot? "Bot"
-                  connected? "Online"
-                  :else "Offline")
-       "</span></li>"))
+(defn preview-seat-status [{:keys [open? bot? connected?]}]
+  (cond
+    open? "Open"
+    bot? "Bot"
+    connected? "Online"
+    :else "Offline"))
+
+(defn preview-seat-name [{:keys [id name open?]}]
+  (if open?
+    "Open seat"
+    (or name (str "Seat " (last (kw-name id))))))
+
+(defn preview-seat-html [selected-player {:keys [id team joinable?] :as player}]
+  (let [selected? (= selected-player id)]
+    (str "<button class=\"join-seat-option"
+         (when selected? " is-selected")
+         (when joinable? " is-joinable")
+         "\" type=\"button\" data-join-player=\"" (escape-html (kw-name id)) "\">"
+         "<span>Seat " (last (kw-name id)) "</span>"
+         "<strong>" (escape-html (preview-seat-name player)) "</strong>"
+         "<em>" (escape-html (str (team-label team) " / " (preview-seat-status player))) "</em>"
+         "</button>")))
+
+(defn team-preview-html [selected-player team players]
+  (str "<section class=\"join-team\"><h3>" (escape-html (team-label team)) "</h3>"
+       "<div class=\"join-seat-grid\">"
+       (apply str (map #(preview-seat-html selected-player %) players))
+       "</div></section>"))
 
 (defn preview-players-html [preview]
-  (let [players (occupied-preview-players preview)
+  (let [selected-player (:player (:join-modal @app))
+        team-groups (group-by :team (:players preview))
         available-count (joinable-seat-count preview)]
-    (str "<ul class=\"join-modal-players\">"
-         (if (seq players)
-           (apply str (map preview-player-html players))
-           "<li><strong>No players yet</strong><span>Open table</span></li>")
-         "</ul>"
+    (str "<div class=\"join-teams\">"
+         (apply str
+                (for [team [1 2]]
+                  (team-preview-html selected-player team (get team-groups team))))
+         "</div>"
          "<p class=\"join-modal-count\">" available-count " available "
          (if (= 1 available-count) "seat" "seats") "</p>")))
 
 (defn render-join-modal! []
-  (let [{:keys [room-id loading? preview error]} (:join-modal @app)]
+  (let [{:keys [room-id loading? preview player error]} (:join-modal @app)]
     (html! (el "modal-root")
            (if room-id
              (str "<div class=\"modal-backdrop\">"
@@ -214,7 +253,7 @@
                   "<div class=\"join-modal-actions\">"
                   "<button id=\"join-modal-cancel\" type=\"button\">Cancel</button>"
                   "<button id=\"join-modal-submit\" type=\"button\""
-                  (when (join-modal-disabled? loading? preview error) " disabled")
+                  (when (join-modal-disabled? loading? player error) " disabled")
                   ">Join Table</button></div>"
                   "</section></div>")
              "")))
@@ -223,6 +262,13 @@
       (.addEventListener cancel "click" close-join-modal!))
     (when-let [submit (el "join-modal-submit")]
       (.addEventListener submit "click" join-from-modal!))
+    (let [buttons (.querySelectorAll (el "modal-root") "[data-join-player]")]
+      (dotimes [n (.-length buttons)]
+        (let [button (.item buttons n)]
+          (.addEventListener button "click"
+                             (fn []
+                               (select-join-player!
+                                (keyword (.getAttribute button "data-join-player"))))))))
     (when-let [input (el "join-modal-name")]
       (.focus input)
       (.select input)
@@ -231,23 +277,27 @@
                            (when (= "Enter" (.-key event))
                              (join-from-modal!)))))))
 
+(defn select-join-player! [player]
+  (swap! app assoc-in [:join-modal :player] player)
+  (render-join-modal!))
+
 (defn close-join-modal! []
   (swap! app assoc :join-modal nil)
   (render-join-modal!))
 
 (defn join-from-modal! []
-  (let [{:keys [room-id loading? preview error]} (:join-modal @app)
+  (let [{:keys [room-id loading? player error]} (:join-modal @app)
         input (el "join-modal-name")
         name (if input
                (str/trim (.-value input))
                "")]
     (when (and room-id
-               (not (join-modal-disabled? loading? preview error)))
+               (not (join-modal-disabled? loading? player error)))
       (when-not (str/blank? name)
         (set! (.-value (el "player-name")) name))
       (set! (.-value (el "join-room-id")) room-id)
       (close-join-modal!)
-      (join-room! room-id nil))))
+      (join-room! room-id player))))
 
 (defn seat-state-label [{:keys [bot? connected?]}]
   (cond
@@ -504,12 +554,16 @@
 
     nil))
 
+(defn leave-room-controls []
+  "<div class=\"control-group leave-room-control\"><button class=\"leave-room-button\" data-leave-room=\"true\">Leave Room</button></div>")
+
 (defn render-controls [view paused? pending-auto?]
   (let [active? (= (:you view) (:current-player view))]
     (str (or (bid-controls view active?) "")
          (or (trump-controls view active?) "")
          (or (auto-play-controls view active? paused? pending-auto?) "")
-         (or (next-hand-controls view) ""))))
+         (or (next-hand-controls view) "")
+         (leave-room-controls))))
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
@@ -618,6 +672,29 @@
     (swap! app assoc :bid-popup nil)
     (render-game!)))
 
+(defn reset-room-state! [message]
+  (when-let [socket (:socket @app)]
+    (.close socket))
+  (clear-session!)
+  (clear-room-url!)
+  (swap! app assoc
+         :socket nil
+         :connected? false
+         :room-id nil
+         :player nil
+         :view nil
+         :play-animation nil
+         :trick-popup nil
+         :queued-trick-popup nil
+         :bid-popup nil
+         :join-modal nil
+         :pending-card nil
+         :pending-auto? false
+         :error message)
+  (render-status!)
+  (render-game!)
+  (render-join-modal!))
+
 (defn handle-server-message! [raw]
   (let [message (reader/read-string raw)]
     (case (:op message)
@@ -646,6 +723,7 @@
                :pending-card nil
                :pending-auto? false
                :error nil)
+        (set-room-url! (:room-id message))
         (save-session! (:room-id message) (:player message) (player-name))
         (render-status!)
         (render-game!)
@@ -665,6 +743,12 @@
         (render-status!))
 
       :pong nil
+      :left-room
+      (reset-room-state! nil)
+
+      :room-closed
+      (reset-room-state! "Room closed")
+
       nil)))
 
 (defn connect! [after-open]
@@ -705,12 +789,16 @@
   (render-game!)
   (send! {:op :auto-play}))
 
+(defn leave-room! []
+  (send! {:op :leave-room}))
+
 (defn bind-controls! []
   (.addEventListener (el "create-room") "click" create-room!)
   (.addEventListener (el "join-room") "click"
                      (fn []
                        (let [room-id (str/trim (.-value (el "join-room-id")))]
-                         (join-room! room-id nil))))
+                         (when-not (str/blank? room-id)
+                           (prepare-shared-room! room-id)))))
   (.addEventListener (el "copy-link") "click"
                      (fn []
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
@@ -739,6 +827,9 @@
                            (.hasAttribute target "data-auto-play")
                            (auto-play!)
 
+                           (.hasAttribute target "data-leave-room")
+                           (leave-room!)
+
                            (.hasAttribute target "data-reshuffle-hand")
                            (action! {:type :reshuffle-hand})
 
@@ -761,6 +852,7 @@
   (swap! app assoc :join-modal {:room-id room
                                 :loading? true
                                 :preview nil
+                                :player nil
                                 :error nil})
   (render-join-modal!)
   (-> (js/fetch (room-preview-url room))
@@ -774,16 +866,19 @@
                                        {:room-id room
                                         :loading? false
                                         :preview data
+                                        :player (default-join-player data)
                                         :error nil}
                                        {:room-id room
                                         :loading? false
                                         :preview nil
+                                        :player nil
                                         :error (:message data)}))
                               (render-join-modal!)))))))
       (.catch (fn [_]
                 (swap! app assoc :join-modal {:room-id room
                                               :loading? false
                                               :preview nil
+                                              :player nil
                                               :error "Could not load this room."})
                 (render-join-modal!)))))
 

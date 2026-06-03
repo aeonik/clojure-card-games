@@ -112,6 +112,7 @@
      {:label "Max websockets" :value (or (:max-websocket-connections limits) "--")}
      {:label "Max room conns" :value (or (:max-room-connections limits) "--")}
      {:label "Max message" :value (bytes-label (or (:max-message-bytes limits) 0))}
+     {:label "Idle timeout" :value (duration-label (or (:idle-room-ms limits) 0))}
      {:label "Pending bot timers" :value pending-bot-count}
      {:label "Inbound messages" :value (get metrics :incoming-messages 0)}
      {:label "Inbound bytes" :value (bytes-label (get metrics :incoming-bytes 0))}
@@ -128,6 +129,17 @@
 (defn room-age [now room]
   (duration-label (- now (:created-at room))))
 
+(defn room-idle-age [now room]
+  (if (seq (:connections room))
+    "--"
+    (duration-label (- now (or (:empty-since room) (:created-at room))))))
+
+(defn delete-room-form [room-id]
+  (str "<form class=\"inline-form\" method=\"post\" action=\"/karbosh/admin/delete-room?room="
+       (escape-html room-id)
+       "\">"
+       "<button class=\"danger\" type=\"submit\">Delete</button></form>"))
+
 (defn room-summary-row [now selected-id [room-id room]]
   (let [state (:game room)
         view (game/admin-view state (:seats room))]
@@ -140,12 +152,14 @@
          "<td>" (inc (or (:hand-index state) 0)) "</td>"
          "<td>" (count (:connections room)) "</td>"
          "<td>" (room-age now room) "</td>"
+         "<td>" (room-idle-age now room) "</td>"
+         "<td>" (delete-room-form room-id) "</td>"
          "</tr>")))
 
 (defn rooms-table [rooms selected-id now]
   (if (seq (sorted-room-entries rooms))
     (str "<table><thead><tr><th>Room</th><th>Phase</th><th>Score</th>"
-         "<th>Current</th><th>Hand</th><th>Conns</th><th>Age</th></tr></thead><tbody>"
+         "<th>Current</th><th>Hand</th><th>Conns</th><th>Age</th><th>Idle</th><th>Actions</th></tr></thead><tbody>"
          (apply str (map #(room-summary-row now selected-id %)
                          (sorted-room-entries rooms)))
          "</tbody></table>")
@@ -244,7 +258,8 @@
           last-trick (peek (:completed-tricks view))]
       (str "<section class=\"panel detail\"><div class=\"section-heading\"><div>"
            "<p>Selected Room</p><h2>" (escape-html (:id room)) "</h2></div>"
-           "<a href=\"/karbosh/admin\">All rooms</a></div>"
+           "<div class=\"admin-actions\"><a href=\"/karbosh/admin\">All rooms</a>"
+           (delete-room-form (:id room)) "</div></div>"
            "<div class=\"stats room-stats\">"
            (stat-card "Phase" (kw-label (:phase view)))
            (stat-card "Score" (score-label (:scores view)))
@@ -264,7 +279,7 @@
            "</section>"))))
 
 (def styles
-  "body{margin:0;background:#111521;color:rgba(255,255,255,.78);font:15px/1.5 Arial,sans-serif}a{color:#6fd0c7;text-decoration:none}main{max-width:1320px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.top h1{margin:.1rem 0 0;color:white}.top p,.section-heading p{margin:0;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.panel{border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:16px;margin-bottom:16px}.section-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:12px}.section-heading h2{margin:0;color:white}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);padding:10px}.stat span{display:block;color:rgba(255,255,255,.5);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.stat strong{display:block;color:white;font-size:1.2rem;line-height:1.25}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px;text-align:left}th{color:rgba(255,255,255,.52);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}.selected{background:rgba(111,208,199,.12)}.room-stats{margin-bottom:16px}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hands article{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px}.hands strong{display:block;color:white;margin-bottom:6px}.card{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:46px;margin:0 4px 6px 0;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#f8f5ed;color:#141821;font-weight:800}.card.heart,.card.diamond{color:#c62f43}.trick{display:flex;flex-wrap:wrap;gap:10px}.trick>div{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:8px}.trick span{display:block;color:rgba(255,255,255,.55);font-size:.72rem;font-weight:700}.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.compact-list{margin:0;padding-left:20px}.compact-list li{margin:6px 0}.compact-list span{display:inline-block;min-width:95px;color:rgba(255,255,255,.55)}.compact-list strong{color:white}.compact-list em{color:rgba(255,255,255,.55);font-style:normal}.empty{color:rgba(255,255,255,.45)}")
+  "body{margin:0;background:#111521;color:rgba(255,255,255,.78);font:15px/1.5 Arial,sans-serif}a{color:#6fd0c7;text-decoration:none}main{max-width:1320px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.top h1{margin:.1rem 0 0;color:white}.top p,.section-heading p{margin:0;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.panel{border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:16px;margin-bottom:16px}.section-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:12px}.section-heading h2{margin:0;color:white}.admin-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}.inline-form{display:inline;margin:0}button{min-height:32px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.06);color:white;cursor:pointer;font-size:.68rem;font-weight:700;letter-spacing:.1em;padding:0 10px;text-transform:uppercase}button.danger{border-color:rgba(255,154,168,.55);background:rgba(255,154,168,.12);color:#ffbac3}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);padding:10px}.stat span{display:block;color:rgba(255,255,255,.5);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.stat strong{display:block;color:white;font-size:1.2rem;line-height:1.25}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px;text-align:left}th{color:rgba(255,255,255,.52);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}.selected{background:rgba(111,208,199,.12)}.room-stats{margin-bottom:16px}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hands article{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px}.hands strong{display:block;color:white;margin-bottom:6px}.card{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:46px;margin:0 4px 6px 0;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#f8f5ed;color:#141821;font-weight:800}.card.heart,.card.diamond{color:#c62f43}.trick{display:flex;flex-wrap:wrap;gap:10px}.trick>div{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:8px}.trick span{display:block;color:rgba(255,255,255,.55);font-size:.72rem;font-weight:700}.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.compact-list{margin:0;padding-left:20px}.compact-list li{margin:6px 0}.compact-list span{display:inline-block;min-width:95px;color:rgba(255,255,255,.55)}.compact-list strong{color:white}.compact-list em{color:rgba(255,255,255,.55);font-style:normal}.empty{color:rgba(255,255,255,.45)}")
 
 (defn render-dashboard [{:keys [rooms
                                 selected-room-id

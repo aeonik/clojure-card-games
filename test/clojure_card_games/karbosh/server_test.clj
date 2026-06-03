@@ -88,6 +88,36 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-delete-room-removes-room-and-notifies-clients-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        old-bot-turns @server/bot-turns
+        room (room/join-room (room/new-room "ABC123" 9)
+                             {:conn-id :first
+                              :out out
+                              :name "First"})]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (reset! server/bot-turns {"ABC123" :pending})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/delete-room"
+                         :query-string "room=ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})
+              message (async/<!! out)]
+          (is (= 303 (:status response)))
+          (is (= "/karbosh/admin" (get-in response [:headers "Location"])))
+          (is (= :room-closed (:op message)))
+          (is (= "ABC123" (:room-id message)))
+          (is (not (contains? @server/rooms "ABC123")))
+          (is (not (contains? @server/bot-turns "ABC123")))))
+      (finally
+        (reset! server/rooms old-rooms)
+        (reset! server/bot-turns old-bot-turns)))))
+
 (deftest origin-allowlist-test
   (with-redefs [server/allowed-origins (constantly #{"https://dc3systems.com"})]
     (is (server/origin-allowed?
@@ -195,6 +225,41 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest idle-room-ids-test
+  (with-redefs [server/idle-room-ms (constantly 1000)]
+    (is (= #{"OLD"}
+           (set (server/idle-room-ids
+                 {"ACTIVE" {:created-at 0
+                            :connections {:conn {}}
+                            :game {}}
+                  "NEW" {:created-at 1200
+                         :connections {}
+                         :game {}}
+                  "OLD" {:created-at 0
+                         :empty-since 500
+                         :connections {}
+                         :game {}}}
+                 1500))))))
+
+(deftest leave-room-removes-connection-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms
+        room (room/join-room (room/new-room "ABC123" 9)
+                             {:conn-id :human
+                              :out out
+                              :name "Human"})]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (server/leave-room! :human out "ABC123")
+      (let [message (async/<!! out)
+            room (get @server/rooms "ABC123")]
+        (is (= :left-room (:op message)))
+        (is (empty? (:connections room)))
+        (is (:empty-since room))
+        (is (false? (get-in room [:seats :player1 :connected?]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-dashboard-ignores-stale-room-entries-test
   (let [html (admin/render-dashboard
               {:rooms {"STALE" nil}
@@ -208,6 +273,21 @@
                :started-at 1000})]
     (is (string? html))
     (is (re-find #"No rooms are currently running" html))))
+
+(deftest admin-dashboard-renders-delete-room-form-test
+  (let [html (admin/render-dashboard
+              {:rooms {"ABC123" (room/new-room "ABC123" 9)}
+               :metrics {:started-at 1000}
+               :pending-bot-count 0
+               :open-websocket-count 0
+               :limits {:max-rooms 128
+                        :max-room-connections 24
+                        :max-websocket-connections 256
+                        :max-message-bytes 8192
+                        :idle-room-ms 14400000}
+               :started-at 1000})]
+    (is (re-find #"action=\"/karbosh/admin/delete-room\?room=ABC123\"" html))
+    (is (re-find #">Delete</button>" html))))
 
 (deftest websocket-limit-test
   (let [old-websockets @server/open-websockets]
