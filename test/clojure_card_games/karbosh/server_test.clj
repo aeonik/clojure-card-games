@@ -161,8 +161,11 @@
         (is (= "ABC123" (:room-id body)))
         (is (= "Dave" (:name player1)))
         (is (false? (:open? player1)))
+        (is (false? (:joinable? player1)))
         (is (true? (:bot? player2)))
+        (is (true? (:joinable? player2)))
         (is (true? (:open? player3)))
+        (is (true? (:joinable? player3)))
         (is (not (contains? player1 :hand))))
       (finally
         (reset! server/rooms old-rooms)))))

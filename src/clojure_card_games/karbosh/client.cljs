@@ -162,6 +162,15 @@
 (defn occupied-preview-players [preview]
   (filterv (complement :open?) (:players preview)))
 
+(defn joinable-seat-count [preview]
+  (count (filter :joinable? (:players preview))))
+
+(defn join-modal-full? [preview]
+  (and preview (zero? (joinable-seat-count preview))))
+
+(defn join-modal-disabled? [loading? preview error]
+  (or loading? error (join-modal-full? preview)))
+
 (defn preview-player-html [{:keys [name bot? connected?]}]
   (str "<li><strong>" (escape-html (or name "Open")) "</strong>"
        "<span>" (cond
@@ -172,14 +181,14 @@
 
 (defn preview-players-html [preview]
   (let [players (occupied-preview-players preview)
-        open-count (count (filter :open? (:players preview)))]
+        available-count (joinable-seat-count preview)]
     (str "<ul class=\"join-modal-players\">"
          (if (seq players)
            (apply str (map preview-player-html players))
            "<li><strong>No players yet</strong><span>Open table</span></li>")
          "</ul>"
-         "<p class=\"join-modal-count\">" open-count " open "
-         (if (= 1 open-count) "seat" "seats") "</p>")))
+         "<p class=\"join-modal-count\">" available-count " available "
+         (if (= 1 available-count) "seat" "seats") "</p>")))
 
 (defn render-join-modal! []
   (let [{:keys [room-id loading? preview error]} (:join-modal @app)]
@@ -205,7 +214,7 @@
                   "<div class=\"join-modal-actions\">"
                   "<button id=\"join-modal-cancel\" type=\"button\">Cancel</button>"
                   "<button id=\"join-modal-submit\" type=\"button\""
-                  (when (or loading? error) " disabled")
+                  (when (join-modal-disabled? loading? preview error) " disabled")
                   ">Join Table</button></div>"
                   "</section></div>")
              "")))
@@ -227,12 +236,13 @@
   (render-join-modal!))
 
 (defn join-from-modal! []
-  (let [{:keys [room-id loading? error]} (:join-modal @app)
+  (let [{:keys [room-id loading? preview error]} (:join-modal @app)
         input (el "join-modal-name")
         name (if input
                (str/trim (.-value input))
                "")]
-    (when (and room-id (not loading?) (not error))
+    (when (and room-id
+               (not (join-modal-disabled? loading? preview error)))
       (when-not (str/blank? name)
         (set! (.-value (el "player-name")) name))
       (set! (.-value (el "join-room-id")) room-id)

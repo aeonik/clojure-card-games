@@ -277,7 +277,9 @@
                          :name (:name seat)
                          :bot? (true? (:bot? seat))
                          :connected? (true? (:connected? seat))
-                         :open? (nil? seat)}))
+                         :open? (nil? seat)
+                         :joinable? (or (nil? seat)
+                                        (true? (:bot? seat)))}))
                     game/players)}))
 
 (defn room-preview-id [uri]
