@@ -75,6 +75,19 @@
   (str "<div class=\"stat\"><span>" (escape-html label) "</span><strong>"
        (escape-html value) "</strong></div>"))
 
+(defn live-room-entry? [[_ room]]
+  (and (map? room)
+       (:created-at room)
+       (:game room)))
+
+(defn sorted-room-entries [rooms]
+  (sort-by (comp :created-at val) (filter live-room-entry? rooms)))
+
+(defn live-room [rooms room-id]
+  (let [room (get rooms room-id)]
+    (when (live-room-entry? [room-id room])
+      room)))
+
 (defn runtime-stats [{:keys [rooms
                              metrics
                              pending-bot-count
@@ -82,16 +95,17 @@
                              limits
                              started-at
                              now]}]
-  (let [runtime (Runtime/getRuntime)
+  (let [room-entries (filter live-room-entry? rooms)
+        runtime (Runtime/getRuntime)
         used (- (.totalMemory runtime) (.freeMemory runtime))
         room-updates (get metrics :room-updates 0)
         total-ns (get metrics :room-update-total-ns 0)
         avg-update-ms (if (pos? room-updates)
                         (/ total-ns room-updates 1000000.0)
                         0.0)
-        connections (reduce + (map #(count (:connections %)) (vals rooms)))]
+        connections (reduce + (map #(count (:connections %)) (map val room-entries)))]
     [{:label "Uptime" :value (duration-label (- now started-at))}
-     {:label "Rooms" :value (count rooms)}
+     {:label "Rooms" :value (count room-entries)}
      {:label "Max rooms" :value (or (:max-rooms limits) "--")}
      {:label "Connections" :value connections}
      {:label "Open websockets" :value (or open-websocket-count 0)}
@@ -129,11 +143,11 @@
          "</tr>")))
 
 (defn rooms-table [rooms selected-id now]
-  (if (seq rooms)
+  (if (seq (sorted-room-entries rooms))
     (str "<table><thead><tr><th>Room</th><th>Phase</th><th>Score</th>"
          "<th>Current</th><th>Hand</th><th>Conns</th><th>Age</th></tr></thead><tbody>"
          (apply str (map #(room-summary-row now selected-id %)
-                         (sort-by (comp :created-at val) rooms)))
+                         (sorted-room-entries rooms)))
          "</tbody></table>")
     "<p class=\"empty\">No rooms are currently running.</p>"))
 
@@ -216,12 +230,12 @@
     "<p class=\"empty\">No completed hands yet.</p>"))
 
 (defn selected-room [rooms selected-room-id]
-  (or (get rooms selected-room-id)
-      (some->> rooms (sort-by (comp :created-at val)) first val)))
+  (or (live-room rooms selected-room-id)
+      (some->> (sorted-room-entries rooms) first val)))
 
 (defn choose-selected-room-id [rooms requested-room-id]
-  (or (when (contains? rooms requested-room-id) requested-room-id)
-      (some->> rooms (sort-by (comp :created-at val)) first key)))
+  (or (when (live-room rooms requested-room-id) requested-room-id)
+      (some->> (sorted-room-entries rooms) first key)))
 
 (defn room-detail [room]
   (when room

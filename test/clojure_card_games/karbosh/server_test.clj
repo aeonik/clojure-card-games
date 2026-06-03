@@ -1,6 +1,7 @@
 (ns clojure-card-games.karbosh.server-test
   (:require [clojure.core.async :as async]
             [clojure.test :refer [deftest is]]
+            [clojure-card-games.karbosh.admin :as admin]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.server :as server]
             [clojure-card-games.karbosh.shared.game :as game]))
@@ -94,6 +95,32 @@
                (async/<!! out))))
       (finally
         (reset! server/rooms old-rooms)))))
+
+(deftest missing-room-update-does-not-create-stale-entry-test
+  (let [old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (is (nil? (server/update-room! "MISSING" identity)))
+      (is (= {} @server/rooms))
+      (reset! server/rooms {"STALE" nil})
+      (is (nil? (server/update-room! "STALE" identity)))
+      (is (= {} @server/rooms))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-dashboard-ignores-stale-room-entries-test
+  (let [html (admin/render-dashboard
+              {:rooms {"STALE" nil}
+               :metrics {:started-at 1000}
+               :pending-bot-count 0
+               :open-websocket-count 0
+               :limits {:max-rooms 128
+                        :max-room-connections 24
+                        :max-websocket-connections 256
+                        :max-message-bytes 8192}
+               :started-at 1000})]
+    (is (string? html))
+    (is (re-find #"No rooms are currently running" html))))
 
 (deftest websocket-limit-test
   (let [old-websockets @server/open-websockets]

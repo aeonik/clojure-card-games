@@ -262,11 +262,17 @@
 
 (defn update-room! [room-id f & args]
   (let [started (System/nanoTime)
-        new-room (get (swap! rooms update room-id
-                             (fn [room]
-                               (when room
-                                 (apply f room args))))
-                      room-id)]
+        new-room (when room-id
+                   (get (swap! rooms
+                               (fn [rooms]
+                                 (if (contains? rooms room-id)
+                                   (if-let [room (get rooms room-id)]
+                                     (if-let [room' (apply f room args)]
+                                       (assoc rooms room-id room')
+                                       (dissoc rooms room-id))
+                                     (dissoc rooms room-id))
+                                   rooms)))
+                        room-id))]
     (record-room-update! (- (System/nanoTime) started))
     (when new-room
       (publish-room! room-id new-room))
@@ -278,12 +284,16 @@
       (swap! bot-turns assoc room-id token)
       (async/thread
         (Thread/sleep (bot-turn-delay-ms room))
-        (let [new-room (get (swap! rooms update room-id
-                                   (fn [room]
-                                     (when room
-                                       (if (= token (bot-turn-token room))
-                                         (room/advance-bot room)
-                                         room))))
+        (let [new-room (get (swap! rooms
+                                   (fn [rooms]
+                                     (if (contains? rooms room-id)
+                                       (if-let [room (get rooms room-id)]
+                                         (assoc rooms room-id
+                                                (if (= token (bot-turn-token room))
+                                                  (room/advance-bot room)
+                                                  room))
+                                         (dissoc rooms room-id))
+                                       rooms)))
                             room-id)]
           (when (= token (get @bot-turns room-id))
             (swap! bot-turns dissoc room-id))
