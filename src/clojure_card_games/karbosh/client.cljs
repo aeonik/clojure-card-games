@@ -177,6 +177,28 @@
          (when current? "<em class=\"turn-badge\">Current</em>")
          "</div>")))
 
+(defn mobile-seat-roster-html [view]
+  (str "<ul class=\"mobile-seat-roster\" aria-label=\"Players\">"
+       (apply str
+              (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
+                (let [current? (= id (:current-player view))
+                      you? (= id (:you view))]
+                  (str "<li class=\"" (player-class id)
+                       (when connected? " is-connected")
+                       (when bot? " is-bot")
+                       (when (false? active?) " is-sitting-out")
+                       (when current? " is-current")
+                       (when you? " is-you")
+                       "\">"
+                       "<div><strong>" (escape-html (or name (clojure.core/name id))) "</strong>"
+                       "<span>" (team-label team) " / " hand-count " cards / "
+                       (seat-state-label seat) "</span></div>"
+                       (if-let [bid (latest-bid view id)]
+                         (str "<em>" (escape-html (bid-label bid)) "</em>")
+                         "<em>--</em>")
+                       "</li>"))))
+       "</ul>"))
+
 (defn trick-card-html [view {:keys [player card]}]
   (str "<li class=\"trick-card " (player-class player) "\">"
        "<span>" (escape-html (player-label view player)) "</span>"
@@ -416,6 +438,7 @@
                 "</div>"
                 (hand-panel-html view pending-card (or (some? trick-popup)
                                                        (some? queued-trick-popup)))
+                (mobile-seat-roster-html view)
                 "</div>"
                 "</section>"))))))
 

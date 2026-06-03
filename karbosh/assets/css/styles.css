@@ -206,6 +206,11 @@ h2 {
   padding: 1.35rem;
 }
 
+.table-panel {
+  display: flex;
+  flex-direction: column;
+}
+
 .panel-heading {
   border-bottom: 1px solid var(--line);
   margin-bottom: 1rem;
@@ -598,6 +603,73 @@ h2 {
 
 .player-seat.is-sitting-out {
   opacity: 0.48;
+}
+
+.mobile-seat-roster {
+  display: none;
+  gap: 0.5rem;
+  margin: -0.2rem 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.mobile-seat-roster li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(18, 22, 34, 0.58);
+  padding: 0.55rem 0.65rem;
+}
+
+.mobile-seat-roster strong,
+.mobile-seat-roster span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-seat-roster strong {
+  line-height: 1.2;
+}
+
+.mobile-seat-roster span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mobile-seat-roster em {
+  justify-self: end;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.25rem 0.45rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mobile-seat-roster .is-current {
+  border-color: rgba(111, 208, 199, 0.74);
+  background: rgba(111, 208, 199, 0.1);
+}
+
+.mobile-seat-roster .is-you {
+  background: rgba(34, 42, 71, 0.74);
+}
+
+.mobile-seat-roster .is-sitting-out {
+  opacity: 0.56;
 }
 
 .turn-badge {
@@ -1444,5 +1516,125 @@ input {
   .trick-card.player-player6 {
     --start-x: 5.5rem;
     --start-y: 5rem;
+  }
+}
+
+@media screen and (max-width: 680px) {
+  .table-status {
+    order: 7;
+  }
+
+  .table-surface {
+    order: 3;
+    min-height: 31rem;
+  }
+
+  .controls {
+    order: 4;
+  }
+
+  .hand-panel {
+    order: 5;
+  }
+
+  .mobile-seat-roster {
+    order: 6;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .felt-oval {
+    inset: 7.8rem 0.9rem 5.6rem;
+  }
+
+  .table-center {
+    top: calc(50% + 0.8rem);
+    width: min(17rem, 74vw);
+  }
+
+  .table-hand-status {
+    top: 0.6rem;
+  }
+
+  .player-seat {
+    display: block;
+    width: clamp(4.9rem, 22vw, 6rem);
+    min-height: 2.35rem;
+    padding: 0.38rem 0.45rem;
+    text-align: center;
+  }
+
+  .player-seat strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.76rem;
+    line-height: 1.15;
+  }
+
+  .player-seat small,
+  .player-seat .bid-chip,
+  .player-seat .seat-hand-backs,
+  .player-seat .turn-badge {
+    display: none;
+  }
+
+  .player-seat.is-current {
+    box-shadow:
+      0 0 0 2px rgba(111, 208, 199, 0.2),
+      0 0.55rem 1.25rem rgba(8, 12, 26, 0.26);
+  }
+
+  .player-seat.player-player1 {
+    bottom: 0.95rem;
+  }
+
+  .player-seat.player-player2 {
+    bottom: 5.4rem;
+    left: 0.5rem;
+  }
+
+  .player-seat.player-player3 {
+    top: 6.1rem;
+    left: 0.5rem;
+  }
+
+  .player-seat.player-player4 {
+    top: 3.15rem;
+  }
+
+  .player-seat.player-player5 {
+    top: 6.1rem;
+    right: 0.5rem;
+  }
+
+  .player-seat.player-player6 {
+    right: 0.5rem;
+    bottom: 5.4rem;
+  }
+
+  .trick-card,
+  .trick-empty {
+    width: 4.6rem;
+  }
+
+  .trick-card.player-player2,
+  .trick-card.player-player3 {
+    left: 0.4rem;
+  }
+
+  .trick-card.player-player5,
+  .trick-card.player-player6 {
+    right: 0.4rem;
+  }
+}
+
+@media screen and (max-width: 430px) {
+  .mobile-seat-roster {
+    grid-template-columns: 1fr;
+  }
+
+  .table-center {
+    width: min(15rem, 70vw);
   }
 }
