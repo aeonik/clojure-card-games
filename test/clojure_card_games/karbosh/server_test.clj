@@ -143,6 +143,43 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest room-preview-test
+  (let [old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/seat-player :player1 "Dave")
+                 (room/seat-bot :player2))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (let [response (server/handler {:request-method :get
+                                      :uri "/karbosh/api/room/abc123"})
+            body (edn/read-string (:body response))
+            player1 (first (:players body))
+            player2 (second (:players body))
+            player3 (nth (:players body) 2)]
+        (is (= 200 (:status response)))
+        (is (:ok body))
+        (is (= "ABC123" (:room-id body)))
+        (is (= "Dave" (:name player1)))
+        (is (false? (:open? player1)))
+        (is (true? (:bot? player2)))
+        (is (true? (:open? player3)))
+        (is (not (contains? player1 :hand))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest missing-room-preview-test
+  (let [old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (let [response (server/handler {:request-method :get
+                                      :uri "/karbosh/api/room/missing"})
+            body (edn/read-string (:body response))]
+        (is (= 404 (:status response)))
+        (is (false? (:ok body)))
+        (is (= "MISSING" (:room-id body))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest missing-room-update-does-not-create-stale-entry-test
   (let [old-rooms @server/rooms]
     (try

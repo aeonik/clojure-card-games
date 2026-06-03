@@ -173,6 +173,9 @@
           str/trim
           not-empty))
 
+(defn normalize-room-id [room-id]
+  (some-> room-id str/upper-case str/trim not-empty))
+
 (defn admin-dashboard-response [request]
   (cond
     (not (admin-password))
@@ -262,6 +265,34 @@
 
 (defn read-message [s]
   (edn/read-string {:readers {} :default (fn [tag value] [tag value])} s))
+
+(defn room-preview [room]
+  (let [state (:game room)]
+    {:room-id (:id room)
+     :phase (:phase state)
+     :players (mapv (fn [player]
+                      (let [seat (get-in room [:seats player])]
+                        {:id player
+                         :team (get-in state [:players player :team])
+                         :name (:name seat)
+                         :bot? (true? (:bot? seat))
+                         :connected? (true? (:connected? seat))
+                         :open? (nil? seat)}))
+                    game/players)}))
+
+(defn room-preview-id [uri]
+  (when (str/starts-with? uri "/karbosh/api/room/")
+    (normalize-room-id
+     (decode-query-value (subs uri (count "/karbosh/api/room/"))))))
+
+(defn room-preview-response [room-id]
+  (if-let [room (get @rooms room-id)]
+    (edn-response (assoc (room-preview room) :ok true))
+    (response 404
+              (pr-str {:ok false
+                       :room-id room-id
+                       :message "Room not found"})
+              "application/edn; charset=utf-8")))
 
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
@@ -519,26 +550,30 @@
   (= uri "/karbosh/admin/reload"))
 
 (defn handler [{:keys [uri request-method] :as request}]
-  (cond
-    (and (= request-method :get) (= uri "/karbosh/ws"))
-    (if (origin-allowed? request)
-      (websocket-handler request)
-      (response 403 "Forbidden"))
+  (let [room-preview-id (room-preview-id uri)]
+    (cond
+      (and (= request-method :get) (= uri "/karbosh/ws"))
+      (if (origin-allowed? request)
+        (websocket-handler request)
+        (response 403 "Forbidden"))
 
-    (and (= request-method :get) (admin-path? uri))
-    (admin-dashboard-response request)
+      (and (= request-method :get) (admin-path? uri))
+      (admin-dashboard-response request)
 
-    (and (= request-method :post) (admin-reload-path? uri))
-    (admin-reload-response request)
+      (and (= request-method :post) (admin-reload-path? uri))
+      (admin-reload-response request)
 
-    (and (= request-method :get) (= uri "/karbosh/api/health"))
-    (edn-response {:ok true :rooms (count @rooms)})
+      (and (= request-method :get) (= uri "/karbosh/api/health"))
+      (edn-response {:ok true :rooms (count @rooms)})
 
-    (and (= request-method :get) (str/starts-with? uri "/karbosh"))
-    (or (static-response uri) (response 404 "Not found"))
+      (and (= request-method :get) room-preview-id)
+      (room-preview-response room-preview-id)
 
-    :else
-    (response 404 "Not found")))
+      (and (= request-method :get) (str/starts-with? uri "/karbosh"))
+      (or (static-response uri) (response 404 "Not found"))
+
+      :else
+      (response 404 "Not found"))))
 
 (defn start! []
   (let [port (parse-port)

@@ -169,24 +169,23 @@ h2 {
 
 .meta-grid > div {
   min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+  align-content: center;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.045);
-  padding: 0.75rem 0.85rem;
+  padding: 0.62rem 0.78rem;
 }
 
-.share-cell strong {
+.meta-grid > div strong {
   display: block;
+  min-width: 0;
+  min-height: 1.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.join-prompt {
-  min-height: 1.5rem;
-  margin: -0.2rem 0 0.85rem;
-  color: var(--accent);
-  font-weight: 700;
+  line-height: 1.25;
 }
 
 .panel {
@@ -1365,6 +1364,83 @@ input {
 
 .setup-actions {
   justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(8, 12, 26, 0.76);
+  padding: 1.25rem;
+}
+
+.join-modal {
+  width: min(100%, 28rem);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-3);
+  box-shadow: var(--shadow);
+  padding: 1.35rem;
+}
+
+.join-modal h2 {
+  margin-bottom: 0.95rem;
+}
+
+.join-modal h3 {
+  color: var(--white);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.join-modal-muted,
+.join-modal-count,
+.join-modal-error {
+  color: var(--muted);
+  margin-bottom: 0.95rem;
+}
+
+.join-modal-error {
+  color: var(--danger);
+}
+
+.join-modal-players {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+  padding: 0;
+  list-style: none;
+}
+
+.join-modal-players li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.55rem 0.7rem;
+}
+
+.join-modal-players span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.join-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: flex-end;
   margin-top: 1rem;
 }
 
