@@ -142,6 +142,8 @@
     (is (= "no-referrer" (get headers "Referrer-Policy")))
     (is (= "DENY" (get headers "X-Frame-Options")))
     (is (re-find #"frame-ancestors 'none'"
+                 (get headers "Content-Security-Policy")))
+    (is (re-find #"form-action 'self'"
                  (get headers "Content-Security-Policy")))))
 
 (deftest room-limit-test

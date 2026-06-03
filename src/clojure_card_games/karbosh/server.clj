@@ -70,7 +70,7 @@
   {"X-Content-Type-Options" "nosniff"
    "Referrer-Policy" "no-referrer"
    "X-Frame-Options" "DENY"
-   "Content-Security-Policy" "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"})
+   "Content-Security-Policy" "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"})
 
 (defn response
   ([status body] (response status body "text/plain; charset=utf-8"))
