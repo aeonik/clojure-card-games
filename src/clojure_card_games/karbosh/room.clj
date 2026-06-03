@@ -18,13 +18,36 @@
 (defn open-bot-seat [seats]
   (first (filter #(true? (get-in seats [% :bot?])) game/players)))
 
-(defn new-room [room-id seed]
-  {:id room-id
-   :seed seed
-   :created-at (System/currentTimeMillis)
-   :game (game/init-game seed)
-   :seats {}
-   :connections {}})
+(defn joinable-seat? [seat]
+  (or (nil? seat)
+      (true? (:bot? seat))))
+
+(defn human-seat? [seat]
+  (and seat (not (:bot? seat))))
+
+(defn joinable-player? [room player]
+  (joinable-seat? (get-in room [:seats player])))
+
+(defn available-seat-count [room]
+  (count (filter #(joinable-player? room %) game/players)))
+
+(defn human-player-count [room]
+  (count (filter human-seat? (vals (:seats room)))))
+
+(defn set-public [room public?]
+  (assoc room :public? (true? public?)))
+
+(defn new-room
+  ([room-id seed]
+   (new-room room-id seed false))
+  ([room-id seed public?]
+   {:id room-id
+    :seed seed
+    :created-at (System/currentTimeMillis)
+    :public? (true? public?)
+    :game (game/init-game seed)
+    :seats {}
+    :connections {}}))
 
 (defn seat-player [room player name]
   (assoc-in room [:seats player]
@@ -196,4 +219,5 @@
      :message {:op :state
                :room-id (:id room)
                :player player
-               :view (game/public-view (:game room) (:seats room) player)}}))
+               :view (assoc (game/public-view (:game room) (:seats room) player)
+                            :public? (true? (:public? room)))}}))

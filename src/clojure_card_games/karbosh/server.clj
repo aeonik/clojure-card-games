@@ -287,6 +287,7 @@
 (defn room-preview [room]
   (let [state (:game room)]
     {:room-id (:id room)
+     :public? (true? (:public? room))
      :phase (:phase state)
      :players (mapv (fn [player]
                       (let [seat (get-in room [:seats player])]
@@ -296,9 +297,26 @@
                          :bot? (true? (:bot? seat))
                          :connected? (true? (:connected? seat))
                          :open? (nil? seat)
-                         :joinable? (or (nil? seat)
-                                        (true? (:bot? seat)))}))
+                         :joinable? (room/joinable-seat? seat)}))
                     game/players)}))
+
+(defn public-room-summary [room]
+  {:room-id (:id room)
+   :phase (get-in room [:game :phase])
+   :player-count (room/human-player-count room)
+   :connected-count (count (:connections room))
+   :available-count (room/available-seat-count room)})
+
+(defn public-room-summaries [rooms]
+  (->> rooms
+       vals
+       (filter #(and (map? %) (:public? %)))
+       (sort-by :created-at)
+       (mapv public-room-summary)))
+
+(defn public-rooms-response []
+  (edn-response {:ok true
+                 :rooms (public-room-summaries @rooms)}))
 
 (defn room-preview-id [uri]
   (when (str/starts-with? uri "/karbosh/api/room/")
@@ -489,7 +507,7 @@
 (defn websocket-limit-reached? []
   (>= (count @open-websockets) (max-websocket-connections)))
 
-(defn create-room! [conn-id out {:keys [name seed]}]
+(defn create-room! [conn-id out {:keys [name seed public?]}]
   (metric! :room-creates)
   (if (room-limit-reached?)
     (do
@@ -498,7 +516,7 @@
       nil)
     (let [room-id (unique-room-id)
           seed (or seed (System/currentTimeMillis))
-          room (-> (room/new-room room-id seed)
+          room (-> (room/new-room room-id seed public?)
                    (room/join-room {:conn-id conn-id
                                     :out out
                                     :name name}))]
@@ -546,6 +564,18 @@
 
     :else
     (update-room! room-id room/fill-bots)))
+
+(defn set-room-visibility! [room-id out public?]
+  (metric! :room-visibility-updates)
+  (cond
+    (not room-id)
+    (send-edn! out {:op :error :message "Join a room first"})
+
+    (not (contains? @rooms room-id))
+    (send-edn! out {:op :error :message "Room not found"})
+
+    :else
+    (update-room! room-id room/set-public public?)))
 
 (defn handle-action! [conn-id room-id out {:keys [event]}]
   (metric! :player-actions)
@@ -601,6 +631,9 @@
 
     :fill-bots
     (fill-bots! (:room-id @session) out)
+
+    :set-room-visibility
+    (set-room-visibility! (:room-id @session) out (:public? message))
 
     :ping
     (send-edn! out {:op :pong})
@@ -684,6 +717,9 @@
 
       (and (= request-method :get) (= uri "/karbosh/api/health"))
       (edn-response {:ok true :rooms (count @rooms)})
+
+      (and (= request-method :get) (= uri "/karbosh/api/public-rooms"))
+      (public-rooms-response)
 
       (and (= request-method :get) room-preview-id)
       (room-preview-response room-preview-id)

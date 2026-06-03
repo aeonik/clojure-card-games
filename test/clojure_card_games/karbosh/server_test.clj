@@ -156,6 +156,18 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest create-room-can-mark-room-public-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (with-redefs [server/unique-room-id (constantly "PUB123")]
+        (is (= "PUB123" (server/create-room! :conn out {:name "Human"
+                                                        :public? true})))
+        (is (true? (get-in @server/rooms ["PUB123" :public?]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest room-connection-limit-test
   (let [out (async/chan 1)
         old-rooms @server/rooms
@@ -189,6 +201,7 @@
         (is (= 200 (:status response)))
         (is (:ok body))
         (is (= "ABC123" (:room-id body)))
+        (is (false? (:public? body)))
         (is (= "Dave" (:name player1)))
         (is (false? (:open? player1)))
         (is (false? (:joinable? player1)))
@@ -197,6 +210,46 @@
         (is (true? (:open? player3)))
         (is (true? (:joinable? player3)))
         (is (not (contains? player1 :hand))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest public-rooms-response-test
+  (let [old-rooms @server/rooms
+        public-room (-> (room/new-room "PUB123" 9 true)
+                        (room/seat-player :player1 "Dave")
+                        (room/seat-bot :player2))
+        private-room (room/new-room "PRIVATE" 10 false)]
+    (try
+      (reset! server/rooms {"PUB123" public-room
+                            "PRIVATE" private-room})
+      (let [response (server/handler {:request-method :get
+                                      :uri "/karbosh/api/public-rooms"})
+            body (edn/read-string (:body response))
+            rooms (:rooms body)]
+        (is (= 200 (:status response)))
+        (is (:ok body))
+        (is (= ["PUB123"] (mapv :room-id rooms)))
+        (is (= 1 (:player-count (first rooms))))
+        (is (= 5 (:available-count (first rooms))))
+        (is (not (contains? (first rooms) :players)))
+        (is (not (contains? (first rooms) :hands))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest set-room-visibility-broadcasts-public-flag-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        state (room/join-room (room/new-room "ABC123" 9)
+                              {:conn-id :human
+                               :out out
+                               :name "Human"})]
+    (try
+      (reset! server/rooms {"ABC123" state})
+      (server/set-room-visibility! "ABC123" out true)
+      (let [message (async/<!! out)]
+        (is (true? (get-in @server/rooms ["ABC123" :public?])))
+        (is (= :state (:op message)))
+        (is (true? (get-in message [:view :public?]))))
       (finally
         (reset! server/rooms old-rooms)))))
 

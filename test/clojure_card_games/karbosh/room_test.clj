@@ -12,6 +12,19 @@
     (is (room/bot-player? state :player2))
     (is (= "Human" (get-in state [:seats :player1 :name])))))
 
+(deftest room-visibility-defaults-to-private
+  (is (false? (:public? (room/new-room "ABC123" 9))))
+  (is (true? (:public? (room/new-room "ABC123" 9 true))))
+  (is (true? (:public? (room/set-public (room/new-room "ABC123" 9) true))))
+  (is (false? (:public? (room/set-public (room/new-room "ABC123" 9 true) false)))))
+
+(deftest room-seat-counts-ignore-bots-as-players
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (room/seat-player :player1 "Human")
+                  (room/seat-bot :player2))]
+    (is (= 1 (room/human-player-count state)))
+    (is (= 5 (room/available-seat-count state)))))
+
 (deftest human-can-claim-bot-seat
   (let [state (-> (room/new-room "ABC123" 9)
                   (room/seat-player :player1 "Human")

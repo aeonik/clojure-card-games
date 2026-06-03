@@ -15,6 +15,9 @@
          :queued-trick-popup nil
          :bid-popup nil
          :join-modal nil
+         :public-rooms {:loading? false
+                        :rooms []
+                        :error nil}
          :pending-card nil
          :pending-auto? false
          :error nil}))
@@ -137,6 +140,9 @@
         value (str/trim (.-value input))]
     (if (str/blank? value) "Player" value)))
 
+(defn create-public-room? []
+  (boolean (some-> (el "create-public-room") .-checked)))
+
 (defn room-page-url [room-id]
   (let [url (js/URL. (.-href js/location))]
     (.set (.-searchParams url) "room" room-id)
@@ -170,10 +176,14 @@
 (defn room-preview-url [room-id]
   (str "/karbosh/api/room/" (js/encodeURIComponent room-id)))
 
+(defn public-rooms-url []
+  "/karbosh/api/public-rooms")
+
 (declare close-join-modal!
          join-from-modal!
          select-join-player!
          prepare-shared-room!
+         load-public-rooms!
          join-room!)
 
 (defn joinable-seat-count [preview]
@@ -228,6 +238,37 @@
          "</div>"
          "<p class=\"join-modal-count\">" available-count " available "
          (if (= 1 available-count) "seat" "seats") "</p>")))
+
+(defn public-room-html [{:keys [room-id phase player-count connected-count available-count]}]
+  (str "<article class=\"public-room-row\">"
+       "<div><strong>" (escape-html room-id) "</strong>"
+       "<span>" (escape-html (phase-label phase)) "</span></div>"
+       "<em>" player-count " / 6 players"
+       (when (pos? connected-count)
+         (str " / " connected-count " online"))
+       "</em>"
+       "<span>" available-count " available</span>"
+       "<button type=\"button\" data-public-room=\"" (escape-html room-id) "\">Join</button>"
+       "</article>"))
+
+(defn render-public-rooms! []
+  (when-let [root (el "public-rooms-root")]
+    (let [{:keys [loading? rooms error]} (:public-rooms @app)]
+      (html! root
+             (cond
+               error
+               (str "<p class=\"public-rooms-empty\">" (escape-html error) "</p>")
+
+               (seq rooms)
+               (str "<div class=\"public-room-list\">"
+                    (apply str (map public-room-html rooms))
+                    "</div>")
+
+               loading?
+               "<p class=\"public-rooms-empty\">Loading rooms...</p>"
+
+               :else
+               "<p class=\"public-rooms-empty\">No public rooms.</p>")))))
 
 (defn render-join-modal! []
   (let [{:keys [room-id loading? preview player error]} (:join-modal @app)]
@@ -557,12 +598,21 @@
 (defn leave-room-controls []
   "<div class=\"control-group leave-room-control\"><button class=\"leave-room-button\" data-leave-room=\"true\">Leave Room</button></div>")
 
+(defn room-visibility-controls [view]
+  (let [public? (:public? view)]
+    (str "<div class=\"control-group room-visibility-control\">"
+         "<button class=\"visibility-button\" data-room-public=\""
+         (if public? "false" "true")
+         "\">" (if public? "Make Private" "Make Public") "</button>"
+         "</div>")))
+
 (defn render-controls [view paused? pending-auto?]
   (let [active? (= (:you view) (:current-player view))]
     (str (or (bid-controls view active?) "")
          (or (trump-controls view active?) "")
          (or (auto-play-controls view active? paused? pending-auto?) "")
          (or (next-hand-controls view) "")
+         (room-visibility-controls view)
          (leave-room-controls))))
 
 (defn render-game! []
@@ -773,7 +823,9 @@
           #(handle-server-message! (.-data %)))))
 
 (defn create-room! []
-  (connect! #(send! {:op :create-room :name (player-name)})))
+  (connect! #(send! {:op :create-room
+                     :name (player-name)
+                     :public? (create-public-room?)})))
 
 (defn join-room! [room-id player]
   (connect! #(send! {:op :join-room
@@ -792,6 +844,10 @@
 (defn leave-room! []
   (send! {:op :leave-room}))
 
+(defn set-room-visibility! [public?]
+  (send! {:op :set-room-visibility :public? public?})
+  (js/setTimeout load-public-rooms! 500))
+
 (defn bind-controls! []
   (.addEventListener (el "create-room") "click" create-room!)
   (.addEventListener (el "join-room") "click"
@@ -799,6 +855,13 @@
                        (let [room-id (str/trim (.-value (el "join-room-id")))]
                          (when-not (str/blank? room-id)
                            (prepare-shared-room! room-id)))))
+  (when-let [public-root (el "public-rooms-root")]
+    (.addEventListener public-root "click"
+                       (fn [event]
+                         (let [target (.-target event)]
+                           (when (.hasAttribute target "data-public-room")
+                             (prepare-shared-room!
+                              (.getAttribute target "data-public-room")))))))
   (.addEventListener (el "copy-link") "click"
                      (fn []
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
@@ -829,6 +892,10 @@
 
                            (.hasAttribute target "data-leave-room")
                            (leave-room!)
+
+                           (.hasAttribute target "data-room-public")
+                           (set-room-visibility!
+                            (= "true" (.getAttribute target "data-room-public")))
 
                            (.hasAttribute target "data-reshuffle-hand")
                            (action! {:type :reshuffle-hand})
@@ -882,6 +949,32 @@
                                               :error "Could not load this room."})
                 (render-join-modal!)))))
 
+(defn load-public-rooms! []
+  (swap! app update :public-rooms
+         (fn [public-rooms]
+           (assoc public-rooms :loading? true :error nil)))
+  (render-public-rooms!)
+  (-> (js/fetch (public-rooms-url))
+      (.then (fn [response]
+               (-> (.text response)
+                   (.then (fn [body]
+                            (let [data (reader/read-string body)]
+                              (swap! app assoc
+                                     :public-rooms
+                                     (if (:ok data)
+                                       {:loading? false
+                                        :rooms (:rooms data)
+                                        :error nil}
+                                       {:loading? false
+                                        :rooms []
+                                        :error "Could not load public rooms."}))
+                              (render-public-rooms!)))))))
+      (.catch (fn [_]
+                (swap! app assoc :public-rooms {:loading? false
+                                                :rooms []
+                                                :error "Could not load public rooms."})
+                (render-public-rooms!)))))
+
 (defn prepare-shared-room! [room]
   (set! (.-value (el "join-room-id")) room)
   (load-room-preview! room))
@@ -899,6 +992,9 @@
   (bind-controls!)
   (render-status!)
   (render-game!)
+  (render-public-rooms!)
+  (load-public-rooms!)
+  (js/setInterval load-public-rooms! 8000)
   (if-let [room (query-room-param)]
     (prepare-shared-room! room)
     (when-let [room (stored-room-id)]

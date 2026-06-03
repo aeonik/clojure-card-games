@@ -930,6 +930,10 @@ h2 {
 }
 
 .controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 0.7rem;
+  align-items: center;
   min-height: 0;
   margin-bottom: 1rem;
 }
@@ -945,27 +949,71 @@ h2 {
   gap: 0.55rem;
 }
 
+.controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
+  grid-column: 1 / -1;
+}
+
 .trump-control-group {
   gap: 0.7rem;
 }
 
-.auto-play-control {
+.auto-play-control,
+.room-visibility-control,
+.leave-room-control {
+  align-self: start;
   justify-content: flex-end;
 }
 
+.auto-play-control {
+  grid-column: 2;
+}
+
 .leave-room-control {
-  justify-content: flex-end;
+  grid-column: 4;
+}
+
+.room-visibility-control {
+  grid-column: 3;
+}
+
+.auto-play-button,
+.visibility-button,
+.leave-room-button {
+  min-height: 2.35rem;
+  padding: 0 0.9rem;
+}
+
+.auto-play-button {
+  border-color: rgba(111, 208, 199, 0.56);
+  background: rgba(111, 208, 199, 0.08);
+}
+
+.auto-play-button:hover,
+.auto-play-button:focus-visible {
+  border-color: rgba(111, 208, 199, 0.9);
+  background: rgba(111, 208, 199, 0.16);
+}
+
+.visibility-button {
+  border-color: rgba(111, 208, 199, 0.56);
+  background: rgba(111, 208, 199, 0.08);
+}
+
+.visibility-button:hover,
+.visibility-button:focus-visible {
+  border-color: rgba(111, 208, 199, 0.9);
+  background: rgba(111, 208, 199, 0.16);
 }
 
 .leave-room-button {
   border-color: rgba(255, 154, 168, 0.6);
-  background: rgba(255, 154, 168, 0.12);
+  background: rgba(255, 154, 168, 0.07);
 }
 
 .leave-room-button:hover,
 .leave-room-button:focus-visible {
   border-color: rgba(255, 154, 168, 0.95);
-  background: rgba(255, 154, 168, 0.2);
+  background: rgba(255, 154, 168, 0.15);
 }
 
 .hand-panel {
@@ -1050,17 +1098,6 @@ button:disabled {
   box-shadow:
     0 0 0 3px rgba(111, 208, 199, 0.18),
     0 0.35rem 0.8rem rgba(8, 12, 26, 0.22);
-}
-
-.auto-play-button {
-  border-color: rgba(111, 208, 199, 0.7);
-  background: rgba(111, 208, 199, 0.12);
-}
-
-.auto-play-button:hover,
-.auto-play-button:focus-visible {
-  border-color: rgba(111, 208, 199, 0.95);
-  background: rgba(111, 208, 199, 0.2);
 }
 
 .card-button {
@@ -1355,7 +1392,7 @@ button:disabled {
 
 .setup-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
   gap: 1.25rem;
 }
 
@@ -1377,9 +1414,69 @@ input {
   padding: 0 0.8rem;
 }
 
+.checkbox-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 0.85rem;
+}
+
+.checkbox-row input {
+  width: 1.1rem;
+  min-height: 1.1rem;
+  accent-color: var(--accent-3);
+}
+
+.checkbox-row span {
+  color: var(--white);
+  font-size: 0.85rem;
+}
+
 .setup-actions {
   justify-content: flex-start;
   margin-top: 1rem;
+}
+
+.public-rooms-panel {
+  min-height: 13rem;
+}
+
+.public-room-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.public-room-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.6rem;
+}
+
+.public-room-row strong,
+.public-room-row span,
+.public-room-row em {
+  display: block;
+}
+
+.public-room-row span,
+.public-room-row em,
+.public-rooms-empty {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.public-room-row button {
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
 }
 
 .modal-backdrop {
@@ -1524,6 +1621,15 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .public-room-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .public-room-row button {
+    width: 100%;
+  }
+
   .trick-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1662,6 +1768,34 @@ input {
 
   .controls {
     order: 4;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auto-play-control {
+    grid-column: 1;
+    order: 1;
+  }
+
+  .leave-room-control {
+    grid-column: 2;
+    order: 2;
+  }
+
+  .room-visibility-control {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .auto-play-control,
+  .room-visibility-control,
+  .leave-room-control {
+    justify-content: stretch;
+  }
+
+  .auto-play-button,
+  .visibility-button,
+  .leave-room-button {
+    width: 100%;
   }
 
   .hand-panel {
@@ -1761,6 +1895,16 @@ input {
 }
 
 @media screen and (max-width: 430px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-play-control,
+  .room-visibility-control,
+  .leave-room-control {
+    grid-column: 1;
+  }
+
   .mobile-seat-roster {
     grid-template-columns: 1fr;
   }

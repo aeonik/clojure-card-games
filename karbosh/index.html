@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Karbosh Table | DC3 Systems</title>
     <meta name="robots" content="noindex, nofollow">
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260603-room-lifecycle">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20260603-public-rooms">
   </head>
   <body>
     <aside class="sidebar" aria-label="Page navigation">
@@ -56,6 +56,10 @@
               <span>Name</span>
               <input id="player-name" type="text" maxlength="24" value="Player">
             </label>
+            <label class="checkbox-row">
+              <input id="create-public-room" type="checkbox">
+              <span>Public room</span>
+            </label>
             <div class="setup-actions">
               <button id="create-room" type="button">Create Table</button>
             </div>
@@ -74,12 +78,20 @@
               <button id="join-room" type="button">Join Table</button>
             </div>
           </div>
+
+          <div class="panel setup-panel public-rooms-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Lobby</p>
+              <h2>Public Rooms</h2>
+            </div>
+            <div id="public-rooms-root"></div>
+          </div>
         </div>
       </section>
     </main>
 
     <div id="modal-root"></div>
 
-    <script src="assets/js/main.js?v=20260603-room-lifecycle"></script>
+    <script src="assets/js/main.js?v=20260603-public-rooms"></script>
   </body>
 </html>
