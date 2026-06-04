@@ -942,6 +942,15 @@ h2 {
   display: none;
 }
 
+.controls::before {
+  content: "";
+  display: block;
+  grid-column: 1 / -1;
+  order: 1;
+  height: 1px;
+  background: rgba(143, 164, 209, 0.22);
+}
+
 .control-group,
 .hand-row {
   display: flex;
@@ -951,6 +960,7 @@ h2 {
 
 .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
   grid-column: 1 / -1;
+  order: 0;
 }
 
 .trump-control-group {
@@ -962,6 +972,7 @@ h2 {
 .leave-room-control {
   align-self: start;
   justify-content: flex-end;
+  order: 2;
 }
 
 .auto-play-control {
@@ -1773,7 +1784,7 @@ input {
 
   .auto-play-control {
     grid-column: 1;
-    order: 1;
+    order: 2;
   }
 
   .leave-room-control {
