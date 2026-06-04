@@ -1,15 +1,9 @@
 (ns clojure-card-games.karbosh.admin
   (:require [clojure.string :as str]
             [clojure-card-games.karbosh.shared.cards :as cards]
-            [clojure-card-games.karbosh.shared.game :as game])
+            [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.hiccup :as h])
   (:import [java.lang.management ManagementFactory]))
-
-(defn escape-html [s]
-  (-> (str s)
-      (str/replace "&" "&amp;")
-      (str/replace "<" "&lt;")
-      (str/replace ">" "&gt;")
-      (str/replace "\"" "&quot;")))
 
 (defn kw-label [x]
   (if x
@@ -54,14 +48,14 @@
     ""))
 
 (defn card-html [card]
-  (str "<span class=\"card" (card-class card) "\">"
-       (escape-html (cards/card->str card))
-       "</span>"))
+  [:span {:class (str "card" (card-class card))}
+   (cards/card->str card)])
 
 (defn cards-html [cards]
   (if (seq cards)
-    (apply str (map card-html cards))
-    "<span class=\"empty\">--</span>"))
+    (for [card cards]
+      (card-html card))
+    [:span {:class "empty"} "--"]))
 
 (defn player-label [view player]
   (or (some->> (:players view)
@@ -72,8 +66,9 @@
       "--"))
 
 (defn stat-card [label value]
-  (str "<div class=\"stat\"><span>" (escape-html label) "</span><strong>"
-       (escape-html value) "</strong></div>"))
+  [:div {:class "stat"}
+   [:span label]
+   [:strong value]])
 
 (defn live-room-entry? [[_ room]]
   (and (map? room)
@@ -124,7 +119,7 @@
                                                        1000000.0))}
      {:label "Heap used" :value (bytes-label used)}
      {:label "Heap max" :value (bytes-label (.maxMemory runtime))}
-     {:label "Threads" :value (.getThreadCount (ManagementFactory/getThreadMXBean))}]))
+     {:label "Threads" :value (.getThreadCount (ManagementFactory/getThreadMXBean))}] ))
 
 (defn room-age [now room]
   (duration-label (- now (:created-at room))))
@@ -135,94 +130,102 @@
     (duration-label (- now (or (:empty-since room) (:created-at room))))))
 
 (defn delete-room-control [room-id]
-  (str "<button class=\"danger\" type=\"button\" data-delete-room=\""
-       (escape-html room-id)
-       "\">Delete</button>"))
+  [:button {:class "danger"
+            :type "button"
+            :data-delete-room room-id}
+   "Delete"])
 
 (defn room-summary-row [now selected-id [room-id room]]
   (let [state (:game room)
         view (game/admin-view state (:seats room))]
-    (str "<tr" (when (= selected-id room-id) " class=\"selected\"") ">"
-         "<td><a href=\"/karbosh/admin?room=" (escape-html room-id) "\">"
-         (escape-html room-id) "</a></td>"
-         "<td>" (escape-html (kw-label (:phase state))) "</td>"
-         "<td>" (escape-html (score-label (:scores state))) "</td>"
-         "<td>" (escape-html (player-label view (:current-player state))) "</td>"
-         "<td>" (inc (or (:hand-index state) 0)) "</td>"
-         "<td>" (count (:connections room)) "</td>"
-         "<td>" (room-age now room) "</td>"
-         "<td>" (room-idle-age now room) "</td>"
-         "<td>" (delete-room-control room-id) "</td>"
-         "</tr>")))
+    [:tr {:class (when (= selected-id room-id) "selected")}
+     [:td [:a {:href (str "/karbosh/admin?room=" room-id)} room-id]]
+     [:td (kw-label (:phase state))]
+     [:td (score-label (:scores state))]
+     [:td (player-label view (:current-player state))]
+     [:td (inc (or (:hand-index state) 0))]
+     [:td (count (:connections room))]
+     [:td (room-age now room)]
+     [:td (room-idle-age now room)]
+     [:td (delete-room-control room-id)]]))
 
 (defn rooms-table [rooms selected-id now]
   (if (seq (sorted-room-entries rooms))
-    (str "<table><thead><tr><th>Room</th><th>Phase</th><th>Score</th>"
-         "<th>Current</th><th>Hand</th><th>Conns</th><th>Age</th><th>Idle</th><th>Actions</th></tr></thead><tbody>"
-         (apply str (map #(room-summary-row now selected-id %)
-                         (sorted-room-entries rooms)))
-         "</tbody></table>")
-    "<p class=\"empty\">No rooms are currently running.</p>"))
+    [:table
+     [:thead
+      [:tr
+       [:th "Room"]
+       [:th "Phase"]
+       [:th "Score"]
+       [:th "Current"]
+       [:th "Hand"]
+       [:th "Conns"]
+       [:th "Age"]
+       [:th "Idle"]
+       [:th "Actions"]]]
+     [:tbody (for [entry (sorted-room-entries rooms)]
+               (room-summary-row now selected-id entry))]]
+    [:p {:class "empty"} "No rooms are currently running."]))
 
 (defn seats-table [view]
-  (str "<table><thead><tr><th>Player</th><th>Team</th><th>Status</th><th>Cards</th></tr></thead><tbody>"
-       (apply str
-              (for [{:keys [id team name connected? bot? active? hand-count]} (:players view)]
-                (str "<tr" (when (= id (:current-player view)) " class=\"selected\"") ">"
-                     "<td>" (escape-html (or name (clojure.core/name id))) "</td>"
-                     "<td>" (escape-html (team-label team)) "</td>"
-                     "<td>" (escape-html (str (cond
-                                                bot? "bot"
-                                                connected? "online"
-                                                :else "offline")
-                                              (when (false? active?) " / sitting out"))) "</td>"
-                     "<td>" hand-count "</td>"
-                     "</tr>")))
-       "</tbody></table>"))
+  [:table
+   [:thead
+    [:tr
+     [:th "Player"]
+     [:th "Team"]
+     [:th "Status"]
+     [:th "Cards"]]]
+   [:tbody
+    (for [{:keys [id team name connected? bot? active? hand-count]} (:players view)]
+      (let [status (str (cond
+                          bot? "bot"
+                          connected? "online"
+                          :else "offline")
+                        (when (false? active?) " / sitting out"))]
+        [:tr {:class (when (= id (:current-player view)) "selected")}
+         [:td (or name (clojure.core/name id))]
+         [:td (team-label team)]
+         [:td status]
+         [:td hand-count]]))]])
 
 (defn trick-html [view trick]
   (if (seq trick)
-    (str "<div class=\"trick\">"
-         (apply str
-                (for [{:keys [player card]} trick]
-                  (str "<div><span>" (escape-html (player-label view player))
-                       "</span>" (card-html card) "</div>")))
-         "</div>")
-    "<p class=\"empty\">No cards on the table.</p>"))
+    [:div {:class "trick"}
+     (for [{:keys [player card]} trick]
+       [:div
+        [:span (player-label view player)]
+        (card-html card)])]
+    [:p {:class "empty"} "No cards on the table."]))
 
 (defn hands-html [view hands]
-  (str "<div class=\"hands\">"
-       (apply str
-              (for [{:keys [id]} (:players view)]
-                (str "<article><strong>" (escape-html (player-label view id))
-                     "</strong><div>" (cards-html (get hands id)) "</div></article>")))
-       "</div>"))
+  [:div {:class "hands"}
+   (for [{:keys [id]} (:players view)]
+     [:article
+      [:strong (player-label view id)]
+      [:div (cards-html (get hands id))]])])
 
 (defn bids-html [view]
   (if (seq (:bids-this-hand view))
-    (str "<ol class=\"compact-list\">"
-         (apply str
-                (for [bid (:bids-this-hand view)]
-                  (str "<li><span>" (escape-html (player-label view (:player bid)))
-                       "</span><strong>" (escape-html (bid-label bid)) "</strong></li>")))
-         "</ol>")
-    "<p class=\"empty\">No bids this hand.</p>"))
+    [:ol {:class "compact-list"}
+     (for [bid (:bids-this-hand view)]
+       [:li
+        [:span (player-label view (:player bid))]
+        [:strong (bid-label bid)]])]
+    [:p {:class "empty"} "No bids this hand."]))
 
 (defn event-label [{:keys [type player card suit bid-type value]} view]
-  (str (escape-html (kw-label type))
-       " / " (escape-html (player-label view player))
-       (when bid-type (str " / " (escape-html (bid-label {:bid-type bid-type :value value}))))
-       (when suit (str " / " (escape-html (cards/suit->str suit))))
-       (when card (str " / " (cards-html [card])))))
+  (vec
+   (concat [ (kw-label type) " / " (player-label view player)]
+           (when bid-type [" / " (bid-label {:bid-type bid-type :value value})])
+           (when suit [" / " (cards/suit->str suit)])
+           (when card [" / " (card-html card)]))))
 
 (defn recent-events-html [view events]
   (if (seq events)
-    (str "<ol class=\"compact-list events\">"
-         (apply str
-                (for [event (take-last 18 events)]
-                  (str "<li>" (event-label event view) "</li>")))
-         "</ol>")
-    "<p class=\"empty\">No events yet.</p>"))
+    [:ol {:class "compact-list events"}
+     (for [event (take-last 18 events)]
+       (into [:li] (event-label event view)))]
+    [:p {:class "empty"} "No events yet."]))
 
 (defn hand-summary-label [{:keys [points scores-after trump tricks]}]
   (str "Trump " (or (some-> trump cards/suit->str) "--")
@@ -232,15 +235,13 @@
 
 (defn hand-history-html [history]
   (if (seq history)
-    (str "<ol class=\"compact-list\">"
-         (apply str
-                (for [{:keys [hand-index bid completed-tricks] :as hand} (take-last 10 history)]
-                  (str "<li><span>Hand " (inc hand-index) "</span><strong>"
-                       (escape-html (bid-label bid)) "</strong><em>"
-                       (escape-html (hand-summary-label hand))
-                       " / " (count completed-tricks) " tricks</em></li>")))
-         "</ol>")
-    "<p class=\"empty\">No completed hands yet.</p>"))
+    [:ol {:class "compact-list"}
+     (for [{:keys [hand-index bid completed-tricks] :as hand} (take-last 10 history)]
+       [:li
+        [:span (str "Hand " (inc hand-index))]
+        [:strong (bid-label bid)]
+        [:em (str (hand-summary-label hand) " / " (count completed-tricks) " tricks")]])]
+    [:p {:class "empty"} "No completed hands yet."]))
 
 (defn selected-room [rooms selected-room-id]
   (or (live-room rooms selected-room-id)
@@ -255,27 +256,38 @@
     (let [view (game/admin-view (:game room) (:seats room))
           debug (:debug view)
           last-trick (peek (:completed-tricks view))]
-      (str "<section id=\"admin-room-detail\" class=\"panel detail\"><div class=\"section-heading\"><div>"
-           "<p>Selected Room</p><h2>" (escape-html (:id room)) "</h2></div>"
-           "<div class=\"admin-actions\"><a href=\"/karbosh/admin\">All rooms</a>"
-           (delete-room-control (:id room)) "</div></div>"
-           "<div class=\"stats room-stats\">"
-           (stat-card "Phase" (kw-label (:phase view)))
-           (stat-card "Score" (score-label (:scores view)))
-           (stat-card "Current" (player-label view (:current-player view)))
-           (stat-card "Bid" (bid-label (:current-bid view)))
-           (stat-card "Trump" (or (some-> (:trump view) cards/suit->str) "--"))
-           (stat-card "Tricks" (score-label (:tricks-this-hand view)))
-           "</div>"
-           "<h3>Seats</h3>" (seats-table view)
-           "<h3>Table</h3>" (trick-html view (:current-trick view))
-           "<h3>Last completed trick</h3>" (trick-html view last-trick)
-           "<h3>Hands</h3>" (hands-html view (:hands debug))
-           "<div class=\"two-col\"><section><h3>Bids</h3>" (bids-html view)
-           "</section><section><h3>Recent events</h3>"
-           (recent-events-html view (:history debug)) "</section></div>"
-           "<h3>Hand history</h3>" (hand-history-html (:hand-history debug))
-           "</section>"))))
+      [:section {:id "admin-room-detail" :class "panel detail"}
+       [:div {:class "section-heading"}
+        [:div
+         [:p "Selected Room"]
+         [:h2 (:id room)]]
+        [:div {:class "admin-actions"}
+         [:a {:href "/karbosh/admin"} "All rooms"]
+         (delete-room-control (:id room))]]
+       [:div {:class "stats room-stats"}
+        (stat-card "Phase" (kw-label (:phase view)))
+        (stat-card "Score" (score-label (:scores view)))
+        (stat-card "Current" (player-label view (:current-player view)))
+        (stat-card "Bid" (bid-label (:current-bid view)))
+        (stat-card "Trump" (or (some-> (:trump view) cards/suit->str) "--"))
+        (stat-card "Tricks" (score-label (:tricks-this-hand view)))]
+       [:h3 "Seats"]
+       (seats-table view)
+       [:h3 "Table"]
+       (trick-html view (:current-trick view))
+       [:h3 "Last completed trick"]
+       (trick-html view last-trick)
+       [:h3 "Hands"]
+       (hands-html view (:hands debug))
+       [:div {:class "two-col"}
+        [:section
+         [:h3 "Bids"]
+         (bids-html view)]
+        [:section
+         [:h3 "Recent events"]
+         (recent-events-html view (:history debug))]]
+       [:h3 "Hand history"]
+       (hand-history-html (:hand-history debug))])))
 
 (defn render-dashboard-main [{:keys [rooms
                                     selected-room-id
@@ -294,18 +306,33 @@
                               :limits limits
                               :started-at started-at
                               :now now})]
-    (str "<main id=\"admin-main\"><div class=\"top\"><div><p>Karbosh admin</p><h1>Runtime dashboard</h1></div>"
-         "<a href=\"/karbosh/\">Back to game</a></div>"
-         "<section id=\"admin-stats-panel\" class=\"panel\"><div class=\"section-heading\"><div><p>Performance</p>"
-         "<h2>Server stats</h2></div><span>Live updates</span></div>"
-         "<div class=\"stats\">" (apply str (map #(stat-card (:label %) (:value %)) stats))
-         "</div></section>"
-         "<section id=\"admin-rooms-panel\" class=\"panel\"><div class=\"section-heading\"><div><p>Tracking</p>"
-         "<h2>Running rooms</h2></div></div>"
-         (rooms-table rooms selected-id now)
-         "</section>"
-         (or (room-detail room)
-             "<section id=\"admin-room-detail\" class=\"panel detail\"><p class=\"empty\">No room selected.</p></section>"))))
+    [:main {:id "admin-main"}
+     [:div {:class "top"}
+      [:div
+       [:p "Karbosh admin"]
+       [:h1 "Runtime dashboard"]]
+      [:a {:href "/karbosh/"} "Back to game"]]
+
+     [:section {:id "admin-stats-panel" :class "panel"}
+      [:div {:class "section-heading"}
+       [:div
+        [:p "Performance"]
+        [:h2 "Server stats"]]
+       [:span "Live updates"]]
+      [:div {:class "stats"}
+       (for [metric stats]
+         (stat-card (:label metric) (:value metric)))]]
+
+     [:section {:id "admin-rooms-panel" :class "panel"}
+      [:div {:class "section-heading"}
+       [:div
+        [:p "Tracking"]
+        [:h2 "Running rooms"]]]
+      (rooms-table rooms selected-id now)]
+
+     (or (room-detail room)
+         [:section {:id "admin-room-detail" :class "panel detail"}
+          [:p {:class "empty"} "No room selected."]])]))
 
 (def styles
   "body{margin:0;background:#111521;color:rgba(255,255,255,.78);font:15px/1.5 Arial,sans-serif}a{color:#6fd0c7;text-decoration:none}main{max-width:1320px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.top h1{margin:.1rem 0 0;color:white}.top p,.section-heading p{margin:0;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.panel{border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:16px;margin-bottom:16px}.section-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:12px}.section-heading h2{margin:0;color:white}.admin-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}.inline-form{display:inline;margin:0}button{min-height:32px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.06);color:white;cursor:pointer;font-size:.68rem;font-weight:700;letter-spacing:.1em;padding:0 10px;text-transform:uppercase}button.danger{border-color:rgba(255,154,168,.55);background:rgba(255,154,168,.12);color:#ffbac3}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);padding:10px}.stat span{display:block;color:rgba(255,255,255,.5);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.stat strong{display:block;color:white;font-size:1.2rem;line-height:1.25}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px;text-align:left}th{color:rgba(255,255,255,.52);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}.selected{background:rgba(111,208,199,.12)}.room-stats{margin-bottom:16px}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hands article{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px}.hands strong{display:block;color:white;margin-bottom:6px}.card{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:46px;margin:0 4px 6px 0;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#f8f5ed;color:#141821;font-weight:800}.card.heart,.card.diamond{color:#c62f43}.trick{display:flex;flex-wrap:wrap;gap:10px}.trick>div{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:8px}.trick span{display:block;color:rgba(255,255,255,.55);font-size:.72rem;font-weight:700}.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.compact-list{margin:0;padding-left:20px}.compact-list li{margin:6px 0}.compact-list span{display:inline-block;min-width:95px;color:rgba(255,255,255,.55)}.compact-list strong{color:white}.compact-list em{color:rgba(255,255,255,.55);font-style:normal}.empty{color:rgba(255,255,255,.45)}")
@@ -317,15 +344,21 @@
                                 open-websocket-count
                                 limits
                                 started-at]}]
-  (str "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-       "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-       "<title>Karbosh Admin</title><style>" styles "</style></head><body>"
-       (render-dashboard-main {:rooms rooms
-                              :selected-room-id selected-room-id
-                              :metrics metrics
-                              :pending-bot-count pending-bot-count
-                              :open-websocket-count open-websocket-count
-                              :limits limits
-                              :started-at started-at})
-       "<script src=\"/karbosh/assets/js/admin.js?v=20260604-stream\"></script>"
-       "</body></html>"))
+  (str
+   "<!doctype html>"
+   (h/render
+    [:html {:lang "en"}
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+      [:title "Karbosh Admin"]
+      [:style styles]]
+     [:body
+      (render-dashboard-main {:rooms rooms
+                             :selected-room-id selected-room-id
+                             :metrics metrics
+                             :pending-bot-count pending-bot-count
+                             :open-websocket-count open-websocket-count
+                             :limits limits
+                             :started-at started-at})
+      [:script {:src "/karbosh/assets/js/admin.js?v=20260604-stream"}]]])))

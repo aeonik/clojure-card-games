@@ -2,7 +2,8 @@
   (:require [cljs.reader :as reader]
             [clojure.string :as str]
             [clojure-card-games.karbosh.shared.cards :as cards]
-            [clojure-card-games.karbosh.shared.rules :as rules]))
+            [clojure-card-games.karbosh.shared.rules :as rules]
+            [clojure-card-games.karbosh.hiccup :as h]))
 
 (defonce app
   (atom {:socket nil
@@ -33,17 +34,12 @@
   (.querySelector js/document selector))
 
 (defn html! [node content]
-  (set! (.-innerHTML node) content))
+  (set! (.-innerHTML node) (if (string? content)
+                             content
+                             (h/render content))))
 
 (defn text! [node content]
   (set! (.-textContent node) content))
-
-(defn escape-html [s]
-  (-> (str s)
-      (str/replace "&" "&amp;")
-      (str/replace "<" "&lt;")
-      (str/replace ">" "&gt;")
-      (str/replace "\"" "&quot;")))
 
 (defn kw-name [x]
   (when x (name x)))
@@ -212,91 +208,100 @@
 
 (defn preview-seat-html [selected-player {:keys [id team joinable?] :as player}]
   (let [selected? (= selected-player id)]
-    (str "<button class=\"join-seat-option"
-         (when selected? " is-selected")
-         (when joinable? " is-joinable")
-         "\" type=\"button\" data-join-player=\"" (escape-html (kw-name id)) "\">"
-         "<span>Seat " (last (kw-name id)) "</span>"
-         "<strong>" (escape-html (preview-seat-name player)) "</strong>"
-         "<em>" (escape-html (str (team-label team) " / " (preview-seat-status player))) "</em>"
-         "</button>")))
+    [:button {:class (str "join-seat-option"
+                          (when selected? " is-selected")
+                          (when joinable? " is-joinable"))
+              :type "button"
+              :data-join-player (kw-name id)}
+     [:span "Seat " (last (kw-name id))]
+     [:strong (preview-seat-name player)]
+     [:em (str (team-label team) " / " (preview-seat-status player))]]))
 
 (defn team-preview-html [selected-player team players]
-  (str "<section class=\"join-team\"><h3>" (escape-html (team-label team)) "</h3>"
-       "<div class=\"join-seat-grid\">"
-       (apply str (map #(preview-seat-html selected-player %) players))
-       "</div></section>"))
+  [:section {:class "join-team"}
+   [:h3 (team-label team)]
+   [:div {:class "join-seat-grid"}
+    (for [player players]
+      (preview-seat-html selected-player player))]])
 
 (defn preview-players-html [preview]
   (let [selected-player (:player (:join-modal @app))
         team-groups (group-by :team (:players preview))
         available-count (joinable-seat-count preview)]
-    (str "<div class=\"join-teams\">"
-         (apply str
-                (for [team [1 2]]
-                  (team-preview-html selected-player team (get team-groups team))))
-         "</div>"
-         "<p class=\"join-modal-count\">" available-count " available "
-         (if (= 1 available-count) "seat" "seats") "</p>")))
+    [:div {:class "join-teams"}
+     (for [team [1 2]]
+       (team-preview-html selected-player team (get team-groups team)))
+     [:p {:class "join-modal-count"}
+      available-count " available "
+      (if (= 1 available-count) "seat" "seats")]]))
 
 (defn public-room-html [{:keys [room-id phase player-count connected-count available-count]}]
-  (str "<article class=\"public-room-row\">"
-       "<div><strong>" (escape-html room-id) "</strong>"
-       "<span>" (escape-html (phase-label phase)) "</span></div>"
-       "<em>" player-count " / 6 players"
-       (when (pos? connected-count)
-         (str " / " connected-count " online"))
-       "</em>"
-       "<span>" available-count " available</span>"
-       "<button type=\"button\" data-public-room=\"" (escape-html room-id) "\">Join</button>"
-       "</article>"))
+  [:article {:class "public-room-row"}
+   [:div
+    [:strong room-id]
+    [:span (phase-label phase)]]
+   [:em
+    player-count " / 6 players"
+    (when (pos? connected-count)
+      (str " / " connected-count " online"))]
+   [:span available-count " available"]
+   [:button {:type "button"
+             :data-public-room room-id}
+    "Join"]])
 
 (defn render-public-rooms! []
   (when-let [root (el "public-rooms-root")]
     (let [{:keys [loading? rooms error]} (:public-rooms @app)]
-      (html! root
-             (cond
-               error
-               (str "<p class=\"public-rooms-empty\">" (escape-html error) "</p>")
+        (html! root
+               (cond
+                 error
+                 [:p {:class "public-rooms-empty"} error]
 
-               (seq rooms)
-               (str "<div class=\"public-room-list\">"
-                    (apply str (map public-room-html rooms))
-                    "</div>")
+                 (seq rooms)
+                 [:div {:class "public-room-list"}
+                  (for [room rooms] (public-room-html room))]
 
-               loading?
-               "<p class=\"public-rooms-empty\">Loading rooms...</p>"
+                 loading?
+                 [:p {:class "public-rooms-empty"} "Loading rooms..."]
 
-               :else
-               "<p class=\"public-rooms-empty\">No public rooms.</p>")))))
+                 :else
+                 [:p {:class "public-rooms-empty"} "No public rooms."])))))
 
 (defn render-join-modal! []
   (let [{:keys [room-id loading? preview player error]} (:join-modal @app)]
     (html! (el "modal-root")
            (if room-id
-             (str "<div class=\"modal-backdrop\">"
-                  "<section class=\"join-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"join-modal-title\">"
-                  "<p class=\"eyebrow\">Karbosh table</p>"
-                  "<h2 id=\"join-modal-title\">Join room " (escape-html room-id) "</h2>"
-                  (cond
-                    loading?
-                    "<p class=\"join-modal-muted\">Loading players...</p>"
+             [:div {:class "modal-backdrop"}
+              [:section {:class "join-modal"
+                         :role "dialog"
+                         :aria-modal "true"
+                         :aria-labelledby "join-modal-title"}
+               [:p {:class "eyebrow"} "Karbosh table"]
+               [:h2 {:id "join-modal-title"} "Join room " room-id]
+               (cond
+                 loading?
+                 [:p {:class "join-modal-muted"} "Loading players..."]
 
-                    error
-                    (str "<p class=\"join-modal-error\">" (escape-html error) "</p>")
+                 error
+                 [:p {:class "join-modal-error"} error]
 
-                    :else
-                    (str "<h3>Current players</h3>"
-                         (preview-players-html preview)))
-                  "<label><span>Name</span>"
-                  "<input id=\"join-modal-name\" type=\"text\" maxlength=\"24\" value=\""
-                  (escape-html (player-name)) "\"></label>"
-                  "<div class=\"join-modal-actions\">"
-                  "<button id=\"join-modal-cancel\" type=\"button\">Cancel</button>"
-                  "<button id=\"join-modal-submit\" type=\"button\""
-                  (when (join-modal-disabled? loading? player error) " disabled")
-                  ">Join Table</button></div>"
-                  "</section></div>")
+                 :else
+                 [:div
+                  [:h3 "Current players"]
+                  (preview-players-html preview)])
+               [:label
+                [:span "Name"]
+                [:input {:id "join-modal-name"
+                         :type "text"
+                         :maxlength "24"
+                         :value (player-name)}]]
+               [:div {:class "join-modal-actions"}
+                [:button {:id "join-modal-cancel" :type "button"} "Cancel"]
+                [:button {:id "join-modal-submit"
+                          :type "button"
+                          :disabled (join-modal-disabled? loading? player error)}
+                 "Join Table"]]
+               ]]
              "")))
   (when (:join-modal @app)
     (when-let [cancel (el "join-modal-cancel")]
@@ -347,73 +352,64 @@
     :else "open"))
 
 (defn hand-backs-html [hand-count]
-  (apply str
-         (for [n (range (min 5 hand-count))]
-           (str "<i style=\"--i:" n "\"></i>"))))
+  (for [n (range (min 5 hand-count))]
+    [:i {:style (str "--i:" n)}]))
 
 (defn player-seat-html [view {:keys [id team name connected? bot? active? hand-count] :as seat}]
   (let [current? (= id (:current-player view))
         you? (= id (:you view))]
-    (str "<div class=\"player-seat " (player-class id)
-         (when connected? " is-connected")
-         (when bot? " is-bot")
-         (when (false? active?) " is-sitting-out")
-         (when current? " is-current")
-         (when you? " is-you")
-         "\">"
-         "<div><strong>" (escape-html (or name (clojure.core/name id))) "</strong>"
-         "<small>" (team-label team) " / " hand-count " cards / " (seat-state-label seat) "</small>"
-         (when-let [bid (latest-bid view id)]
-           (str "<em class=\"bid-chip\">" (escape-html (bid-label bid)) "</em>"))
-         "</div>"
-         "<div class=\"seat-hand-backs\">" (hand-backs-html hand-count) "</div>"
-         (when current? "<em class=\"turn-badge\">Current</em>")
-         "</div>")))
-
-(defn mobile-seat-roster-html [view]
-  (str "<ul class=\"mobile-seat-roster\" aria-label=\"Players\">"
-       (apply str
-              (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
-                (let [current? (= id (:current-player view))
-                      you? (= id (:you view))]
-                  (str "<li class=\"" (player-class id)
+    [:div {:class (str "player-seat"
                        (when connected? " is-connected")
                        (when bot? " is-bot")
                        (when (false? active?) " is-sitting-out")
                        (when current? " is-current")
-                       (when you? " is-you")
-                       "\">"
-                       "<div><strong>" (escape-html (or name (clojure.core/name id))) "</strong>"
-                       "<span>" (team-label team) " / " hand-count " cards / "
-                       (seat-state-label seat) "</span></div>"
-                       (if-let [bid (latest-bid view id)]
-                         (str "<em>" (escape-html (bid-label bid)) "</em>")
-                         "<em>--</em>")
-                       "</li>"))))
-       "</ul>"))
+                       (when you? " is-you"))}
+     [:div
+      [:strong (or name (clojure.core/name id))]
+      [:small (team-label team) " / " hand-count " cards / " (seat-state-label seat)]
+      (when-let [bid (latest-bid view id)]
+        [:em {:class "bid-chip"} (bid-label bid)])]
+     [:div {:class "seat-hand-backs"} (hand-backs-html hand-count)]
+     (when current? [:em {:class "turn-badge"} "Current"])]))
+
+(defn mobile-seat-roster-html [view]
+  (into [:ul {:class "mobile-seat-roster" :aria-label "Players"}]
+        (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
+          (let [current? (= id (:current-player view))
+                you? (= id (:you view))]
+            [:li {:class (str "player-seat"
+                              (when connected? " is-connected")
+                              (when bot? " is-bot")
+                              (when (false? active?) " is-sitting-out")
+                              (when current? " is-current")
+                              (when you? " is-you"))}
+             [:div
+              [:strong (or name (clojure.core/name id))]
+              [:span (team-label team) " / " hand-count " cards / "
+               (seat-state-label seat)]]
+             (if-let [bid (latest-bid view id)]
+               [:em (bid-label bid)]
+               [:em "--"])]))))
 
 (defn trick-card-html [view {:keys [player card]}]
-  (str "<li class=\"trick-card " (player-class player) "\">"
-       "<span>" (escape-html (player-label view player)) "</span>"
-       "<strong class=\"card-face" (card-suit-class card) "\">"
-       (card-label card)
-       "</strong></li>"))
+  [:li {:class (str "trick-card " (player-class player))}
+   [:span (player-label view player)]
+   [:strong {:class (str "card-face" (card-suit-class card))}
+    (card-label card)]])
 
 (defn play-animation-html [view {:keys [player card]}]
   (when (and player card)
-    (str "<li class=\"trick-card is-animating " (player-class player)
-         " from-" (player-class player) "\">"
-         "<span>" (escape-html (player-label view player)) "</span>"
-         "<strong class=\"card-face" (card-suit-class card) "\">"
-         (card-label card)
-         "</strong></li>")))
+    [:li {:class (str "trick-card is-animating " (player-class player) " from-" (player-class player))}
+     [:span (player-label view player)]
+     [:strong {:class (str "card-face" (card-suit-class card))}
+      (card-label card)]]))
 
 (defn trick-html [view trick animation]
-  (let [cards (apply str (map #(trick-card-html view %) trick))
+  (let [cards (map #(trick-card-html view %) trick)
         animation (play-animation-html view animation)]
     (if (or (seq trick) animation)
-      (str cards (or animation ""))
-      "<li class=\"trick-empty\"><span>No cards played</span></li>")))
+      (vec (concat cards (when animation [animation])))
+      [[:li {:class "trick-empty"} [:span "No cards played"]]])))
 
 (defn same-play? [a b]
   (and (= (:player a) (:player b))
@@ -426,57 +422,56 @@
 
 (defn trick-popup-html [view {:keys [player card]}]
   (when player
-    (str "<div class=\"trick-winner-popup\">"
-         "<span>Trick winner</span>"
-         "<strong>" (escape-html (player-label view player)) "</strong>"
-         (when card
-           (str "<em>with <span class=\"card-face" (card-suit-class card) "\">"
-                (card-label card)
-                "</span></em>"))
-         "</div>")))
+    [:div {:class "trick-winner-popup"}
+     [:span "Trick winner"]
+     [:strong (player-label view player)]
+     (when card
+       [:em "with "
+        [:span {:class (str "card-face" (card-suit-class card))} (card-label card)]])]))
 
 (defn bid-popup-html [view {:keys [player] :as bid}]
   (when player
-    (str "<div class=\"bid-popup\">"
-         "<span>" (escape-html (player-label view player)) "</span>"
-         "<strong>" (escape-html (bid-label bid)) "</strong>"
-         "</div>")))
+    [:div {:class "bid-popup"}
+     [:span (player-label view player)]
+     [:strong (bid-label bid)] ]))
 
 (defn bid-log-html [view]
   (when (seq (:bids-this-hand view))
-    (str "<ol class=\"bid-log\">"
-         (apply str
-                (for [bid (:bids-this-hand view)]
-                  (str "<li><span>" (escape-html (player-label view (:player bid)))
-                       "</span><strong>" (escape-html (bid-label bid)) "</strong></li>")))
-         "</ol>")))
+    [:ol {:class "bid-log"}
+     (for [bid (:bids-this-hand view)]
+       [:li
+        [:span (player-label view (:player bid))]
+        [:strong (bid-label bid)]])]))
 
 (defn trump-value-html [suit]
   (if suit
-    (str "<strong class=\"trump-symbol" (suit-class suit) "\">"
-         (cards/suit->str suit)
-         "</strong>")
-    "<strong class=\"trump-symbol is-empty\">--</strong>"))
+    [:strong {:class (str "trump-symbol" (suit-class suit))}
+     (cards/suit->str suit)]
+    [:strong {:class "trump-symbol is-empty"} "--"]))
 
 (defn table-hand-status-html [view]
-  (str "<div class=\"table-hand-status\">"
-       "<div><span>Trump</span>" (trump-value-html (:trump view)) "</div>"
-       "<div><span>Bid</span><strong>" (escape-html (bid-label (:current-bid view))) "</strong></div>"
-       "<div><span>Tricks</span><strong>" (get-in view [:tricks-this-hand 1] 0)
-       " / " (get-in view [:tricks-this-hand 2] 0)
-       "</strong></div>"
-       "</div>"))
+  [:div {:class "table-hand-status"}
+   [:div
+    [:span "Trump"]
+    (trump-value-html (:trump view))]
+   [:div
+    [:span "Bid"]
+    [:strong (bid-label (:current-bid view))]]
+   [:div
+    [:span "Tricks"]
+    [:strong (get-in view [:tricks-this-hand 1] 0) " / " (get-in view [:tricks-this-hand 2] 0)]]])
 
 (defn table-status-html [view bid-popup]
-  (str "<div class=\"table-status\">"
-       "<div class=\"turn-summary\"><span>Current player</span><strong>"
-       (escape-html (player-label view (:current-player view)))
-       "</strong></div>"
-       "<div class=\"bid-trail\"><span>Bid trail</span>"
-       (or (bid-log-html view) "<ol class=\"bid-log is-empty\"><li><strong>--</strong></li></ol>")
-       "</div>"
-       (or (bid-popup-html view bid-popup) "")
-       "</div>"))
+  [:div {:class "table-status"}
+   [:div {:class "turn-summary"}
+    [:span "Current player"]
+    [:strong (player-label view (:current-player view))]]
+   [:div {:class "bid-trail"}
+    [:span "Bid trail"]
+    (if (seq (:bids-this-hand view))
+      (bid-log-html view)
+      [:ol {:class "bid-log is-empty"} [:li [:strong "--"]]])]
+   (when bid-popup (bid-popup-html view bid-popup))])
 
 (defn table-surface-html [view animation trick-popup queued-trick-popup]
   (let [trick (if-let [completed-trick (:trick trick-popup)]
@@ -484,24 +479,22 @@
                 (if-let [queued-trick (:trick queued-trick-popup)]
                   (settled-trick queued-trick animation)
                   (settled-trick (:current-trick view) animation)))]
-    (str "<div class=\"table-surface\">"
-         (table-hand-status-html view)
-         "<div class=\"felt-oval\"></div>"
-         (apply str (map #(player-seat-html view %) (:players view)))
-         "<div class=\"table-center\">"
-         "<ul class=\"trick-pile\">" (trick-html view trick animation) "</ul>"
-         "</div>"
-         (or (trick-popup-html view trick-popup) "")
-         "</div>")))
+    [:div {:class "table-surface"}
+     (table-hand-status-html view)
+     [:div {:class "felt-oval"}]
+     (for [player (:players view)]
+       (player-seat-html view player))
+     [:div {:class "table-center"}
+      [:ul {:class "trick-pile"}
+       (trick-html view trick animation)]]
+     (or (trick-popup-html view trick-popup) "")]))
 
 (defn card-button [{:keys [card disabled?]}]
-  (str "<button class=\"card-button" (card-suit-class card) "\" data-card=\""
-       (escape-html (pr-str card))
-       "\""
-       (when disabled? " disabled")
-       ">"
-       (card-label card)
-       "</button>"))
+  [:button {:class (str "card-button" (card-suit-class card))
+            :type "button"
+            :data-card (pr-str card)
+            :disabled disabled?}
+   (card-label card)])
 
 (def auto-play-phases
   #{:bidding
@@ -513,35 +506,43 @@
 (defn bid-controls [view active?]
   (when (= :bidding (:phase view))
     (let [disabled (not active?)]
-      (str "<div class=\"control-group\">"
-           "<button data-bid=\"pass\"" (when disabled " disabled") ">Pass</button>"
-           (apply str
-                  (for [n (range 1 9)]
-                    (str "<button data-bid-value=\"" n "\""
-                         (when disabled " disabled")
-                         ">" n "</button>")))
-           "<button data-bid=\"karbosh\"" (when disabled " disabled") ">Karbosh</button>"
-           "<button data-bid=\"double-karbosh\"" (when disabled " disabled") ">Double</button>"
-           "</div>"))))
+      [:div {:class "control-group"}
+       [:button {:type "button"
+                 :data-bid "pass"
+                 :disabled disabled}
+        "Pass"]
+       (for [n (range 1 9)]
+         [:button {:type "button"
+                   :data-bid-value n
+                   :disabled disabled}
+          n])
+       [:button {:type "button"
+                 :data-bid "karbosh"
+                 :disabled disabled}
+        "Karbosh"]
+       [:button {:type "button"
+                 :data-bid "double-karbosh"
+                 :disabled disabled}
+        "Double"]])))
 
 (defn trump-controls [view active?]
   (when (= :trump-selection (:phase view))
-    (str "<div class=\"control-group trump-control-group\">"
-         (apply str
-                (for [suit cards/suits]
-                  (str "<button class=\"trump-button" (suit-class suit) "\""
-                       " data-trump=\"" (pr-str suit) "\""
-                       (when-not active? " disabled")
-                       ">" (cards/suit->str suit) "</button>")))
-         "</div>")))
+    [:div {:class "control-group trump-control-group"}
+     (for [suit cards/suits]
+       [:button {:type "button"
+                 :class (str "trump-button" (suit-class suit))
+                 :data-trump (pr-str suit)
+                 :disabled (not active?)}
+        (cards/suit->str suit)])]))
 
 (defn auto-play-controls [view active? paused? pending?]
   (when (auto-play-phases (:phase view))
-    (str "<div class=\"control-group auto-play-control\">"
-         "<button class=\"auto-play-button\" data-auto-play=\"true\""
-         (when (or (not active?) paused? pending?) " disabled")
-         ">Auto Play</button>"
-         "</div>")))
+    [:div {:class "control-group auto-play-control"}
+     [:button {:type "button"
+               :class "auto-play-button"
+               :data-auto-play true
+               :disabled (or (not active?) paused? pending?)}
+      "Auto Play"]]))
 
 (defn hand-title [view]
   (case (:phase view)
@@ -565,88 +566,88 @@
 
 (defn hand-panel-html [view pending-card paused?]
   (let [hand (visible-hand (:hand view) pending-card)]
-    (str "<section class=\"hand-panel\">"
-         "<div class=\"hand-heading\"><h2>" (escape-html (hand-title view)) "</h2><span>"
-         (count hand)
-         " cards</span></div>"
-         "<div class=\"hand-row\">"
-         (apply str
-                (for [card hand]
-                  (card-button {:card card
-                                :disabled? (card-disabled? view hand card pending-card paused?)})))
-         "</div></section>")))
+    [:section {:class "hand-panel"}
+     [:div {:class "hand-heading"}
+      [:h2 (hand-title view)]
+      [:span (count hand) " cards"]]
+     [:div {:class "hand-row"}
+      (for [card hand]
+        (card-button {:card card
+                      :disabled? (card-disabled? view hand card pending-card paused?)}))]]))
 
 (defn game-over-html [view]
   (when (= :game-over (:phase view))
-    (str "<section class=\"game-over-panel\">"
-         "<span>Game over</span>"
-         "<strong>" (escape-html (team-label (:winner view))) " wins</strong>"
-         "<em>Final score " (get-in view [:scores 1] 0)
-         " / " (get-in view [:scores 2] 0) "</em>"
-         "</section>")))
+    [:section {:class "game-over-panel"}
+     [:span "Game over"]
+     [:strong (team-label (:winner view)) " wins"]
+     [:em "Final score " (get-in view [:scores 1] 0) " / " (get-in view [:scores 2] 0)]]))
 
 (defn next-hand-controls [view]
   (case (:phase view)
     :hand-complete
-    "<div class=\"control-group\"><button data-new-hand=\"true\">New hand</button></div>"
-
+    [:div {:class "control-group"}
+     [:button {:type "button" :data-new-hand true} "New hand"]]
     :game-over
-    "<div class=\"control-group\"><button data-new-game=\"true\">New game</button></div>"
+    [:div {:class "control-group"}
+     [:button {:type "button" :data-new-game true} "New game"]]
 
     nil))
 
 (defn leave-room-controls []
-  "<div class=\"control-group leave-room-control\"><button class=\"leave-room-button\" data-leave-room=\"true\">Leave Room</button></div>")
+  [:div {:class "control-group leave-room-control"}
+   [:button {:class "leave-room-button"
+             :type "button"
+             :data-leave-room true}
+    "Leave Room"]])
 
 (defn room-visibility-controls [view]
   (let [public? (:public? view)]
-    (str "<div class=\"control-group room-visibility-control\">"
-         "<button class=\"visibility-button\" data-room-public=\""
-         (if public? "false" "true")
-         "\">" (if public? "Make Private" "Make Public") "</button>"
-         "</div>")))
+    [:div {:class "control-group room-visibility-control"}
+     [:button {:class "visibility-button"
+               :type "button"
+               :data-room-public (if public? "false" "true")}
+      (if public? "Make Private" "Make Public")]]))
 
 (defn render-controls [view paused? pending-auto?]
   (let [active? (= (:you view) (:current-player view))]
-    (str (or (bid-controls view active?) "")
-         (or (trump-controls view active?) "")
-         (or (auto-play-controls view active? paused? pending-auto?) "")
-         (or (next-hand-controls view) "")
-         (room-visibility-controls view)
-         (leave-room-controls))))
+    (filter identity
+            [(bid-controls view active?)
+             (trump-controls view active?)
+             (auto-play-controls view active? paused? pending-auto?)
+             (next-hand-controls view)
+             (room-visibility-controls view)
+             (leave-room-controls)])))
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
     (if-not view
-      (html! (el "game-root") "<section class=\"panel empty-panel\"><h2>Open a table</h2></section>")
+      (html! (el "game-root")
+             [:section {:class "panel empty-panel"}
+              [:h2 "Open a table"]])
       (do
         (set-share-link! room-id)
         (html! (el "game-root")
-               (str
-                "<section class=\"table-grid\">"
-                "<div class=\"panel table-panel\">"
-               "<div class=\"panel-heading\"><p class=\"eyebrow\">Karbosh table</p>"
-               "<h1>Room " (escape-html room-id) "</h1>"
-               "<p class=\"status-line\">"
-                (escape-html (phase-label (:phase view)))
-                " / Current: " (escape-html (player-label view (:current-player view)))
-                "</p></div>"
-                "<div class=\"score-row\"><span>Team 1 <strong>" (get-in view [:scores 1] 0)
-                "</strong></span><span>Team 2 <strong>" (get-in view [:scores 2] 0)
-                "</strong></span></div>"
-                (or (game-over-html view) "")
-                (table-status-html view bid-popup)
-                (table-surface-html view play-animation trick-popup queued-trick-popup)
-                "<div class=\"controls\">"
-                (render-controls view (or (some? trick-popup)
-                                          (some? queued-trick-popup))
-                                 pending-auto?)
-                "</div>"
-                (hand-panel-html view pending-card (or (some? trick-popup)
+               [:section {:class "table-grid"}
+                [:div {:class "panel table-panel"}
+                 [:div {:class "panel-heading"}
+                  [:p {:class "eyebrow"} "Karbosh table"]
+                  [:h1 "Room " room-id]
+                  [:p {:class "status-line"}
+                   (phase-label (:phase view)) " / Current: "
+                   (player-label view (:current-player view))]]
+                 [:div {:class "score-row"}
+                  [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
+                  [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]
+                 (or (game-over-html view) "")
+                 (table-status-html view bid-popup)
+                 (table-surface-html view play-animation trick-popup queued-trick-popup)
+                 [:div {:class "controls"}
+                  (render-controls view (or (some? trick-popup)
+                                           (some? queued-trick-popup))
+                                   pending-auto?)]
+                 (hand-panel-html view pending-card (or (some? trick-popup)
                                                        (some? queued-trick-popup)))
-                (mobile-seat-roster-html view)
-                "</div>"
-                "</section>"))))))
+                 (mobile-seat-roster-html view)]]))))) 
 
 (defn card-event [view card]
   (case (:phase view)
