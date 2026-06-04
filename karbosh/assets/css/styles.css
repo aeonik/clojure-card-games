@@ -314,18 +314,6 @@ h2 {
   text-shadow: 0 0.2rem 0.45rem rgba(8, 12, 26, 0.7);
 }
 
-.table-hand-status .trick-team-counts {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
-}
-
-.table-hand-status .trick-team-counts em {
-  color: var(--white);
-  font-style: normal;
-  white-space: nowrap;
-}
-
 .trump-symbol {
   display: inline-block;
   font-size: 1.75rem;
