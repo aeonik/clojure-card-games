@@ -143,6 +143,8 @@
     (is (= "DENY" (get headers "X-Frame-Options")))
     (is (re-find #"frame-ancestors 'none'"
                  (get headers "Content-Security-Policy")))
+    (is (re-find #"media-src 'self' data:"
+                 (get headers "Content-Security-Policy")))
     (is (re-find #"form-action 'self'"
                  (get headers "Content-Security-Policy")))))
 
