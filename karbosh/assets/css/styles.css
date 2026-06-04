@@ -1042,6 +1042,7 @@ h2 {
 
 .hand-panel {
   border-top: 1px solid var(--line);
+  margin-bottom: 1rem;
   padding-top: 1rem;
 }
 
@@ -1824,6 +1825,7 @@ input {
 
   .hand-panel {
     order: 4;
+    margin-bottom: 1.35rem;
   }
 
   .mobile-seat-roster {
