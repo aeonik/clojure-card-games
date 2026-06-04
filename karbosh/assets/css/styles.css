@@ -1791,7 +1791,7 @@ input {
   }
 
   .controls {
-    order: 4;
+    order: 5;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1823,7 +1823,7 @@ input {
   }
 
   .hand-panel {
-    order: 5;
+    order: 4;
   }
 
   .mobile-seat-roster {
