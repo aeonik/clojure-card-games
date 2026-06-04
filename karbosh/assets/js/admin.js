@@ -25,6 +25,22 @@
     setMainContent(html);
   }
 
+  function refreshDashboard() {
+    return window.fetch(window.location.href, {
+      credentials: "same-origin"
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Refresh failed with HTTP " + response.status);
+      }
+
+      return response.text();
+    }).then(function (html) {
+      setMainContent(html);
+    }).catch(function () {
+      window.location.reload();
+    });
+  }
+
   function openAdminStream() {
     var protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
     var query = window.location.search ? "&" + window.location.search.substring(1) : "";
@@ -66,7 +82,7 @@
     }).then(function (response) {
       if (response.ok) {
         button.textContent = "Deleted";
-        return null;
+        return refreshDashboard();
       }
 
       return response.text().then(function (body) {
