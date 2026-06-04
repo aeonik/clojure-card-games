@@ -642,9 +642,11 @@
                   [:p {:class "status-line"}
                    (phase-label (:phase view)) " / Current: "
                    (player-label view (:current-player view))]]
-                 [:div {:class "score-row"}
-                  [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
-                  [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]
+                 [:section {:class "score-summary" :aria-label "Total scores"}
+                  [:span {:class "score-summary-label"} "Total scores"]
+                  [:div {:class "score-row"}
+                   [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
+                   [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
                  (or (game-over-html view) "")
                  (table-status-html view bid-popup)
                  (table-surface-html view play-animation trick-popup queued-trick-popup)
