@@ -25,20 +25,34 @@
     setMainContent(html);
   }
 
-  function refreshDashboard() {
-    return window.fetch(window.location.href, {
-      credentials: "same-origin"
-    }).then(function (response) {
-      if (!response.ok) {
-        throw new Error("Refresh failed with HTTP " + response.status);
-      }
+  function roomButtons(roomId) {
+    var buttons = document.querySelectorAll("[data-delete-room]");
+    var matches = [];
 
-      return response.text();
-    }).then(function (html) {
-      setMainContent(html);
-    }).catch(function () {
-      window.location.reload();
+    Array.prototype.forEach.call(buttons, function (button) {
+      if (button.getAttribute("data-delete-room") === roomId) {
+        matches.push(button);
+      }
     });
+
+    return matches;
+  }
+
+  function removeDeletedRoom(roomId) {
+    roomButtons(roomId).forEach(function (button) {
+      var row = button.closest("tr");
+
+      if (row && row.parentNode) {
+        row.parentNode.removeChild(row);
+      }
+    });
+
+    var detail = document.getElementById("admin-room-detail");
+    var detailButton = detail && detail.querySelector("[data-delete-room]");
+
+    if (detailButton && detailButton.getAttribute("data-delete-room") === roomId) {
+      detail.innerHTML = "<p class=\"empty\">Room deleted. Waiting for live update.</p>";
+    }
   }
 
   function openAdminStream() {
@@ -82,7 +96,8 @@
     }).then(function (response) {
       if (response.ok) {
         button.textContent = "Deleted";
-        return refreshDashboard();
+        removeDeletedRoom(roomId);
+        return null;
       }
 
       return response.text().then(function (body) {
