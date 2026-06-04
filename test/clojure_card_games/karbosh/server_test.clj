@@ -102,14 +102,12 @@
       (with-redefs [server/admin-user (constantly "admin")
                     server/admin-password (constantly "secret")]
         (let [response (server/handler
-                        {:request-method :post
-                         :uri "/karbosh/admin/delete-room"
-                         :query-string "room=ABC123"
+                        {:request-method :delete
+                         :uri "/karbosh/admin/rooms/ABC123"
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
                                    "host" "dc3systems.com"}})
               message (async/<!! out)]
-          (is (= 303 (:status response)))
-          (is (= "/karbosh/admin" (get-in response [:headers "Location"])))
+          (is (= 204 (:status response)))
           (is (= :room-closed (:op message)))
           (is (= "ABC123" (:room-id message)))
           (is (not (contains? @server/rooms "ABC123")))
@@ -352,7 +350,9 @@
                         :max-message-bytes 8192
                         :idle-room-ms 14400000}
                :started-at 1000})]
-    (is (re-find #"action=\"/karbosh/admin/delete-room\?room=ABC123\"" html))
+    (is (not (re-find #"admin/delete-room\?room=" html)))
+    (is (re-find #"data-delete-room=\"ABC123\"" html))
+    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-delete\"" html))
     (is (re-find #">Delete</button>" html))))
 
 (deftest websocket-limit-test

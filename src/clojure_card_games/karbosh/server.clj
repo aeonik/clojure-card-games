@@ -216,6 +216,11 @@
 (defn normalize-room-id [room-id]
   (some-> room-id str/upper-case str/trim not-empty))
 
+(defn admin-delete-room-id [uri]
+  (when (str/starts-with? uri "/karbosh/admin/rooms/")
+    (normalize-room-id
+     (decode-query-value (subs uri (count "/karbosh/admin/rooms/"))))))
+
 (declare start-room-sweeper!)
 
 (defn admin-dashboard-response [request]
@@ -434,10 +439,10 @@
     (response 403 "Forbidden")
 
     :else
-    (let [room-id (selected-admin-room-id request)]
+    (let [room-id (admin-delete-room-id (:uri request))]
       (when room-id
         (delete-room! room-id :admin))
-      (redirect-response "/karbosh/admin"))))
+      (response 204 "" "text/plain; charset=utf-8"))))
 
 (defn broadcast-room! [room]
   (let [views (vec (room/connection-views room))]
@@ -722,7 +727,7 @@
   (= uri "/karbosh/admin/reload"))
 
 (defn admin-delete-room-path? [uri]
-  (= uri "/karbosh/admin/delete-room"))
+  (str/starts-with? uri "/karbosh/admin/rooms/"))
 
 (defn handler [{:keys [uri request-method] :as request}]
   (let [room-preview-id (room-preview-id uri)]
@@ -738,7 +743,7 @@
       (and (= request-method :post) (admin-reload-path? uri))
       (admin-reload-response request)
 
-      (and (= request-method :post) (admin-delete-room-path? uri))
+      (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
 
       (and (= request-method :get) (= uri "/karbosh/api/health"))

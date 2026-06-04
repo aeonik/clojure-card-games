@@ -134,11 +134,10 @@
     "--"
     (duration-label (- now (or (:empty-since room) (:created-at room))))))
 
-(defn delete-room-form [room-id]
-  (str "<form class=\"inline-form\" method=\"post\" action=\"/karbosh/admin/delete-room?room="
+(defn delete-room-control [room-id]
+  (str "<button class=\"danger\" type=\"button\" data-delete-room=\""
        (escape-html room-id)
-       "\">"
-       "<button class=\"danger\" type=\"submit\">Delete</button></form>"))
+       "\">Delete</button>"))
 
 (defn room-summary-row [now selected-id [room-id room]]
   (let [state (:game room)
@@ -153,7 +152,7 @@
          "<td>" (count (:connections room)) "</td>"
          "<td>" (room-age now room) "</td>"
          "<td>" (room-idle-age now room) "</td>"
-         "<td>" (delete-room-form room-id) "</td>"
+         "<td>" (delete-room-control room-id) "</td>"
          "</tr>")))
 
 (defn rooms-table [rooms selected-id now]
@@ -259,7 +258,7 @@
       (str "<section class=\"panel detail\"><div class=\"section-heading\"><div>"
            "<p>Selected Room</p><h2>" (escape-html (:id room)) "</h2></div>"
            "<div class=\"admin-actions\"><a href=\"/karbosh/admin\">All rooms</a>"
-           (delete-room-form (:id room)) "</div></div>"
+           (delete-room-control (:id room)) "</div></div>"
            "<div class=\"stats room-stats\">"
            (stat-card "Phase" (kw-label (:phase view)))
            (stat-card "Score" (score-label (:scores view)))
@@ -313,4 +312,5 @@
          (rooms-table rooms selected-id now)
          "</section>"
          (or (room-detail room) "")
-         "</main></body></html>")))
+         "</main><script src=\"/karbosh/assets/js/admin.js?v=20260604-delete\"></script>"
+         "</body></html>")))
