@@ -46,7 +46,9 @@
    "--exclude" ".git/"
    "--exclude" ".cpcache/"
    "--exclude" ".clj-kondo/.cache/"
-   "--exclude" "target/"])
+   "--exclude" "target/"
+   "--exclude" ".DS_Store"
+   "--exclude" "*.pdf"])
 
 (defn- rsync! [& args]
   (apply sh! "rsync" (concat rsync-common args)))
@@ -113,7 +115,7 @@
   (sh! "curl" "-fsS" (health-url)))
 
 (defn deploy-compatible [_]
-  (rsync! "deps.edn" "src" "build" "deploy" "karbosh" (app-dst))
+  (rsync! "deps.edn" "build.clj" "src" "build" "deploy" "karbosh" (app-dst))
   (rsync! "karbosh/" (static-dst))
   (reload nil)
   (smoke nil))
@@ -123,7 +125,7 @@
     (throw (ex-info "Restart deploy drops active in-memory rooms; pass :confirm \"DROP_ROOMS\""
                     {:required-confirm "DROP_ROOMS"})))
   (println "WARNING: restarting karbosh.service drops active in-memory rooms.")
-  (rsync! "deps.edn" "src" "build" "deploy" "karbosh" (app-dst))
+  (rsync! "deps.edn" "build.clj" "src" "build" "deploy" "karbosh" (app-dst))
   (ssh! (env "KARBOSH_RESTART_COMMAND" "systemctl --user restart karbosh.service"))
   (smoke nil))
 
