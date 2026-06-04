@@ -5,13 +5,17 @@
         http-kit/http-kit {:mvn/version "2.8.0"}}
 
  :aliases {:run {:main-opts ["-m" "clojure-card-games.main"]}
-           :karbosh-server {:main-opts ["-m" "clojure-card-games.karbosh.server"]}
+           :karbosh-server {:extra-deps {nrepl/nrepl {:mvn/version "1.3.1"}}
+                            :main-opts ["-m" "clojure-card-games.karbosh.server"]}
            :karbosh-cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.134"}}
                           :main-opts ["-m" "cljs.main"
                                       "-co" "build/karbosh.cljs.edn"
                                       "-c" "clojure-card-games.karbosh.client"]}
+           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.10"}}
+                   :ns-default build}
            :test {:extra-paths ["test"]
                   :extra-deps {io.github.cognitect-labs/test-runner
-                               {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+                               {:git/tag "v0.5.1" :git/sha "dfb30dd"}
+                               nrepl/nrepl {:mvn/version "1.3.1"}}
                   :main-opts ["-m" "cognitect.test-runner"]}
            :prob {:main-opts ["-m" "clojure-card-games.probability.hypergeom"]}}}

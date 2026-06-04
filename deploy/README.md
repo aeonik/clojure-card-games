@@ -7,141 +7,249 @@
 - public client assets: `karbosh/`
 - Karbosh tests: `test/clojure_card_games/karbosh/`
 
-`dc3systems-new` is the site/deploy shell. It owns the Apache/systemd deployment
-wiring used by `dc3systems.com`, but it should not be the place where Karbosh app
-code is edited. Production currently runs the backend from:
+`dc3systems-new` is the static website repo for `dc3systems.com`. It may contain
+legacy Karbosh code under `src/dc3systems/karbosh/`, but that copy is not
+canonical and must not be deployed as the production Karbosh source.
+
+Production paths:
 
 ```text
-/home/dave/apps/clojure-card-games
+backend source: dc3systems.com:/home/dave/apps/clojure-card-games
+static client:  dc3systems.com:/var/www/dc3systems.com/public_html/karbosh/
+service:        karbosh.service
+backend bind:   127.0.0.1:8090
+start command:  /usr/local/bin/clojure -M:karbosh-server
 ```
 
-and serves public static files from:
+Apache should proxy only public Karbosh routes, especially `/karbosh/ws`,
+`/karbosh/api/`, and `/karbosh/admin`. Do not proxy nREPL.
+
+## Static Site Deploy
+
+Deploy the static website from `~/Projects/dc3systems-new`, not from this repo:
+
+```sh
+cd ~/Projects/dc3systems-new
+./bin/deploy-static
+./bin/deploy-static deploy
+```
+
+The default mode is a dry run. The static deploy intentionally excludes
+`karbosh/` and `src/` so it cannot overwrite the canonical Karbosh deployment or
+ship legacy source into the public web root.
+
+## Compatible Deploy
+
+Use this for normal Karbosh source, ClojureScript, CSS, and static client
+changes. It does not restart `karbosh.service`, so active in-memory rooms are
+preserved where possible.
+
+```sh
+clojure -T:build test
+clojure -T:build cljs
+clojure -T:build package-static
+clojure -T:build deploy-compatible
+```
+
+`deploy-compatible` does three things:
+
+- rsyncs canonical source/build/static files to
+  `dc3systems.com:/home/dave/apps/clojure-card-games/`
+- rsyncs `karbosh/` static assets to
+  `dc3systems.com:/var/www/dc3systems.com/public_html/karbosh/`
+- triggers the authenticated no-restart reload endpoint, then smoke checks
+  `https://dc3systems.com/karbosh/api/health`
+
+The reload endpoint is:
 
 ```text
-/var/www/dc3systems.com/public_html/karbosh
+POST /karbosh/admin/reload
 ```
 
-The multiplayer backend normally listens on `127.0.0.1:8090`. Apache needs to proxy
-`/karbosh/ws` and `/karbosh/api/` to that process; see `apache-karbosh.conf`.
-This step requires privileged access because the active virtual host lives under
-`/etc/apache2/sites-available/`.
+The deploy task calls it over SSH by sourcing `~/.config/karbosh/karbosh.env` on
+the server, so the admin password does not need to be present locally.
 
-After syncing the app source to the server:
+## Restart Deploy
 
-```sh
-cd /home/dave/apps/clojure-card-games
-clojure -M:karbosh-server
-```
+Restart only when the running JVM cannot safely apply the change in place:
 
-## Normal No-Restart Deploy
-
-Do not restart `karbosh.service` for ordinary Karbosh source, CLJS, CSS, or HTML
-changes. A restart drops all in-memory rooms and disconnects active games.
-
-From this repo, after committing and building the client:
-
-```sh
-clojure -M:karbosh-cljs
-clojure -M:test -d test/clojure_card_games/karbosh
-rsync -avz --exclude 'assets/js/out/' deps.edn src karbosh build test dc3systems.com:~/apps/clojure-card-games/
-rsync -avz --exclude 'assets/js/out/' karbosh/ dc3systems.com:/var/www/dc3systems.com/public_html/karbosh/
-```
-
-Then ask the running JVM to reload the server-side Karbosh namespaces:
-
-```sh
-ssh dc3systems.com 'set -a; . ~/.config/karbosh/karbosh.env; set +a; curl -fsS -u "${KARBOSH_ADMIN_USER:-admin}:$KARBOSH_ADMIN_PASSWORD" -X POST https://dc3systems.com/karbosh/admin/reload'
-```
-
-That reload endpoint is authenticated with the same HTTP Basic credentials as the
-admin panel. It reloads only server-side Karbosh namespaces that are already on
-the JVM classpath. The live rooms, websocket registry, bot timers, and metrics
-are held in `defonce` atoms, so they survive the in-process reload.
-
-Static client files are served by Apache from the public `karbosh/` directory.
-Existing browsers may need a page refresh to pick up a new `main.js` or CSS, but
-the games themselves do not need to be killed.
-
-## Restart-Required Changes
-
-Restart `karbosh.service` only when the running JVM cannot apply the change in
-place. That includes:
-
-- `deps.edn` dependency/classpath changes that introduce new libraries
+- dependency or classpath changes
 - systemd unit changes
-- Apache proxy changes
-- environment changes in `~/.config/karbosh/karbosh.env`
-- port/bind/JVM option changes
-- intentionally incompatible room-state schema changes
+- Apache proxy or CSP changes
+- environment/JVM/port/bind changes
+- intentionally incompatible room or game-state schema changes
 
-If a restart is unavoidable, warn players first because active room state is
-currently in memory.
-
-For the admin panel, set a password before starting the service. The systemd unit
-loads this optional file:
+Restarting drops active in-memory rooms and disconnects players. The command
+requires an explicit confirmation string:
 
 ```sh
-mkdir -p ~/.config/karbosh
-chmod 700 ~/.config/karbosh
-cat > ~/.config/karbosh/karbosh.env <<'EOF'
+clojure -T:build test
+clojure -T:build cljs
+clojure -T:build release
+clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
+```
+
+`deploy-restart` syncs the canonical tree, restarts `karbosh.service`, and smoke
+checks the health endpoint.
+
+## Build Tasks
+
+Available build tasks:
+
+```sh
+clojure -T:build clean
+clojure -T:build test
+clojure -T:build cljs
+clojure -T:build package-static
+clojure -T:build release
+clojure -T:build deploy-compatible
+clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
+clojure -T:build smoke
+```
+
+Useful deploy environment overrides:
+
+```text
+KARBOSH_DEPLOY_HOST=dc3systems.com
+KARBOSH_APP_DIR=~/apps/clojure-card-games/
+KARBOSH_STATIC_DIR=/var/www/dc3systems.com/public_html/karbosh/
+KARBOSH_HEALTH_URL=https://dc3systems.com/karbosh/api/health
+KARBOSH_RESTART_COMMAND='systemctl --user restart karbosh.service'
+```
+
+## Production Environment
+
+The systemd unit loads:
+
+```text
+~/.config/karbosh/karbosh.env
+```
+
+Recommended values:
+
+```sh
 KARBOSH_ADMIN_PASSWORD=replace-with-a-long-random-password
 KARBOSH_ALLOWED_ORIGINS=https://dc3systems.com,https://www.dc3systems.com
 KARBOSH_MAX_MESSAGE_BYTES=8192
 KARBOSH_MAX_ROOMS=128
 KARBOSH_MAX_ROOM_CONNECTIONS=24
 KARBOSH_MAX_WEBSOCKET_CONNECTIONS=256
-EOF
-chmod 600 ~/.config/karbosh/karbosh.env
+KARBOSH_IDLE_ROOM_MS=14400000
+KARBOSH_NREPL_ENABLED=false
+KARBOSH_NREPL_BIND=127.0.0.1
+KARBOSH_NREPL_PORT=7888
 ```
 
 The admin panel is available at `/karbosh/admin` and uses HTTP Basic Auth. The
 default username is `admin`; override it with `KARBOSH_ADMIN_USER` if needed. If
-`KARBOSH_ADMIN_PASSWORD` is unset, the admin panel returns a disabled response.
-Use the admin panel through the HTTPS Apache proxy; do not send the admin
-password over the temporary direct-HTTP `:8090` path.
+`KARBOSH_ADMIN_PASSWORD` is unset, admin routes return disabled responses.
 
-The authenticated no-restart reload endpoint is:
+## Production REPL
 
-```text
-POST /karbosh/admin/reload
-```
-
-The room limits are guard rails, not game rules. Rooms can still run indefinitely,
-but the process refuses new rooms or connections after the configured caps. The
-defaults allow 128 rooms, 24 websocket connections per room, 256 total websocket
-connections, and 8 KiB websocket messages.
-
-Without the Apache proxy, the backend can temporarily serve the static client
-directly:
+nREPL is optional and must remain localhost-only. Enable it only through
+environment:
 
 ```sh
-KARBOSH_BIND=0.0.0.0 KARBOSH_PORT=8090 clojure -M:karbosh-server
+KARBOSH_NREPL_ENABLED=true
+KARBOSH_NREPL_BIND=127.0.0.1
+KARBOSH_NREPL_PORT=7888
 ```
 
-That exposes the game at `http://dc3systems.com:8090/karbosh/`.
+The startup guard refuses non-loopback binds such as `0.0.0.0`.
 
-For a persistent service, install `karbosh.service` as a user or systemd unit
-and set its working directory to the synced app directory.
+Reach production nREPL only through an SSH tunnel:
+
+```sh
+ssh -L 7888:127.0.0.1:7888 dc3systems.com
+```
+
+Then connect CIDER or another nREPL client to `localhost:7888`.
+
+Validation on the server:
+
+```sh
+ss -ltnp | grep 7888
+```
+
+Expected:
+
+```text
+127.0.0.1:7888
+```
+
+Bad:
+
+```text
+0.0.0.0:7888
+```
+
+From local without a tunnel, this should fail:
+
+```sh
+nc -vz dc3systems.com 7888
+```
+
+With the tunnel open, this should work:
+
+```sh
+nc -vz 127.0.0.1 7888
+```
+
+Do not expose nREPL through Apache, HTTPS proxying, or a public bind address.
+Treat localhost-only nREPL as equivalent to SSH shell access.
+
+## Hot Reload Shape
+
+The HTTP server starts once with `clojure-card-games.karbosh.runtime/current-handler`.
+Reloads install the current Karbosh handler and websocket callbacks into
+`defonce` atoms. Existing rooms, websocket registries, bot timers, and metrics
+remain in `defonce` state.
+
+WebSocket callbacks dispatch through runtime handler atoms, so live sockets can
+pick up newer message and close handlers after a reload where possible. Some
+socket behavior can still be captured by old closures; use restart deploy for
+state-breaking changes.
+
+## Future Release Layout
+
+The current production path is still:
+
+```text
+/home/dave/apps/clojure-card-games
+```
+
+The preferred long-term shape is a source-release tree with a `current` symlink:
+
+```text
+/home/dave/apps/karbosh/
+  releases/
+    2026-06-04T153000Z-a1b2c3d/
+      deps.edn
+      src/
+      karbosh/
+      build/
+      VERSION
+  current -> releases/2026-06-04T153000Z-a1b2c3d
+```
+
+This gives cleaner rollback while preserving source-based REPL and hot-load
+workflow. Do not publish this app to Clojars just as a deployment mechanism, and
+do not force an uberjar deployment yet.
+
+## Systemd Hardening
 
 The service includes modest hardening:
 
-- `NoNewPrivileges=true` prevents the process and its children from gaining extra
-  OS privileges.
-- `UMask=0077` keeps any files the service creates private to the service user.
-- `PrivateTmp=true` gives the service an isolated `/tmp`.
-- `PrivateDevices=true` hides host device nodes from the service while keeping
-  basic pseudo-devices available.
-- `ProtectSystem=full` makes system directories such as `/usr` and `/etc`
-  read-only to the service.
+- `NoNewPrivileges=true`
+- `UMask=0077`
+- `PrivateTmp=true`
+- `PrivateDevices=true`
+- `ProtectSystem=full`
 - `ProtectClock=true`, `ProtectHostname=true`, and `ProtectKernelLogs=true`
-  stop the process from reading or changing host-level settings it does not need.
-- the kernel/control-group restrictions block this game process from changing
-  host-level kernel or cgroup settings.
-- `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX` leaves normal TCP and local
-  socket use available while blocking unrelated protocol families.
-- `CapabilityBoundingSet=` removes Linux capabilities from the process.
-- `LimitNOFILE`, `TasksMax`, and `MemoryMax` provide simple blast-radius limits.
+- kernel/control-group restrictions
+- `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`
+- `CapabilityBoundingSet=`
+- `LimitNOFILE`, `TasksMax`, and `MemoryMax`
 
-These settings do not block outbound/inbound network access or normal reads from
-the project directory. Avoid `ProtectHome=true` here unless the Clojure and Maven
-caches are moved elsewhere or explicitly allowed.
+Avoid `ProtectHome=true` unless the Clojure and Maven caches are moved elsewhere
+or explicitly allowed.

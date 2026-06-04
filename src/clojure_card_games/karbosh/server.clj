@@ -6,6 +6,7 @@
             [clojure.string :as str]
             [clojure-card-games.karbosh.admin :as admin]
             [clojure-card-games.karbosh.room :as room]
+            [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
             [org.httpkit.server :as http])
   (:import [java.net URI URLDecoder]
@@ -59,6 +60,15 @@
 
 (defn static-root []
   (io/file (or (System/getenv "KARBOSH_STATIC_ROOT") "karbosh")))
+
+(defn nrepl-enabled? []
+  (= "true" (str/lower-case (or (System/getenv "KARBOSH_NREPL_ENABLED") ""))))
+
+(defn nrepl-bind []
+  (or (System/getenv "KARBOSH_NREPL_BIND") "127.0.0.1"))
+
+(defn nrepl-port []
+  (Long/parseLong (or (System/getenv "KARBOSH_NREPL_PORT") "7888")))
 
 (defn admin-user []
   (or (System/getenv "KARBOSH_ADMIN_USER") "admin"))
@@ -221,7 +231,7 @@
     (normalize-room-id
      (decode-query-value (subs uri (count "/karbosh/admin/rooms/"))))))
 
-(declare start-room-sweeper!)
+(declare start-room-sweeper! install-runtime-handlers!)
 
 (defn admin-dashboard-response [request]
   (cond
@@ -296,6 +306,7 @@
     (doseq [namespace reloadable-namespaces]
       (require namespace :reload))
     (start-room-sweeper!)
+    (install-runtime-handlers!)
     (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
           result {:ok true
                   :reloaded reloadable-namespaces
@@ -731,6 +742,12 @@
           (record-error!)
           (send-edn! out {:op :error :message (.getMessage e)}))))))
 
+(defn handle-websocket-close! [conn-id in out session]
+  (swap! open-websockets disj conn-id)
+  (disconnect! conn-id (:room-id @session))
+  (async/close! in)
+  (async/close! out))
+
 (defn websocket-handler [request]
   (if (admin-stream-enabled? request)
     (admin-stream-response request)
@@ -751,10 +768,7 @@
                                (send-edn! out {:op :error
                                                :message "Message queue is full"}))))
           (http/on-close ws (fn [_]
-                              (swap! open-websockets disj conn-id)
-                              (disconnect! conn-id (:room-id @session))
-                              (async/close! in)
-                              (async/close! out)))
+                              (runtime/dispatch-close conn-id in out session)))
           (async/thread
             (loop []
               (when-let [message (async/<!! out)]
@@ -763,7 +777,7 @@
           (async/thread
             (loop []
               (when-let [raw (async/<!! in)]
-                (handle-raw-message! conn-id out session raw)
+                (runtime/dispatch-message conn-id out session raw)
                 (recur)))))))))
 
 (defn admin-path? [uri]
@@ -808,15 +822,35 @@
       :else
       (response 404 "Not found"))))
 
+(defn install-runtime-handlers! []
+  (runtime/install-handler! #'handler)
+  (runtime/install-ws-handlers! {:on-message #'handle-raw-message!
+                                 :on-close #'handle-websocket-close!}))
+
+(defn start-nrepl-if-enabled! []
+  (when (nrepl-enabled?)
+    (let [start! (requiring-resolve 'clojure-card-games.karbosh.repl/start!)
+          bind (nrepl-bind)
+          port (nrepl-port)]
+      (start! {:bind bind :port port}))))
+
+(defn stop-nrepl! []
+  (when (nrepl-enabled?)
+    (when-let [stop! (requiring-resolve 'clojure-card-games.karbosh.repl/stop!)]
+      (stop!))))
+
 (defn start! []
   (let [port (parse-port)
         ip (bind-address)]
+    (install-runtime-handlers!)
     (start-room-sweeper!)
-    (reset! server (http/run-server #'handler {:ip ip :port port}))
+    (start-nrepl-if-enabled!)
+    (reset! server (http/run-server #'runtime/current-handler {:ip ip :port port}))
     (println (str "Karbosh server listening on " ip ":" port))))
 
 (defn stop! []
   (stop-room-sweeper!)
+  (stop-nrepl!)
   (when-let [stop @server]
     (stop)
     (reset! server nil)))

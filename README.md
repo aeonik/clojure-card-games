@@ -38,6 +38,16 @@ bundle with:
 clojure -M:karbosh-cljs
 ```
 
+Deployment and production REPL notes are in `deploy/README.md`. The normal
+no-restart Karbosh deploy flow is:
+
+```sh
+clojure -T:build test
+clojure -T:build cljs
+clojure -T:build package-static
+clojure -T:build deploy-compatible
+```
+
 ## Test
 
 ```sh
