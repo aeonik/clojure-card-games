@@ -458,8 +458,10 @@
     [:span "Bid"]
     [:strong (bid-label (:current-bid view))]]
    [:div
-    [:span "Tricks"]
-    [:strong (get-in view [:tricks-this-hand 1] 0) " / " (get-in view [:tricks-this-hand 2] 0)]]])
+    [:span "Tricks won"]
+    [:strong {:class "trick-team-counts"}
+     [:em "Team 1: " [:b (get-in view [:tricks-this-hand 1] 0)]]
+     [:em "Team 2: " [:b (get-in view [:tricks-this-hand 2] 0)]]]]])
 
 (defn table-status-html [view bid-popup]
   [:div {:class "table-status"}
