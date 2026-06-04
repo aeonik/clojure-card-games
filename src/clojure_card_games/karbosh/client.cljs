@@ -358,7 +358,7 @@
 (defn player-seat-html [view {:keys [id team name connected? bot? active? hand-count] :as seat}]
   (let [current? (= id (:current-player view))
         you? (= id (:you view))]
-    [:div {:class (str "player-seat"
+    [:div {:class (str "player-seat " (player-class id)
                        (when connected? " is-connected")
                        (when bot? " is-bot")
                        (when (false? active?) " is-sitting-out")
@@ -377,7 +377,7 @@
         (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
           (let [current? (= id (:current-player view))
                 you? (= id (:you view))]
-            [:li {:class (str "player-seat"
+            [:li {:class (str (player-class id)
                               (when connected? " is-connected")
                               (when bot? " is-bot")
                               (when (false? active?) " is-sitting-out")
@@ -479,15 +479,15 @@
                 (if-let [queued-trick (:trick queued-trick-popup)]
                   (settled-trick queued-trick animation)
                   (settled-trick (:current-trick view) animation)))]
-    [:div {:class "table-surface"}
-     (table-hand-status-html view)
-     [:div {:class "felt-oval"}]
-     (for [player (:players view)]
-       (player-seat-html view player))
-     [:div {:class "table-center"}
-      [:ul {:class "trick-pile"}
-       (trick-html view trick animation)]]
-     (or (trick-popup-html view trick-popup) "")]))
+    (into [:div {:class "table-surface"}
+           (table-hand-status-html view)
+           [:div {:class "felt-oval"}]]
+          (concat
+           (map #(player-seat-html view %) (:players view))
+           [[:div {:class "table-center"}
+             (into [:ul {:class "trick-pile"}]
+                   (trick-html view trick animation))]
+            (or (trick-popup-html view trick-popup) "")]))))
 
 (defn card-button [{:keys [card disabled?]}]
   [:button {:class (str "card-button" (card-suit-class card))
@@ -647,7 +647,7 @@
                                    pending-auto?)]
                  (hand-panel-html view pending-card (or (some? trick-popup)
                                                        (some? queued-trick-popup)))
-                 (mobile-seat-roster-html view)]]))))) 
+                 (mobile-seat-roster-html view)]])))))
 
 (defn card-event [view card]
   (case (:phase view)
