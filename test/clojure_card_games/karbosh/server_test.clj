@@ -123,6 +123,9 @@
     (is (server/origin-allowed?
          {:headers {"origin" "https://dc3systems.com"
                     "host" "dc3systems.com"}}))
+    (is (server/origin-allowed?
+         {:headers {"origin" "https://dc3systems.com:443"
+                    "host" "dc3systems.com"}}))
     (is (not (server/origin-allowed?
               {:headers {"origin" "https://evil.example"
                          "host" "dc3systems.com"}})))))
@@ -132,8 +135,14 @@
     (is (server/origin-allowed?
          {:headers {"origin" "https://dc3systems.com"
                     "host" "dc3systems.com"}}))
+    (is (server/origin-allowed?
+         {:headers {"origin" "https://dc3systems.com:443"
+                    "host" "dc3systems.com:443"}}))
     (is (not (server/origin-allowed?
               {:headers {"origin" "https://evil.example"
+                         "host" "dc3systems.com"}})))
+    (is (not (server/origin-allowed?
+              {:headers {"origin" "null"
                          "host" "dc3systems.com"}})))))
 
 (deftest response-security-headers-test

@@ -8,7 +8,7 @@
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.shared.game :as game]
             [org.httpkit.server :as http])
-  (:import [java.net URLDecoder]
+  (:import [java.net URI URLDecoder]
            [java.nio.charset StandardCharsets]
            [java.security MessageDigest]
            [java.util Base64]))
@@ -117,18 +117,44 @@
        (remove str/blank?)
        set))
 
+(defn default-port? [scheme port]
+  (or (and (= scheme "http") (= port 80))
+      (and (= scheme "https") (= port 443))))
+
+(defn canonical-origin [origin]
+  (when-not (str/blank? origin)
+    (try
+      (let [uri (URI. origin)
+            scheme (some-> (.getScheme uri) str/lower-case)
+            host (some-> (.getHost uri) str/lower-case)
+            port (.getPort uri)]
+        (when (and (#{"http" "https"} scheme) host)
+          (str scheme "://" host
+               (when (and (not= -1 port)
+                          (not (default-port? scheme port)))
+                 (str ":" port)))))
+      (catch Exception _
+        nil))))
+
 (defn allowed-origins []
-  (split-env-list (System/getenv "KARBOSH_ALLOWED_ORIGINS")))
+  (into #{}
+        (keep canonical-origin)
+        (split-env-list (System/getenv "KARBOSH_ALLOWED_ORIGINS"))))
 
 (defn same-host-origins [host]
-  #{(str "https://" host)
-    (str "http://" host)})
+  (let [host (str/trim (or host ""))]
+    (into #{}
+          (keep canonical-origin)
+          [(str "https://" host)
+           (str "http://" host)])))
 
 (defn origin-allowed? [request]
-  (let [origin (get-in request [:headers "origin"])
-        host (get-in request [:headers "host"])
+  (let [raw-origin (get-in request [:headers "origin"])
+        origin (canonical-origin raw-origin)
+        host (or (get-in request [:headers "x-forwarded-host"])
+                 (get-in request [:headers "host"]))
         configured (allowed-origins)]
-    (or (str/blank? origin)
+    (or (str/blank? raw-origin)
         (contains? configured origin)
         (and (empty? configured)
              host
