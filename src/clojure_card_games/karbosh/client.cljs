@@ -122,6 +122,10 @@
     (when-not (str/blank? room)
       (str/trim room))))
 
+(defn same-room-id? [a b]
+  (= (some-> a str/upper-case)
+     (some-> b str/upper-case)))
+
 (defn stored-room-id []
   (let [room (.getItem js/localStorage "karbosh-room")]
     (when-not (str/blank? room)
@@ -999,7 +1003,10 @@
   (load-public-rooms!)
   (js/setInterval load-public-rooms! 8000)
   (if-let [room (query-room-param)]
-    (prepare-shared-room! room)
+    (if (and (stored-player)
+             (same-room-id? room (stored-room-id)))
+      (restore-saved-room! room)
+      (prepare-shared-room! room))
     (when-let [room (stored-room-id)]
       (restore-saved-room! room))))
 
