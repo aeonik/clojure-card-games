@@ -1,6 +1,50 @@
 (function () {
   "use strict";
 
+  function setMainContent(html) {
+    if (!html || typeof html !== "string") {
+      return;
+    }
+
+    var parser = document.createElement("div");
+    parser.innerHTML = html;
+    var next = parser.querySelector("main");
+    var current = document.getElementById("admin-main");
+    if (!next) {
+      return;
+    }
+
+    if (current && current.parentNode) {
+      current.parentNode.replaceChild(next, current);
+    } else {
+      document.body.insertAdjacentElement("afterbegin", next);
+    }
+  }
+
+  function applyMainUpdate(html) {
+    setMainContent(html);
+  }
+
+  function openAdminStream() {
+    var protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+    var query = window.location.search ? "&" + window.location.search.substring(1) : "";
+    var socket = new WebSocket(protocol + window.location.host + "/karbosh/ws?mode=admin" + query);
+
+    socket.onmessage = function (event) {
+      if (event.data && event.data.indexOf("<main") !== -1) {
+        applyMainUpdate(event.data);
+      }
+    };
+
+    socket.onerror = function () {
+      socket.close();
+    };
+
+    socket.onclose = function () {
+      window.setTimeout(openAdminStream, 2000);
+    };
+  }
+
   function deleteRoom(button) {
     var roomId = button.getAttribute("data-delete-room");
     var originalText = button.textContent;
@@ -21,7 +65,7 @@
       credentials: "same-origin"
     }).then(function (response) {
       if (response.ok) {
-        window.location.reload();
+        button.textContent = "Deleted";
         return null;
       }
 
@@ -42,4 +86,6 @@
       deleteRoom(target);
     }
   });
+
+  openAdminStream();
 }());
