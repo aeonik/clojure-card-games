@@ -1,18 +1,26 @@
 # clojure-card-games
 
-Collection of simple command-line card games written in Clojure. Currently it is a work in progress. 
+A small Clojure implementation of Karbosh, a six-player double-deck Bid Euchre variant.
 
-I am starting with a two deck variant of Euchre named Karbosh. This game is similar to Indiana Double Deck Bid Euchre, but is played with 6 people instead of 4. See more here: https://en.wikipedia.org/wiki/Bid_Euchre
+The code is organized around a pure game engine:
 
-## Installation
+- `clojure-card-games.cards`: card data and display helpers
+- `clojure-card-games.deck`: deck creation, shuffling, and dealing
+- `clojure-card-games.rules`: trick ordering, bid validation, legal plays, and scoring
+- `clojure-card-games.state`: pure state transitions from game events
+- `clojure-card-games.io.*`: terminal rendering and interaction
 
-Download not available yet.
+## Run
 
-## Usage
+```sh
+clojure -M:run
+```
 
-FIXME: Usage is not available yet.
+With a seed and optional replay input:
 
-    $ java -jar clojure-card-games-0.1.0-standalone.jar [args]
+```sh
+clojure -M:run 12345 "4ppppphAhKhQhJh0h9h"
+```
 
 ## Karbosh Web App
 
@@ -30,33 +38,22 @@ bundle with:
 clojure -M:karbosh-cljs
 ```
 
-## Options
+## Test
 
-FIXME: Not available yet.
+```sh
+clojure -M:test
+```
 
-## Examples
+## Probability Helpers
 
-...
+Exact hypergeometric helpers are available through:
 
-### Bugs
+```sh
+clojure -M:prob prob-hg 9 31 16 4
+clojure -M:prob follow 8 --float
+```
 
-...
+## Status
 
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2022 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+This is still a work in progress. The current priority is keeping the game engine pure,
+small, and covered by focused tests before expanding UI or bot behavior.

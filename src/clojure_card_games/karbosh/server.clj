@@ -245,6 +245,52 @@
                                        :idle-room-ms (idle-room-ms)}
                               :started-at (:started-at @metrics)}))))
 
+(defn admin-dashboard-main-state [request]
+  (admin/render-dashboard-main {:rooms @rooms
+                               :selected-room-id (selected-admin-room-id request)
+                               :metrics @metrics
+                               :pending-bot-count (count @bot-turns)
+                               :open-websocket-count (count @open-websockets)
+                               :limits {:max-rooms (max-rooms)
+                                        :max-room-connections (max-room-connections)
+                                        :max-websocket-connections (max-websocket-connections)
+                                        :max-message-bytes (max-message-bytes)
+                                        :idle-room-ms (idle-room-ms)}
+                               :started-at (:started-at @metrics)}))
+
+(defn admin-stream-enabled? [request]
+  (= "admin" (str/lower-case (or (some-> (query-params (:query-string request))
+                                         :mode
+                                         name)
+                                 ""))))
+
+(defn admin-stream-response [request]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    (not (origin-allowed? request))
+    (response 403 "Forbidden")
+
+    :else
+    (let [stop (atom false)]
+      #_{:clj-kondo/ignore [:unresolved-symbol]}
+      (http/with-channel request ws
+        (http/on-close ws (fn [_] (reset! stop true)))
+        (http/send! ws (admin-dashboard-main-state request))
+        (async/thread
+          (while (not @stop)
+            (Thread/sleep 3000)
+            (when-not @stop
+              (try
+                (when-not (http/send! ws (admin-dashboard-main-state request))
+                  (reset! stop true))
+                (catch Throwable _
+                  (reset! stop true))))))))))
+
 (defn reload-karbosh-namespaces! []
   (let [started (System/nanoTime)]
     (doseq [namespace reloadable-namespaces]
@@ -686,38 +732,39 @@
           (send-edn! out {:op :error :message (.getMessage e)}))))))
 
 (defn websocket-handler [request]
-  (if (websocket-limit-reached?)
-    (do
-      (record-error!)
-      (response 503 "Websocket connection limit reached"))
-    (let [conn-id (random-uuid)
-          in (async/chan 32)
-          out (async/chan 32)
-          session (atom nil)]
-      (swap! open-websockets conj conn-id)
-      #_{:clj-kondo/ignore [:unresolved-symbol]}
-      (http/with-channel request ws
-        (http/on-receive ws
-                         (fn [raw]
-                           (when-not (async/offer! in raw)
-                             (record-error!)
-                             (send-edn! out {:op :error
-                                             :message "Message queue is full"}))))
-        (http/on-close ws (fn [_]
-                            (swap! open-websockets disj conn-id)
-                            (disconnect! conn-id (:room-id @session))
-                            (async/close! in)
-                            (async/close! out)))
-        (async/thread
-          (loop []
-            (when-let [message (async/<!! out)]
-              (http/send! ws (pr-str message))
-              (recur))))
-        (async/thread
-          (loop []
-            (when-let [raw (async/<!! in)]
-              (handle-raw-message! conn-id out session raw)
-              (recur))))))))
+  (if (admin-stream-enabled? request)
+    (admin-stream-response request)
+    (if (websocket-limit-reached?)
+      (do
+        (record-error!)
+        (response 503 "Websocket connection limit reached"))
+      (let [conn-id (random-uuid)
+            in (async/chan 32)
+            out (async/chan 32)
+            session (atom nil)]
+        (swap! open-websockets conj conn-id)
+        (http/with-channel request ws
+          (http/on-receive ws
+                           (fn [raw]
+                             (when-not (async/offer! in raw)
+                               (record-error!)
+                               (send-edn! out {:op :error
+                                               :message "Message queue is full"}))))
+          (http/on-close ws (fn [_]
+                              (swap! open-websockets disj conn-id)
+                              (disconnect! conn-id (:room-id @session))
+                              (async/close! in)
+                              (async/close! out)))
+          (async/thread
+            (loop []
+              (when-let [message (async/<!! out)]
+                (http/send! ws (pr-str message))
+                (recur))))
+          (async/thread
+            (loop []
+              (when-let [raw (async/<!! in)]
+                (handle-raw-message! conn-id out session raw)
+                (recur)))))))))
 
 (defn admin-path? [uri]
   (or (= uri "/karbosh/admin")

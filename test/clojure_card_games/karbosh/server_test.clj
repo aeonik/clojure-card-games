@@ -352,7 +352,7 @@
                :started-at 1000})]
     (is (not (re-find #"admin/delete-room\?room=" html)))
     (is (re-find #"data-delete-room=\"ABC123\"" html))
-    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-delete\"" html))
+    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-stream\"" html))
     (is (re-find #">Delete</button>" html))))
 
 (deftest websocket-limit-test

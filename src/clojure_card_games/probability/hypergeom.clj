@@ -25,7 +25,6 @@
   The namespace is still a regular library — `require` it and call the fns
   directly when inside your Karbosh engine or REPL.
   "
-  (:refer-clojure :exclude [choose])
   (:require [clojure.string :as str]))
 
 ;; ========================================================================
@@ -151,13 +150,13 @@
   (tail-geq suit-left (- 40 suit-left) 24 3))
 
 (defn prob-void-and-trump
-  [suit-left trump-left]
   "Probability **one specific defender** (8‑card hand) is void in the led
   suit *and* owns ≥1 trump — i.e. is ready to ruff your off‑suit ace.
 
    Example ▸ After bidding ♥, 8 ♠ remain and 14 ♥ trump remain:
 
        (prob-void-and-trump 8 14)  ;≈ 25 %  risk this defender can ruff."
+  [suit-left trump-left]
   (let [junk (- 40 suit-left trump-left)]
     (reduce +
       (for [t (range 1 9)]

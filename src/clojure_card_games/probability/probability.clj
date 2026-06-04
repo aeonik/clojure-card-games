@@ -12,14 +12,24 @@
       (prob/karbosh-win-empirical hero 100_000)  ;; ⇒ ≃ 0.57
 
   Adjust the predicates in `killer-hand?` if your house rules differ."
-  (:require [clojure-card-games.cards :as cards]
-            [clojure-card-games.deck  :as deck]))
+  (:require [clojure-card-games.deck :as deck]))
 
 ;; ----------------------------------------------------------------------------
 ;; 1. Helper predicates -------------------------------------------------------
 ;; ----------------------------------------------------------------------------
 
 (def left-bower? (partial = [:J :♣]))
+
+(defn- remove-first [x coll]
+  (let [[before after] (split-with #(not= x %) coll)]
+    (when-not (seq after)
+      (throw (ex-info "Card is not available in the deck" {:card x})))
+    (vec (concat before (rest after)))))
+
+(defn- shuffle-with [coll ^java.util.Random rng]
+  (let [al (java.util.ArrayList. coll)]
+    (java.util.Collections/shuffle al rng)
+    (vec al)))
 
 (defn trump?
   "Return true iff the card is trump under standard double‑deck Karbosh rules.
@@ -58,8 +68,10 @@
    * optional `rng`  — java.util.Random instance for reproducibility."
   ([hero] (hero-wins-once? hero (java.util.Random.)))
   ([hero ^java.util.Random rng]
-   (let [shoe  (->> (deck/karbosh-deck) set (reduce disj hero) vec)
-         _      (java.util.Collections/shuffle shoe rng)
+   (let [shoe  (shuffle-with (reduce #(remove-first %2 %1)
+                                     (deck/karbosh-deck)
+                                     hero)
+                             rng)
          hands (partition 8 shoe)
          mates (take 2 hands)
          opps  (drop 2 hands)
@@ -91,6 +103,4 @@
 ;; ----------------------------------------------------------------------------
 ;; 5. Analytic stub (hyper‑geo) ----------------------------------------------
 ;; ----------------------------------------------------------------------------
-;; TODO:  If you want the exact probability without Monte‑Carlo, implement the
-;;        multinomial / hyper‑geometric math here.  Left blank for now because
-;;        the empirical estimator converges fast enough for practical use.
+;; Exact helpers live in clojure-card-games.probability.hypergeom.

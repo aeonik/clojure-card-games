@@ -1,14 +1,62 @@
 (ns clojure-card-games.state
-  (:require [clojure-card-games.deck :as deck]
-            [clojure-card-games.hand :as hand]
+  (:require [clojure-card-games.cards :as cards]
+            [clojure-card-games.deck :as deck]
             [clojure-card-games.rules :as rules]))
 
-;; Pure game state transitions (no side effects)
+(def players [:player1 :player2 :player3 :player4 :player5 :player6])
+(def target-score 52)
+
+(defn teams []
+  (zipmap players (cycle [1 2])))
 
 (defn derive-seed [state]
-  (let [initial-seed (:initial-seed state)
-        hand-index (:hand-index state)]
-    (hash [initial-seed (inc hand-index)])))
+  (hash [(:initial-seed state) (inc (:hand-index state))]))
+
+(defn current-bidder [state]
+  (get-in state [:bidding-order (:current-bidder-index state)]))
+
+(defn next-player [player]
+  (get players (mod (inc (.indexOf players player)) (count players))))
+
+(defn remove-first
+  [x coll]
+  (let [[before after] (split-with #(not= x %) coll)]
+    (vec (concat before (rest after)))))
+
+(defn- fail [message data]
+  (throw (ex-info message data)))
+
+(defn- require-phase [state phase event]
+  (when-not (= phase (:phase state))
+    (fail "Event is not valid in this phase"
+          {:expected phase :actual (:phase state) :event event})))
+
+(defn- require-current-player [state player event]
+  (when-not (= player (:current-player state))
+    (fail "Not this player's turn"
+          {:expected (:current-player state) :actual player :event event})))
+
+(defn- complete-hand [state]
+  (let [bid (:current-bid state)
+        tricks (:tricks-this-hand state)
+        points (if bid
+                 (rules/score-hand (:players state) bid tricks)
+                 {1 0 2 0})
+        scores (merge-with + (:scores state) points)
+        winner (some (fn [[team score]]
+                       (when (>= score target-score) team))
+                     scores)]
+    (cond-> state
+      true
+      (assoc :phase (if winner :game-over :hand-complete)
+             :scores scores
+             :tricks-this-hand {1 0 2 0})
+      winner
+      (assoc :winner winner)
+      true
+      (update :tricks-per-hand conj tricks)
+      true
+      (update :points-per-hand conj points))))
 
 (defn init-game
   ([] (init-game nil 0 [] [] [] [] :player1 nil))
@@ -18,13 +66,12 @@
   ([seed hand-index bids trumps tricks-per-hand points-per-hand dealer initial-seed]
    (let [deck (deck/shuffle-deck (deck/karbosh-deck) seed)
          hands (deck/deal-hands deck)
-         players [:player1 :player2 :player3 :player4 :player5 :player6]
-         teams (zipmap players (cycle [1 2]))]
+         teams (teams)]
      {:phase :bidding
       :history []
       :deck deck
       :players (zipmap players
-                       (map (fn [hand player team]
+                       (map (fn [hand _ team]
                               {:hand hand :team team})
                             hands players (vals teams)))
       :scores {1 0, 2 0}
@@ -42,36 +89,46 @@
       :tricks-this-hand {1 0, 2 0}
       :initial-seed initial-seed})))
 
-(defmulti apply-event (fn [state event] (:type event)))
+(defmulti apply-event (fn [_ event] (:type event)))
 
-(defmethod apply-event :bid [state {:keys [player bid-type value] :as event}]
-  (let [current-bidder (get-in state [:bidding-order (:current-bidder-index state)])
+(defmethod apply-event :bid [state {:keys [player] :as event}]
+  (require-phase state :bidding event)
+  (when-not (= player (current-bidder state))
+    (fail "Not this player's turn to bid"
+          {:expected (current-bidder state) :actual player :event event}))
+  (when-not (rules/valid-bid? event)
+    (fail "Invalid bid" {:event event}))
+  (let [event (select-keys event [:type :player :bid-type :value])
         hand-index (:hand-index state)
         updated-state (-> state
                           (update :history conj event)
                           (update :bids conj (assoc event :hand-index hand-index)))
-        all-bids (->> (:history updated-state)
-                      (filter #(and (= (:type %) :bid)
-                                    (not= :pass (:bid-type %))))
-                      (sort-by :value >))
-        bidding-complete? (or (= (:bid-type event) :double-karbosh)
-                              (= (count (:history updated-state)) (count (:bidding-order updated-state))))
-        winning-bid (first all-bids)
-        winning-bidder (:player winning-bid)
-        next-bidder-idx (mod (inc (:current-bidder-index updated-state)) (count (:bidding-order updated-state)))]
-    (cond-> updated-state
-      (not bidding-complete?)
-      (assoc :current-bid event)
-      bidding-complete?
-      (assoc :current-bid winning-bid)
-      (not bidding-complete?)
-      (assoc :current-bidder-index next-bidder-idx
-             :current-player (get-in updated-state [:bidding-order next-bidder-idx]))
-      bidding-complete?
-      (assoc :phase (if (#{:karbosh :double-karbosh} (:bid-type winning-bid)) :hand-complete :trump-selection)
-             :current-player winning-bidder))))
+        bids-this-hand (filter #(= hand-index (:hand-index %)) (:bids updated-state))
+        complete? (or (= :double-karbosh (:bid-type event))
+                      (= (count bids-this-hand)
+                         (count (:bidding-order updated-state))))
+        winning-bid (rules/winning-bid bids-this-hand)
+        next-bidder-idx (mod (inc (:current-bidder-index updated-state))
+                             (count (:bidding-order updated-state)))]
+    (if complete?
+      (if winning-bid
+        (assoc updated-state
+               :phase :trump-selection
+               :current-bid (dissoc winning-bid :hand-index)
+               :current-player (:player winning-bid))
+        (assoc updated-state
+               :phase :hand-complete
+               :current-bid nil))
+      (assoc updated-state
+             :current-bid event
+             :current-bidder-index next-bidder-idx
+             :current-player (get-in updated-state [:bidding-order next-bidder-idx])))))
 
 (defmethod apply-event :trump-selection [state {:keys [player suit] :as event}]
+  (require-phase state :trump-selection event)
+  (require-current-player state player event)
+  (when-not (contains? (set (keys cards/suit->str)) suit)
+    (fail "Invalid trump suit" {:suit suit :event event}))
   (-> state
       (update :history conj event)
       (assoc :trump suit)
@@ -81,18 +138,14 @@
       (assoc :trick-leader player)
       (assoc :current-player player)))
 
-(defn remove-first
-  "Return `coll` with only the *first* item equal to `x` removed."
-  [x coll]
-  (let [[before after] (split-with #(not= x %) coll)]
-    (concat before (rest after))))
-
 (defmethod apply-event :play-card [state {:keys [player card] :as event}]
+  (require-phase state :trick-playing event)
+  (require-current-player state player event)
   (let [current-trick (:current-trick state)
         player-hand (get-in state [:players player :hand])
-        next-player (let [players (vec (keys (:players state)))
-                          idx (.indexOf players player)]
-                      (get players (mod (inc idx) (count players))))
+        _ (when-not (rules/legal-play? player-hand current-trick card (:trump state))
+            (fail "Illegal card play" {:player player :card card :event event}))
+        next-player (next-player player)
         updated-trick (conj current-trick {:player player :card card})
         trick-complete? (= (count updated-trick) 6)
         state-after-play (-> state
@@ -101,49 +154,20 @@
                                         #(vec (remove-first card %))))
         hands-empty (every? (comp empty? :hand) (vals (get state-after-play :players)))]
     (cond
-      hands-empty
-      (let [final-trick (if (empty? updated-trick) current-trick updated-trick)
-            winner (when (seq final-trick)
-                     (rules/resolve-trick final-trick (:trump state-after-play)))
-            winner-team (when winner (get-in state-after-play [:players winner :team]))
-            state-with-final-trick (cond-> state-after-play
-                                     (and winner-team (seq final-trick))
-                                     (update-in [:tricks-this-hand winner-team] inc)
-                                     (and (seq final-trick))
-                                     (update :completed-tricks (fn [tricks]
-                                                                 (conj (or tricks []) final-trick))))
-            team1-tricks (get-in state-with-final-trick [:tricks-this-hand 1])
-            team2-tricks (get-in state-with-final-trick [:tricks-this-hand 2])
-            tricks-this-hand {1 team1-tricks 2 team2-tricks}
-            hand-index (:hand-index state-with-final-trick)
-            bids-this-hand (filter #(= (:hand-index %) hand-index) (:bids state-with-final-trick))
-            winning-bid (first (sort-by :value > (filter #(not= :pass (:bid-type %)) bids-this-hand)))
-            bidding-player (:player winning-bid)
-            bidding-team (get-in state-with-final-trick [:players bidding-player :team])
-            bid-value (:value winning-bid)
-            bidding-team-tricks (get tricks-this-hand bidding-team)
-            other-team (if (= bidding-team 1) 2 1)
-            other-team-tricks (get tricks-this-hand other-team)
-            points-this-hand (if (>= bidding-team-tricks bid-value)
-                               {bidding-team bidding-team-tricks other-team 0}
-                               {bidding-team (- bidding-team-tricks bid-value)
-                                other-team other-team-tricks})
-            new-scores (merge-with + (:scores state-with-final-trick) points-this-hand)]
-        (-> state-with-final-trick
-            (assoc :phase :hand-complete)
-            (update :tricks-per-hand conj tricks-this-hand)
-            (update :points-per-hand conj points-this-hand)
-            (assoc :scores new-scores)
-            (assoc :tricks-this-hand {1 0, 2 0})))
       trick-complete?
       (let [winner (rules/resolve-trick updated-trick (:trump state))
             winner-team (get-in state [:players winner :team])]
-        (-> state-after-play
-            (update-in [:tricks-this-hand winner-team] inc)
-            (assoc :current-trick [])
-            (update :completed-tricks (fn [tricks]
-                                        (conj (or tricks []) updated-trick)))
-            (assoc :current-player winner)))
+        (cond-> state-after-play
+          true
+          (update-in [:tricks-this-hand winner-team] inc)
+          true
+          (assoc :current-trick []
+                 :current-player winner)
+          true
+          (update :completed-tricks conj updated-trick)
+          hands-empty
+          complete-hand))
+
       :else
       (-> state-after-play
           (assoc :current-trick updated-trick)
@@ -157,9 +181,11 @@
         points-per-hand (:points-per-hand state)
         scores (:scores state)
         current-dealer (:dealer state)
-        players (vec (keys (:players state)))
         next-dealer (get players (mod (inc (.indexOf players current-dealer)) (count players)))
         initial-seed (:initial-seed state)
         new-seed (hash [initial-seed next-hand-index])]
     (-> (init-game new-seed next-hand-index bids trumps tricks-per-hand points-per-hand next-dealer initial-seed)
         (assoc :scores scores))))
+
+(defmethod apply-event :default [_ event]
+  (fail "Unknown event type" {:event event}))

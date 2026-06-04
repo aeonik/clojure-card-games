@@ -13,12 +13,13 @@
 (defn play-game!
   ([] (play-game! nil nil))
   ([seed replay-seq]
-   (let [initial-seed seed]
+   (let [config (read-config)
+         sort-hands? (:sort-hands? config false)]
      (loop [game (state/init-game seed)
             actions (seq replay-seq)
             move-chars []
             seed-seq [seed]]
-       (tui/print-game-state! game (get (read-config) :sort-hands? false))
+       (tui/print-game-state! game sort-hands?)
        (let [{:keys [next-seq input] :as raw} (tui/get-player-action! game actions)
              action (dissoc raw :next-seq :input)
              new-move-chars (if input (concat move-chars (seq input)) move-chars)]
@@ -41,9 +42,4 @@
                     new-seed-seq))))))))
 
 (defn -main [& _]
-  (let [config (read-config)
-        sort-hands? (get config :sort-hands? false)]
-    (play-game! nil nil)
-    ;; Example usage:
-    ;; (tui/print-game-state! game sort-hands?)
-    ))
+  (play-game! nil nil))

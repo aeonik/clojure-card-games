@@ -1,8 +1,5 @@
-(ns clojure-card-games.deck)
-
-(require '[clojure-card-games.cards :as cards])
-
-;; Pure deck creation, shuffling, and dealing utilities
+(ns clojure-card-games.deck
+  (:require [clojure-card-games.cards :as cards]))
 
 (defn karbosh-deck []
   ;; Two of each card, all ranks and suits
