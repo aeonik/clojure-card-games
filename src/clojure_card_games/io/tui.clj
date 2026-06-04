@@ -1,8 +1,8 @@
 (ns clojure-card-games.io.tui
   (:require [clojure.string :as str]
             [clojure-card-games.cards :as cards :refer [char->rank char->suit]]
-            [clojure-card-games.sorting :as sort]
-            [clojure-card-games.state :as state]))
+            [clojure-card-games.rules :as rules]
+            [clojure-card-games.sorting :as sort]))
 
 ;; Pure string renderers
 (defn card->str [[rank suit]]
@@ -47,7 +47,7 @@
 ;; Pure phase parsers
 (defn- bidding->action [game ch]
   (let [p (:current-player game)]
-    (case ch
+    (case (some-> ch Character/toLowerCase)
       \x {:type :quit}
       \p {:type :bid :player p :bid-type :pass}
       \k {:type :bid :player p :bid-type :karbosh}
@@ -58,6 +58,7 @@
 
 (defn- trump-selection->action [game ch]
   (let [p (:current-player game)
+        ch (some-> ch Character/toLowerCase)
         suit (char->suit ch)]
     (cond
       (= ch \x) {:type :quit}
@@ -66,12 +67,13 @@
 (defn- trick->action [game ch1 ch2]
   (let [p (:current-player game)
         hand (get-in game [:players p :hand])
-        card (when (and ch1 ch2) (let [r (char->rank ch1)
-                                       s (char->suit ch2)]
+        card (when (and ch1 ch2) (let [r (char->rank (Character/toLowerCase ch1))
+                                       s (char->suit (Character/toLowerCase ch2))]
                                    (when (and r s) [r s])))]
     (cond
       (= ch1 \x) {:type :quit}
-      (and card (some #(= card %) hand)) {:type :play-card :player p :card card})))
+      (and card (rules/legal-play? hand (:current-trick game) card (:trump game)))
+      {:type :play-card :player p :card card})))
 
 (def phase->parser
   {:bidding         bidding->action
@@ -121,18 +123,15 @@
                (if-let [action (trump-selection->action game (first input))]
                  (assoc action :input input)
                  (do (println "Invalid suit!") (recur nil)))))
-           :trick-playing
-           (let [hand (get-in game [:players current-player :hand])]
-             (if (empty? hand)
-               {:type :skip}
-               (do
-                 (println (str "\n" (name current-player) " - Play a card (rank then suit, e.g. Qh, 0d, x=quit): "))
-                 (let [input (read-line)]
-                   (if (>= (count input) 2)
-                     (if-let [action (trick->action game (first input) (second input))]
-                       (assoc action :input input)
-                       (do (println "Invalid card!") (recur nil)))
-                     (do (println "Invalid input!") (recur nil)))))))
+          :trick-playing
+          (do
+            (println (str "\n" (name current-player) " - Play a card (rank then suit, e.g. Qh, 0d, x=quit): "))
+            (let [input (read-line)]
+              (if (>= (count input) 2)
+                (if-let [action (trick->action game (first input) (second input))]
+                  (assoc action :input input)
+                  (do (println "Invalid card!") (recur nil)))
+                (do (println "Invalid input!") (recur nil)))))
            :hand-complete {:type :new-hand}
            :game-over {:type :quit}
            {:type :quit}))))))
