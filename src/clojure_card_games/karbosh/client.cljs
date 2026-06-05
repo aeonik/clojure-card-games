@@ -73,6 +73,10 @@
 (defn player-class [player]
   (str "player-" (kw-name player)))
 
+(defn team-class [team]
+  (when team
+    (str " team-" team)))
+
 (defn phase-label [phase]
   (-> (kw-name phase)
       (str/replace "-" " ")
@@ -366,6 +370,7 @@
   (let [current? (= id (:current-player view))
         you? (= id (:you view))]
     [:div {:class (str "player-seat " (player-class id)
+                       (team-class team)
                        (when connected? " is-connected")
                        (when bot? " is-bot")
                        (when (false? active?) " is-sitting-out")
@@ -385,6 +390,7 @@
           (let [current? (= id (:current-player view))
                 you? (= id (:you view))]
             [:li {:class (str (player-class id)
+                              (team-class team)
                               (when connected? " is-connected")
                               (when bot? " is-bot")
                               (when (false? active?) " is-sitting-out")

@@ -12,6 +12,8 @@
   --muted: rgba(255, 255, 255, 0.52);
   --white: #fff;
   --danger: #ff9aa8;
+  --team-1: #6fd0c7;
+  --team-2: #e6bd5a;
   --shadow: 0 1.25rem 2.75rem rgba(8, 12, 26, 0.28);
 }
 
@@ -567,6 +569,7 @@ h2 {
 }
 
 .player-seat {
+  --seat-team-color: var(--line-strong);
   position: absolute;
   z-index: 5;
   display: grid;
@@ -579,7 +582,28 @@ h2 {
   border-radius: 8px;
   background: rgba(18, 22, 34, 0.86);
   box-shadow: 0 0.85rem 1.8rem rgba(8, 12, 26, 0.28);
+  overflow: hidden;
   padding: 0.7rem;
+}
+
+.player-seat::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 0.85rem solid var(--seat-team-color);
+  border-left: 0.85rem solid transparent;
+  opacity: 0.95;
+}
+
+.team-1 {
+  --seat-team-color: var(--team-1);
+}
+
+.team-2 {
+  --seat-team-color: var(--team-2);
 }
 
 .player-seat strong,
@@ -633,6 +657,8 @@ h2 {
 }
 
 .mobile-seat-roster li {
+  --seat-team-color: var(--line-strong);
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.5rem;
@@ -641,7 +667,20 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(18, 22, 34, 0.58);
+  overflow: hidden;
   padding: 0.55rem 0.65rem;
+}
+
+.mobile-seat-roster li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 0.72rem solid var(--seat-team-color);
+  border-left: 0.72rem solid transparent;
+  opacity: 0.95;
 }
 
 .mobile-seat-roster strong,
@@ -2220,6 +2259,11 @@ input {
     letter-spacing: 0.05em;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .player-seat::before {
+    border-top-width: 0.58rem;
+    border-left-width: 0.58rem;
   }
 
   .player-seat.is-current {
