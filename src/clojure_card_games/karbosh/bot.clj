@@ -344,6 +344,17 @@
     (when (seq secure-trumps)
       (highest-card game secure-trumps))))
 
+(defn low-trump? [trump card]
+  (and (trump-card? trump card)
+       (< (rules/card-value card trump trump)
+          (rules/card-value [:Q trump] trump trump))))
+
+(defn caller-pressure-lead-card [game cards]
+  (or (when-let [off-aces (seq (filter #(off-ace? (:trump game) %) cards))]
+        (lowest-card game off-aces))
+      (when-let [low-trumps (seq (filter #(low-trump? (:trump game) %) cards))]
+        (lowest-card game low-trumps))))
+
 (defn partner-preserving-card [game player cards]
   (let [non-overtakers (remove #(wins-trick? game player %) cards)]
     (lowest-card game (or (seq non-overtakers) cards))))
@@ -428,10 +439,15 @@
   (let [unseen-counts (unseen-card-counts game player)
         trump-control (when (contract-caller? game player)
                         (secure-trump-lead-card game unseen-counts cards))
+        caller-pressure (when (contract-caller? game player)
+                          (caller-pressure-lead-card game cards))
         safe (safe-cards config analyses :lead-risk-tolerance cards)]
     (cond
       trump-control
       trump-control
+
+      caller-pressure
+      caller-pressure
 
       (seq safe)
       (lowest-card game safe)

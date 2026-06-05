@@ -266,6 +266,66 @@
       (is (= {:type :play-card :card [:J :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
+  (testing "numeric callers without trump control pressure with off-suit aces"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♥] [9 :♠] [9 :♦]
+                                             [10 :♦] [9 :♣] [10 :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:A :♥]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [:A :♥]}
+             (bot/card-action game :player1 :hybrid)))))
+
+  (testing "numeric callers without trump control can lead low trump to pull bowers"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[9 :♠] [:A :♠] [9 :♦]
+                                             [10 :♦] [9 :♣] [10 :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player1 :hybrid)))))
+
+  (testing "numeric callers without low trump do not burn a lone trump ace"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♠] [9 :♦] [10 :♦]
+                                             [9 :♣] [10 :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [9 :♦]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [9 :♦]}
+             (bot/card-action game :player1 :hybrid)))))
+
   (testing "unsafe trump-only leads bleed low trump instead of the ace"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing
