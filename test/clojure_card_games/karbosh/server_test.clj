@@ -338,6 +338,22 @@
     (is (string? html))
     (is (re-find #"No rooms are currently running" html))))
 
+(deftest admin-dashboard-main-html-renders-websocket-payload-test
+  (let [html (admin/render-dashboard-main-html
+              {:rooms {"ABC123" (room/new-room "ABC123" 9)}
+               :metrics {:started-at 1000}
+               :pending-bot-count 0
+               :open-websocket-count 0
+               :limits {:max-rooms 128
+                        :max-room-connections 24
+                        :max-websocket-connections 256
+                        :max-message-bytes 8192
+                        :idle-room-ms 14400000}
+               :started-at 1000})]
+    (is (string? html))
+    (is (re-find #"<main id=\"admin-main\">" html))
+    (is (re-find #"data-delete-room=\"ABC123\"" html))))
+
 (deftest admin-dashboard-renders-delete-room-form-test
   (let [html (admin/render-dashboard
               {:rooms {"ABC123" (room/new-room "ABC123" 9)}

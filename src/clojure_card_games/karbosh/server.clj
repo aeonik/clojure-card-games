@@ -255,18 +255,19 @@
                                        :idle-room-ms (idle-room-ms)}
                               :started-at (:started-at @metrics)}))))
 
-(defn admin-dashboard-main-state [request]
-  (admin/render-dashboard-main {:rooms @rooms
-                               :selected-room-id (selected-admin-room-id request)
-                               :metrics @metrics
-                               :pending-bot-count (count @bot-turns)
-                               :open-websocket-count (count @open-websockets)
-                               :limits {:max-rooms (max-rooms)
-                                        :max-room-connections (max-room-connections)
-                                        :max-websocket-connections (max-websocket-connections)
-                                        :max-message-bytes (max-message-bytes)
-                                        :idle-room-ms (idle-room-ms)}
-                               :started-at (:started-at @metrics)}))
+(defn admin-dashboard-main-html [request]
+  (admin/render-dashboard-main-html
+   {:rooms @rooms
+    :selected-room-id (selected-admin-room-id request)
+    :metrics @metrics
+    :pending-bot-count (count @bot-turns)
+    :open-websocket-count (count @open-websockets)
+    :limits {:max-rooms (max-rooms)
+             :max-room-connections (max-room-connections)
+             :max-websocket-connections (max-websocket-connections)
+             :max-message-bytes (max-message-bytes)
+             :idle-room-ms (idle-room-ms)}
+    :started-at (:started-at @metrics)}))
 
 (defn admin-stream-enabled? [request]
   (= "admin" (str/lower-case (or (some-> (query-params (:query-string request))
@@ -290,13 +291,13 @@
       #_{:clj-kondo/ignore [:unresolved-symbol]}
       (http/with-channel request ws
         (http/on-close ws (fn [_] (reset! stop true)))
-        (http/send! ws (admin-dashboard-main-state request))
+        (http/send! ws (admin-dashboard-main-html request))
         (async/thread
           (while (not @stop)
             (Thread/sleep 3000)
             (when-not @stop
               (try
-                (when-not (http/send! ws (admin-dashboard-main-state request))
+                (when-not (http/send! ws (admin-dashboard-main-html request))
                   (reset! stop true))
                 (catch Throwable _
                   (reset! stop true))))))))))

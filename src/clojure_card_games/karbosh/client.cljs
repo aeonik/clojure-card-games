@@ -2,6 +2,7 @@
   (:require [cljs.reader :as reader]
             [clojure.string :as str]
             [clojure-card-games.karbosh.shared.cards :as cards]
+            [clojure-card-games.karbosh.shared.hand-order :as hand-order]
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.hiccup :as h]))
 
@@ -68,26 +69,11 @@
 (defn card-suit-class [[_ suit]]
   (suit-class suit))
 
-(defn remove-first-card [card hand]
-  (let [[before after] (split-with #(not= card %) hand)]
-    (vec (concat before (rest after)))))
-
 (defn visible-hand [hand pending-card]
-  (if (and pending-card (some #(= pending-card %) hand))
-    (remove-first-card pending-card hand)
-    hand))
+  (hand-order/visible-hand hand pending-card))
 
 (defn reconcile-hand-order [hand-order hand hand-index]
-  (let [hand (vec (or hand []))
-        ordered (if (= (:hand-index hand-order) hand-index)
-                  (:cards hand-order)
-                  [])
-        hand-set (set hand)
-        kept (filterv hand-set ordered)
-        kept-set (set kept)
-        missing (filterv #(not (contains? kept-set %)) hand)]
-    {:hand-index hand-index
-     :cards (vec (concat kept missing))}))
+  (hand-order/reconcile hand-order hand hand-index))
 
 (defn ordered-hand [view hand-order]
   (:cards (reconcile-hand-order hand-order (:hand view) (:hand-index view))))
@@ -96,16 +82,10 @@
   (visible-hand (ordered-hand view hand-order) pending-card))
 
 (defn index-of-card [cards card]
-  (first (keep-indexed (fn [idx c]
-                         (when (= c card) idx))
-                       cards)))
+  (hand-order/index-of-card cards card))
 
 (defn move-card-to [cards card index]
-  (let [without-card (vec (remove #(= card %) cards))
-        index (max 0 (min index (count without-card)))]
-    (vec (concat (subvec without-card 0 index)
-                 [card]
-                 (subvec without-card index)))))
+  (hand-order/move-card-to cards card index))
 
 (defn player-class [player]
   (str "player-" (kw-name player)))
@@ -1027,7 +1007,7 @@
   (let [view (:view state)
         cards (ordered-hand view (:hand-order state))]
     (if-let [target-index (and (not= card target-card)
-                               (index-of-card (vec (remove #(= card %) cards))
+                               (index-of-card (hand-order/remove-first-card card cards)
                                               target-card))]
       (let [insert-index (+ target-index (if after? 1 0))]
         (assoc state :hand-order {:hand-index (:hand-index view)
