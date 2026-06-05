@@ -84,6 +84,15 @@
   (team-differential (contract-points state contract)
                      (contract-team state contract)))
 
+(defn special-contract? [contract]
+  (contains? #{:karbosh :double-karbosh} (:bid-type contract)))
+
+(defn opponent-tricks [state team]
+  (get-in state [:tricks-this-hand (other-team team)] 0))
+
+(defn karbosh-broken? [state contract]
+  (pos? (opponent-tricks state (contract-team state contract))))
+
 (defn maximizing-player? [state max-team]
   (= max-team (player-team state (:current-player state))))
 
@@ -232,3 +241,46 @@
                  {:objective [:contract contract]
                   :max-team team
                   :terminal-value #(contract-utility % contract)})))
+
+(defn solve-karbosh-make?
+  "Return true when the Karbosh caller can force all remaining tricks.
+
+  This is a binary solver, not a point-differential scorer. It short-circuits
+  as soon as any defender has won a trick, which is exact for make/fail
+  analysis of Karbosh and Double Karbosh."
+  [state contract]
+  (let [team (contract-team state contract)
+        cache (atom {})]
+    (letfn [(solve* [state]
+              (cond
+                (karbosh-broken? state contract)
+                false
+
+                (terminal? state)
+                true
+
+                :else
+                (let [k (state-key state [:karbosh-make contract])]
+                  (if (contains? @cache k)
+                    (get @cache k)
+                    (let [plays (ordered-plays state team)
+                          result (if (= team (player-team state (:current-player state)))
+                                   (boolean
+                                     (some #(solve* (play-card state
+                                                               (:current-player state)
+                                                               %))
+                                           plays))
+                                   (every? #(solve* (play-card state
+                                                               (:current-player state)
+                                                               %))
+                                           plays))]
+                      (swap! cache assoc k result)
+                      result)))))]
+      (solve* state))))
+
+(defn solve-contract-made?
+  "Return true when the bidding team can force the contract to make."
+  [state contract]
+  (if (special-contract? contract)
+    (solve-karbosh-make? state contract)
+    (pos? (solve-contract state contract))))

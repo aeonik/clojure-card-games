@@ -110,6 +110,42 @@
                s
                {:type :bid :player :player1 :bid-type :karbosh}))))))
 
+(deftest solve-contract-made-test
+  (testing "numeric contracts use contract utility"
+    (let [s (state {:hands {:player1 [[:A :♥]]
+                            :player2 [[:K :♥]]}
+                    :teams {:player1 1 :player2 2}
+                    :active-players [:player1 :player2]
+                    :current-player :player1
+                    :trump :♠})]
+      (is (true?
+            (play/solve-contract-made?
+              s
+              {:type :bid :player :player1 :bid-type :bid :value 1})))
+      (is (false?
+            (play/solve-contract-made?
+              s
+              {:type :bid :player :player2 :bid-type :bid :value 1})))))
+
+  (testing "karbosh succeeds only when caller can force every remaining trick"
+    (let [winning (state {:hands {:player1 [[:A :♥]]
+                                  :player2 [[:K :♥]]}
+                          :teams {:player1 1 :player2 2}
+                          :active-players [:player1 :player2]
+                          :current-player :player1
+                          :trump :♠})
+          failing (state {:hands {:player1 [[:K :♥]]
+                                  :player2 [[:A :♥]]}
+                          :teams {:player1 1 :player2 2}
+                          :active-players [:player1 :player2]
+                          :current-player :player1
+                          :trump :♠})
+          broken (assoc winning :tricks-this-hand {1 0 2 1})
+          contract {:type :bid :player :player1 :bid-type :karbosh}]
+      (is (true? (play/solve-karbosh-make? winning contract)))
+      (is (false? (play/solve-karbosh-make? failing contract)))
+      (is (false? (play/solve-karbosh-make? broken contract))))))
+
 (deftest alpha-beta-matches-exhaustive-test
   (testing "contract search matches exhaustive minimax"
     (let [s (state {:hands {:player1 [[:A :♥] [9 :♠]]

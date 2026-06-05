@@ -80,6 +80,15 @@
      :worst (when (seq values) (apply min values))
      :best (when (seq values) (apply max values))}))
 
+(defn summarize-make-outcomes [outcomes]
+  (let [made (count (filter :made? outcomes))]
+    {:samples (count outcomes)
+     :made made
+     :failed (- (count outcomes) made)
+     :make-rate (if (seq outcomes)
+                  (/ made (double (count outcomes)))
+                  0.0)}))
+
 (defn evaluate-contract
   "Evaluate a candidate contract with Perfect Information Monte Carlo.
 
@@ -95,5 +104,22 @@
                              :made? (pos? value)}))
                         (seeds-for options))]
      (assoc (summarize-outcomes outcomes)
+            :contract contract
+            :outcomes outcomes))))
+
+(defn evaluate-contract-make
+  "Evaluate make probability with Perfect Information Monte Carlo.
+
+  Karbosh and Double Karbosh use the binary all-tricks solver, which can
+  short-circuit after the defenders win any trick. Numeric contracts use the
+  regular contract solver."
+  ([state contract] (evaluate-contract-make state contract {}))
+  ([state contract options]
+   (let [outcomes (mapv (fn [seed]
+                          (let [world (sample-state state (assoc options :seed seed))]
+                            {:seed seed
+                             :made? (play/solve-contract-made? world contract)}))
+                        (seeds-for options))]
+     (assoc (summarize-make-outcomes outcomes)
             :contract contract
             :outcomes outcomes))))

@@ -73,3 +73,37 @@
       (is (= 1.0 (:downside-rate result)))
       (is (= -2.0 (:ev result)))
       (is (= [-2 -2 -2] (mapv :value (:outcomes result)))))))
+
+(deftest evaluate-contract-make-test
+  (testing "numeric make evaluation reports make probability"
+    (let [s (state {:hands {:player1 [[:A :♥]]
+                            :player2 []}
+                    :teams {:player1 1 :player2 2}
+                    :active-players [:player1 :player2]
+                    :current-player :player1
+                    :trump :♠})
+          result (pimc/evaluate-contract-make
+                   s
+                   {:type :bid :player :player1 :bid-type :bid :value 1}
+                   (assoc two-player-options
+                          :seeds [1 2 3]
+                          :deck [[:A :♥] [:K :♥]]))]
+      (is (= 3 (:samples result)))
+      (is (= 1.0 (:make-rate result)))
+      (is (= [true true true] (mapv :made? (:outcomes result))))))
+
+  (testing "karbosh make evaluation uses binary all-tricks outcome"
+    (let [s (state {:hands {:player1 [[:K :♥]]
+                            :player2 []}
+                    :teams {:player1 1 :player2 2}
+                    :active-players [:player1 :player2]
+                    :current-player :player1
+                    :trump :♠})
+          result (pimc/evaluate-contract-make
+                   s
+                   {:type :bid :player :player1 :bid-type :karbosh}
+                   (assoc two-player-options
+                          :seeds [1 2 3]
+                          :deck [[:A :♥] [:K :♥]]))]
+      (is (= 0.0 (:make-rate result)))
+      (is (= [false false false] (mapv :made? (:outcomes result)))))))
