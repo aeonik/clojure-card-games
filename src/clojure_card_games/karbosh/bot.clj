@@ -21,6 +21,17 @@
 
 (def ^:dynamic *bid-config* default-bid-config)
 
+(def default-play-config
+  {:lead-risk-tolerance 0.32
+   :win-risk-tolerance 0.22
+   :lead-risk-penalty 900
+   :win-risk-penalty 700})
+
+(def default-play-strategy :probability)
+
+(def ^:dynamic *play-config* default-play-config)
+(def ^:dynamic *play-strategy* default-play-strategy)
+
 (defn trump-card? [trump card]
   (= trump (rules/effective-suit card trump)))
 
@@ -156,7 +167,7 @@
 (defn highest-card [game cards]
   (first (sort-by #(card-score game %) > cards)))
 
-(defn card-action [game player]
+(defn card-counting-card-action [game player]
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
         unseen-counts (unseen-card-counts game player)
@@ -191,6 +202,101 @@
     (when card
       {:type :play-card
        :card card})))
+
+(defn card-analyses [game player cards]
+  (let [trump (:trump game)
+        unseen (vec (unseen-cards game player))
+        population-size (count unseen)
+        counts (analysis/effective-suit-counts trump unseen)]
+    (into {}
+          (map (fn [card]
+                 [card
+                  (analysis/card-defeat-analysis game
+                                                 player
+                                                 trump
+                                                 unseen
+                                                 counts
+                                                 population-size
+                                                 card)]))
+          cards)))
+
+(defn probability [x]
+  (double (or x 0)))
+
+(defn card-risk [analyses card]
+  (probability (get-in analyses [card :prob-pending-opponent-can-beat-card])))
+
+(defn risk-adjusted-lead-value [config game analyses card]
+  (- (card-score game card)
+     (* (:lead-risk-penalty config) (card-risk analyses card))))
+
+(defn risk-adjusted-win-cost [config game analyses card]
+  (+ (card-score game card)
+     (* (:win-risk-penalty config) (card-risk analyses card))))
+
+(defn safe-cards [config analyses threshold-key cards]
+  (filter #(<= (card-risk analyses %) (threshold-key config)) cards))
+
+(defn probability-lead-card [config game analyses cards]
+  (let [safe (safe-cards config analyses :lead-risk-tolerance cards)]
+    (if (seq safe)
+      (lowest-card game safe)
+      (first (sort-by #(risk-adjusted-lead-value config game analyses %)
+                      >
+                      cards)))))
+
+(defn probability-winning-card [config game analyses cards]
+  (let [safe (safe-cards config analyses :win-risk-tolerance cards)]
+    (if (seq safe)
+      (lowest-card game safe)
+      (first (sort-by #(risk-adjusted-win-cost config game analyses %)
+                      cards)))))
+
+(defn probability-card-action [game player]
+  (let [cards (vec (legal-cards game player))
+        winner (current-trick-winner game)
+        analyses (card-analyses game player cards)
+        winning-cards (filter #(wins-trick? game player %) cards)
+        card (cond
+               (empty? cards)
+               nil
+
+               (empty? (:current-trick game))
+               (probability-lead-card *play-config* game analyses cards)
+
+               (same-team? game player winner)
+               (lowest-card game cards)
+
+               (seq winning-cards)
+               (probability-winning-card *play-config*
+                                         game
+                                         analyses
+                                         winning-cards)
+
+               :else
+               (lowest-card game cards))]
+    (when card
+      {:type :play-card
+       :card card})))
+
+(def play-strategies
+  {:card-counting card-counting-card-action
+   :probability probability-card-action})
+
+(defn resolve-play-strategy [strategy]
+  (cond
+    (fn? strategy) strategy
+    (keyword? strategy) (or (get play-strategies strategy)
+                            (throw (ex-info "Unknown play strategy"
+                                            {:strategy strategy
+                                             :available (keys play-strategies)})))
+    :else (throw (ex-info "Invalid play strategy" {:strategy strategy}))))
+
+(defn card-action
+  ([game player]
+   (card-action game player *play-strategy*))
+  ([game player strategy]
+   ((resolve-play-strategy strategy) game player)))
 
 (defn action [game player]
   (case (:phase game)

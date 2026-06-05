@@ -144,6 +144,23 @@
 (defn higher-card-count [unseen-cards trump lead card]
   (count (filter #(rules/beats? trump lead % card) unseen-cards)))
 
+(defn higher-follow-card-count [unseen-cards trump lead card]
+  (count (filter #(and (= lead (effective-suit trump %))
+                       (rules/beats? trump lead % card))
+                 unseen-cards)))
+
+(defn higher-trump-count [unseen-cards trump lead card]
+  (if (and trump (not= lead trump))
+    (count (filter #(and (= trump (effective-suit trump %))
+                         (rules/beats? trump lead % card))
+                   unseen-cards))
+    0))
+
+(defn combine-event-probabilities [probabilities]
+  (- 1.0
+     (reduce * 1.0 (map #(- 1.0 (double (or % 0)))
+                        probabilities))))
+
 (defn suit-analysis [population-size suit-count hand-sizes]
   {:unseen suit-count
    :prob-any-hand-has
@@ -151,10 +168,10 @@
    :prob-all-hands-can-follow
    (probability-all-follow suit-count population-size hand-sizes)})
 
-(defn ruff-probabilities [game player trump suit counts population-size players]
-  (when (and trump (not= suit trump))
-    (let [suit-left (get counts suit 0)
-          trump-left (get counts trump 0)]
+(defn void-and-trump-probabilities
+  [game player suit trump-left counts population-size players]
+  (when (pos? trump-left)
+    (let [suit-left (get counts suit 0)]
       (into {}
             (map (fn [other]
                    [other
@@ -165,36 +182,99 @@
                       (player-hand-size game other))]))
             (opponent-players game player players)))))
 
+(defn ruff-probabilities [game player trump suit counts population-size players]
+  (when (and trump (not= suit trump))
+    (void-and-trump-probabilities game
+                                  player
+                                  suit
+                                  (get counts trump 0)
+                                  counts
+                                  population-size
+                                  players)))
+
+(defn card-defeat-analysis
+  ([game player card]
+   (let [trump (:trump game)
+         unseen (vec (unseen-cards game player))
+         population-size (count unseen)
+         counts (effective-suit-counts trump unseen)]
+     (card-defeat-analysis game
+                           player
+                           trump
+                           unseen
+                           counts
+                           population-size
+                           card)))
+  ([game player trump unseen cards-by-suit population-size card]
+   (let [lead (or (rules/trick-lead (:current-trick game) trump)
+                  (effective-suit trump card))
+         pending-opponents (opponent-players game
+                                             player
+                                             (pending-trick-players-after game player))
+         pending-opponent-sizes (vals (hand-sizes game pending-opponents))
+         higher-count (higher-card-count unseen trump lead card)
+         higher-follow-count (higher-follow-card-count unseen trump lead card)
+         higher-trumps (higher-trump-count unseen trump lead card)
+         higher-follow-prob (probability-of-any-success higher-follow-count
+                                                        population-size
+                                                        pending-opponent-sizes)
+         void-higher-trump-probs (when (and trump (not= lead trump))
+                                   (void-and-trump-probabilities
+                                     game
+                                     player
+                                     lead
+                                     higher-trumps
+                                     cards-by-suit
+                                     population-size
+                                     pending-opponents))
+         void-higher-trump-prob (combine-event-probabilities
+                                  (vals void-higher-trump-probs))]
+     {:card card
+      :effective-suit (effective-suit trump card)
+      :lead lead
+      :higher-unseen higher-count
+      :higher-follow-unseen higher-follow-count
+      :higher-trump-unseen higher-trumps
+      :prob-pending-opponent-has-higher-card
+      (probability-of-any-success higher-count
+                                  population-size
+                                  pending-opponent-sizes)
+      :prob-pending-opponent-has-higher-follow-card
+      higher-follow-prob
+      :prob-pending-opponent-void-and-higher-trump
+      void-higher-trump-probs
+      :prob-pending-opponent-can-beat-card
+      (combine-event-probabilities [higher-follow-prob
+                                    void-higher-trump-prob])})))
+
 (defn card-analysis
   [game player trump unseen cards-by-suit population-size card]
-  (let [lead (or (rules/trick-lead (:current-trick game) trump)
-                 (effective-suit trump card))
+  (let [{:keys [lead] :as defeat-analysis}
+        (card-defeat-analysis game
+                              player
+                              trump
+                              unseen
+                              cards-by-suit
+                              population-size
+                              card)
         pending-opponents (opponent-players game
                                             player
                                             (pending-trick-players-after game player))
         pending-opponent-sizes (vals (hand-sizes game pending-opponents))
-        higher-count (higher-card-count unseen trump lead card)
         suit-left (get cards-by-suit lead 0)]
-    {:card card
-     :effective-suit (effective-suit trump card)
-     :lead lead
-     :higher-unseen higher-count
-     :prob-pending-opponent-has-higher-card
-     (probability-of-any-success higher-count
-                                 population-size
-                                 pending-opponent-sizes)
-     :prob-pending-opponents-all-follow
-     (probability-all-follow suit-left
-                             population-size
-                             pending-opponent-sizes)
-     :prob-pending-opponent-void-and-trump
-     (ruff-probabilities game
-                         player
-                         trump
-                         lead
-                         cards-by-suit
-                         population-size
-                         pending-opponents)}))
+    (assoc defeat-analysis
+           :prob-pending-opponents-all-follow
+           (probability-all-follow suit-left
+                                   population-size
+                                   pending-opponent-sizes)
+           :prob-pending-opponent-void-and-trump
+           (ruff-probabilities game
+                               player
+                               trump
+                               lead
+                               cards-by-suit
+                               population-size
+                               pending-opponents))))
 
 (defn trump-analysis [game player trump]
   (let [hand (get-in game [:players player :hand])

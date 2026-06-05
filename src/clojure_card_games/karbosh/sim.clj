@@ -8,6 +8,8 @@
    :min-score -100
    :max-events-per-hand 256
    :collect-analysis? false
+   :play-strategy bot/default-play-strategy
+   :play-config bot/default-play-config
    :bid-config bot/default-bid-config})
 
 (defn min-score-reached? [state min-score]
@@ -91,7 +93,9 @@
   ([seed] (run-game seed default-options))
   ([seed options]
    (let [options (merge default-options options)]
-     (binding [bot/*bid-config* (:bid-config options)]
+     (binding [bot/*bid-config* (:bid-config options)
+               bot/*play-strategy* (:play-strategy options)
+               bot/*play-config* (:play-config options)]
        (loop [state (game/init-game seed)]
          (let [state (run-hand state options)
                reason (or (:sim/error state)

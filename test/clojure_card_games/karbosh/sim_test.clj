@@ -34,3 +34,10 @@
     (is (= (count snapshots)
            (:analysis-snapshots (sim/summarize-game state))))
     (is (every? #(contains? (:analysis %) :unseen-count) snapshots))))
+
+(deftest play-strategy-option-test
+  (let [results (sim/run-games-for-seeds [1]
+                                         {:max-hands 1
+                                          :play-strategy :card-counting})]
+    (is (= 1 (count results)))
+    (is (= 1 (:hands (first results))))))

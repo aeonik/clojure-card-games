@@ -1,6 +1,7 @@
 (ns clojure-card-games.karbosh.bot-test
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure-card-games.karbosh.bot :as bot]))
+            [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.shared.game :as game]))
 
 (def team-game
   {:players {:player1 {:team 1 :hand []}
@@ -27,8 +28,20 @@
 (def karbosh-hand
   [[:A :♦] [:K :♠] [:J :♣] [:A :♠] [:J :♠] [:K :♠] [10 :♠] [:Q :♠]])
 
+(def hidden-hand-size (vec (repeat 8 [9 :♣])))
+
 (defn with-hand [game player hand]
   (assoc-in game [:players player :hand] hand))
+
+(defn with-hidden-hand-sizes [state]
+  (reduce (fn [state player]
+            (update-in state
+                       [:players player]
+                       #(merge {:team (get (game/teams) player)
+                                :hand hidden-hand-size}
+                               %)))
+          state
+          game/players))
 
 (deftest bidding-policy-test
   (testing "bots make conservative numeric bids from tuned thresholds"
@@ -126,31 +139,47 @@
              (bot/card-action game :player4)))))
 
   (testing "when the cheap winner is vulnerable, a bot secures the trick"
-    (let [game {:players {:player1 {:team 1}
-                          :player2 {:team 2
-                                    :hand [[:A :♠] [:K :♠] [9 :♣]]}}
-                :trump :♠
-                :completed-tricks [[{:player :player3 :card [:J :♠]}
-                                    {:player :player4 :card [:J :♠]}]
-                                   [{:player :player5 :card [:J :♣]}
-                                    {:player :player6 :card [:J :♣]}]]
-                :current-trick [{:player :player1 :card [:Q :♠]}]}]
+    (let [game (with-hidden-hand-sizes
+                 {:players {:player1 {:team 1}
+                            :player2 {:team 2
+                                      :hand [[:A :♠] [:K :♠] [9 :♣]]}}
+                  :trump :♠
+                  :completed-tricks [[{:player :player3 :card [:J :♠]}
+                                      {:player :player4 :card [:J :♠]}]
+                                     [{:player :player5 :card [:J :♣]}
+                                      {:player :player6 :card [:J :♣]}]]
+                  :current-trick [{:player :player1 :card [:Q :♠]}]})]
       (is (= {:type :play-card :card [:A :♠]}
              (bot/card-action game :player2)))))
 
   (testing "when the smallest winner is secure, a bot still uses it"
-    (let [game {:players {:player1 {:team 1}
-                          :player2 {:team 2
-                                    :hand [[:A :♠] [:K :♠] [9 :♣]]}}
-                :trump :♠
-                :completed-tricks [[{:player :player3 :card [:J :♠]}
-                                    {:player :player4 :card [:J :♠]}]
-                                   [{:player :player5 :card [:J :♣]}
-                                    {:player :player6 :card [:J :♣]}]
-                                   [{:player :player3 :card [:A :♠]}]]
-                :current-trick [{:player :player1 :card [:Q :♠]}]}]
+    (let [game (with-hidden-hand-sizes
+                 {:players {:player1 {:team 1}
+                            :player2 {:team 2
+                                      :hand [[:A :♠] [:K :♠] [9 :♣]]}}
+                  :trump :♠
+                  :completed-tricks [[{:player :player3 :card [:J :♠]}
+                                      {:player :player4 :card [:J :♠]}]
+                                     [{:player :player5 :card [:J :♣]}
+                                      {:player :player6 :card [:J :♣]}]
+                                     [{:player :player3 :card [:A :♠]}]]
+                  :current-trick [{:player :player1 :card [:Q :♠]}]})]
       (is (= {:type :play-card :card [:K :♠]}
              (bot/card-action game :player2)))))
+
+  (testing "play strategies are pluggable for same-position comparisons"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♥] [9 :♠] [9 :♦] [10 :♦]
+                                             [:Q :♦] [9 :♣] [10 :♣] [:Q :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player1 :card-counting)))
+      (is (= {:type :play-card :card [:A :♥]}
+             (bot/card-action game :player1 :probability)))))
 
   (testing "when a partner is winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}

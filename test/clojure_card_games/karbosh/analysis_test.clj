@@ -58,4 +58,30 @@
       (is (= :♠ (:trump trump-odds)))
       (is (= 0 (get (:unseen-card-counts odds) [:J :♠] 0)))
       (is (= [:A :♠] (:card card-odds)))
-      (is (number? (:prob-pending-opponent-has-higher-card card-odds))))))
+      (is (number? (:prob-pending-opponent-has-higher-card card-odds)))))
+
+  (testing "off-suit winners use ruff odds instead of treating every trump as live"
+    (let [hidden-hand (vec (repeat 8 [9 :♣]))
+          game {:phase :trick-playing
+                :trump :♠
+                :active-players game/players
+                :players {:player1 {:team 1
+                                    :hand [[:A :♥]]}
+                          :player2 {:team 2
+                                    :hand hidden-hand}
+                          :player3 {:team 1
+                                    :hand hidden-hand}
+                          :player4 {:team 2
+                                    :hand hidden-hand}
+                          :player5 {:team 1
+                                    :hand hidden-hand}
+                          :player6 {:team 2
+                                    :hand hidden-hand}}
+                :current-trick []}
+          card-odds (-> (analysis/player-analysis game :player1)
+                        :trump-analysis
+                        :hand
+                        first)]
+      (is (pos? (:higher-trump-unseen card-odds)))
+      (is (< (:prob-pending-opponent-can-beat-card card-odds)
+             (:prob-pending-opponent-has-higher-card card-odds))))))
