@@ -1806,6 +1806,7 @@ input {
   }
 
   body.has-karbosh-game .sidebar,
+  body.has-karbosh-game .top-strip,
   body.has-karbosh-game .section-secondary,
   body.has-karbosh-game .meta-grid,
   body.has-karbosh-game .connection-pill,
@@ -1850,7 +1851,7 @@ input {
 
   body.has-karbosh-game .table-panel {
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
     gap: 0.3rem;
     overflow: hidden;
     border: 0;
@@ -1861,6 +1862,7 @@ input {
   }
 
   body.has-karbosh-game .panel-heading {
+    order: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.3rem;
@@ -1929,6 +1931,7 @@ input {
   }
 
   body.has-karbosh-game .score-summary {
+    order: 2;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.35rem;
     align-items: center;
@@ -1960,7 +1963,7 @@ input {
   }
 
   body.has-karbosh-game .table-status {
-    order: initial;
+    order: 3;
     display: grid;
     grid-template-columns: minmax(5.8rem, auto) minmax(0, 1fr);
     gap: 0.35rem;
@@ -2026,7 +2029,7 @@ input {
   }
 
   body.has-karbosh-game .table-surface {
-    order: initial;
+    order: 6;
     min-height: 0;
     height: 100%;
     margin: 0;
@@ -2101,7 +2104,7 @@ input {
   }
 
   body.has-karbosh-game .controls {
-    order: initial;
+    order: 5;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.28rem;
     align-items: stretch;
@@ -2178,7 +2181,7 @@ input {
   }
 
   body.has-karbosh-game .hand-panel {
-    order: initial;
+    order: 4;
     min-height: 0;
     border-top: 0;
     margin: 0;
@@ -2316,7 +2319,7 @@ input {
   }
 
   body.has-karbosh-game .table-panel {
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
     gap: 0.18rem;
   }
 
