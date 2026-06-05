@@ -1014,6 +1014,13 @@ h2 {
   gap: 0.55rem;
 }
 
+.hand-row.is-sorting .card-button {
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease,
+    opacity 130ms ease;
+}
+
 .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
   grid-column: 1 / -1;
   order: 0;
@@ -1186,12 +1193,34 @@ button:disabled {
   letter-spacing: 0;
   padding: 0;
   text-transform: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .card-button:hover,
 .card-button:focus-visible {
   background: #fff;
   border-color: rgba(255, 255, 255, 0.8);
+}
+
+.card-button.is-disabled {
+  cursor: grab;
+  opacity: 0.72;
+}
+
+.card-button.is-disabled:hover,
+.card-button.is-disabled:focus-visible {
+  border-color: rgba(17, 20, 32, 0.22);
+  background: #f8f5ed;
+}
+
+.card-button.is-dragging {
+  cursor: grabbing;
+  opacity: 0.98;
+  transform: translateY(-0.22rem) scale(1.04);
+  box-shadow:
+    0 0 0 3px rgba(111, 208, 199, 0.22),
+    0 0.55rem 1rem rgba(8, 12, 26, 0.3);
 }
 
 .debug-panel {

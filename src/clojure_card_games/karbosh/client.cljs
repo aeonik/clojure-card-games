@@ -19,6 +19,9 @@
          :public-rooms {:loading? false
                         :rooms []
                         :error nil}
+         :hand-order nil
+         :card-drag nil
+         :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
          :error nil}))
@@ -32,6 +35,10 @@
 
 (defn qs [selector]
   (.querySelector js/document selector))
+
+(defn closest [node selector]
+  (when (and node (.-closest node))
+    (.closest node selector)))
 
 (defn html! [node content]
   (set! (.-innerHTML node) (if (string? content)
@@ -69,6 +76,36 @@
   (if (and pending-card (some #(= pending-card %) hand))
     (remove-first-card pending-card hand)
     hand))
+
+(defn reconcile-hand-order [hand-order hand hand-index]
+  (let [hand (vec (or hand []))
+        ordered (if (= (:hand-index hand-order) hand-index)
+                  (:cards hand-order)
+                  [])
+        hand-set (set hand)
+        kept (filterv hand-set ordered)
+        kept-set (set kept)
+        missing (filterv #(not (contains? kept-set %)) hand)]
+    {:hand-index hand-index
+     :cards (vec (concat kept missing))}))
+
+(defn ordered-hand [view hand-order]
+  (:cards (reconcile-hand-order hand-order (:hand view) (:hand-index view))))
+
+(defn displayed-hand [view pending-card hand-order]
+  (visible-hand (ordered-hand view hand-order) pending-card))
+
+(defn index-of-card [cards card]
+  (first (keep-indexed (fn [idx c]
+                         (when (= c card) idx))
+                       cards)))
+
+(defn move-card-to [cards card index]
+  (let [without-card (vec (remove #(= card %) cards))
+        index (max 0 (min index (count without-card)))]
+    (vec (concat (subvec without-card 0 index)
+                 [card]
+                 (subvec without-card index)))))
 
 (defn player-class [player]
   (str "player-" (kw-name player)))
@@ -505,11 +542,16 @@
                    (trick-html view trick animation))]
             (or (trick-popup-html view trick-popup) "")]))))
 
-(defn card-button [{:keys [card disabled?]}]
-  [:button {:class (str "card-button" (card-suit-class card))
+(defn card-button [{:keys [card disabled? dragging?]}]
+  [:button {:class (str "card-button" (card-suit-class card)
+                        (when disabled? " is-disabled")
+                        (when dragging? " is-dragging"))
             :type "button"
             :data-card (pr-str card)
-            :disabled disabled?}
+            :data-card-disabled (if disabled? "true" "false")
+            :aria-disabled (if disabled? "true" "false")
+            :tabindex (when disabled? -1)
+            :draggable "false"}
    (card-label card)])
 
 (def auto-play-phases
@@ -590,16 +632,19 @@
 
           true))))
 
-(defn hand-panel-html [view pending-card paused?]
-  (let [hand (visible-hand (:hand view) pending-card)]
+(defn hand-panel-html [view pending-card paused? hand-order card-drag]
+  (let [hand (displayed-hand view pending-card hand-order)
+        dragging-card (:card card-drag)
+        sorting? (:dragging? card-drag)]
     [:section {:class "hand-panel"}
      [:div {:class "hand-heading"}
       [:h2 (hand-title view)]
       [:span (count hand) " cards"]]
-     [:div {:class "hand-row"}
+     [:div {:class (str "hand-row" (when sorting? " is-sorting"))}
       (for [card hand]
         (card-button {:card card
-                      :disabled? (card-disabled? view hand card pending-card paused?)}))]]))
+                      :disabled? (card-disabled? view hand card pending-card paused?)
+                      :dragging? (and sorting? (= card dragging-card))}))]]))
 
 (defn game-over-html [view]
   (when (= :game-over (:phase view))
@@ -664,7 +709,8 @@
              (leave-room-controls)])))
 
 (defn render-game! []
-  (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
+  (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
+                hand-order card-drag pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root")
@@ -692,7 +738,9 @@
                  (table-surface-html view play-animation trick-popup queued-trick-popup)
                  [:div {:class "play-controls-panel"}
                   (hand-panel-html view pending-card (or (some? trick-popup)
-                                                        (some? queued-trick-popup)))
+                                                        (some? queued-trick-popup))
+                                   hand-order
+                                   card-drag)
                   [:div {:class "controls"}
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
@@ -789,6 +837,9 @@
          :queued-trick-popup nil
          :bid-popup nil
          :join-modal nil
+         :hand-order nil
+         :card-drag nil
+         :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
          :error message)
@@ -801,6 +852,9 @@
     (case (:op message)
       :state
       (let [view (:view message)
+            hand-order (reconcile-hand-order (:hand-order @app)
+                                             (:hand view)
+                                             (:hand-index view))
             animation (played-card-event (:view @app) view)
             trick-winner (won-trick-event (:view @app) view)
             bid (bid-event (:view @app) view)
@@ -821,6 +875,8 @@
                :trick-popup (when-not queue-popup? popup)
                :queued-trick-popup (when queue-popup? popup)
                :bid-popup (some-> bid (assoc :id bid-popup-id))
+               :hand-order hand-order
+               :card-drag nil
                :pending-card nil
                :pending-auto? false
                :error nil)
@@ -899,6 +955,100 @@
   (send! {:op :set-room-visibility :public? public?})
   (js/setTimeout load-public-rooms! 500))
 
+(def drag-threshold-px 8)
+
+(defn read-card-attr [node]
+  (reader/read-string (.getAttribute node "data-card")))
+
+(defn card-button-node [target]
+  (closest target ".card-button[data-card]"))
+
+(defn hand-card-nodes []
+  (when-let [row (qs ".hand-row")]
+    (array-seq (js/Array.from (.querySelectorAll row ".card-button[data-card]")))))
+
+(defn rect-center [rect]
+  [(+ (.-left rect) (/ (.-width rect) 2))
+   (+ (.-top rect) (/ (.-height rect) 2))])
+
+(defn card-node-distance [node x y]
+  (let [rect (.getBoundingClientRect node)
+        [cx cy] (rect-center rect)
+        dx (- x cx)
+        dy (- y cy)]
+    (+ (* dx dx) (* dy dy))))
+
+(defn nearest-card-node [x y]
+  (when-let [nodes (seq (hand-card-nodes))]
+    (apply min-key #(card-node-distance % x y) nodes)))
+
+(defn after-card? [node x y]
+  (let [rect (.getBoundingClientRect node)
+        [cx cy] (rect-center rect)
+        dx (- x cx)
+        dy (- y cy)]
+    (if (> (js/Math.abs dy) (* 0.65 (.-height rect)))
+      (pos? dy)
+      (pos? dx))))
+
+(defn reorder-dragged-card [state card target-card after?]
+  (let [view (:view state)
+        cards (ordered-hand view (:hand-order state))]
+    (if-let [target-index (and (not= card target-card)
+                               (index-of-card (vec (remove #(= card %) cards))
+                                              target-card))]
+      (let [insert-index (+ target-index (if after? 1 0))]
+        (assoc state :hand-order {:hand-index (:hand-index view)
+                                  :cards (move-card-to cards card insert-index)}))
+      state)))
+
+(defn begin-card-drag! [event]
+  (when-let [node (card-button-node (.-target event))]
+    (when (or (nil? (.-button event)) (zero? (.-button event)))
+      (swap! app assoc
+             :card-drag {:card (read-card-attr node)
+                         :pointer-id (.-pointerId event)
+                         :start-x (.-clientX event)
+                         :start-y (.-clientY event)
+                         :dragging? false})
+      nil)))
+
+(defn update-card-drag! [event]
+  (when-let [{:keys [card pointer-id start-x start-y dragging?] :as drag} (:card-drag @app)]
+    (when (= pointer-id (.-pointerId event))
+      (let [x (.-clientX event)
+            y (.-clientY event)
+            dx (- x start-x)
+            dy (- y start-y)
+            moved? (> (js/Math.sqrt (+ (* dx dx) (* dy dy))) drag-threshold-px)]
+        (when (or dragging? moved?)
+          (.preventDefault event)
+          (let [target (nearest-card-node x y)
+                target-card (some-> target read-card-attr)
+                after? (when target (after-card? target x y))
+                before @app
+                after (-> before
+                          (assoc :card-drag (assoc drag :dragging? true))
+                          (cond-> target-card
+                            (reorder-dragged-card card target-card after?)))]
+            (when (not= before after)
+              (reset! app after)
+              (render-game!))))))))
+
+(defn clear-suppressed-card-click! []
+  (swap! app assoc :suppress-card-click? false))
+
+(defn finish-card-drag! [event]
+  (when-let [{:keys [pointer-id dragging?]} (:card-drag @app)]
+    (when (= pointer-id (.-pointerId event))
+      (when dragging?
+        (.preventDefault event)
+        (swap! app assoc :suppress-card-click? true)
+        (js/setTimeout clear-suppressed-card-click! 250))
+      (swap! app assoc :card-drag nil)
+      (when dragging?
+        (render-game!)))))
+
 (defn bind-controls! []
   (.addEventListener (el "create-room") "click" create-room!)
   (.addEventListener (el "join-room") "click"
@@ -918,9 +1068,14 @@
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
                          (.. js/navigator -clipboard (writeText text)))))
   (.addEventListener (el "fill-bots") "click" fill-bots!)
+  (.addEventListener (el "game-root") "pointerdown" begin-card-drag!)
+  (.addEventListener js/window "pointermove" update-card-drag!)
+  (.addEventListener js/window "pointerup" finish-card-drag!)
+  (.addEventListener js/window "pointercancel" finish-card-drag!)
   (.addEventListener (el "game-root") "click"
                      (fn [event]
-                       (let [target (.-target event)]
+                       (let [target (.-target event)
+                             card-target (card-button-node target)]
                          (cond
                            (.hasAttribute target "data-bid")
                            (let [bid (keyword (.getAttribute target "data-bid"))]
@@ -935,8 +1090,13 @@
                            (action! {:type :trump-selection
                                      :suit (reader/read-string (.getAttribute target "data-trump"))})
 
-                           (.hasAttribute target "data-card")
-                           (play-card! (reader/read-string (.getAttribute target "data-card")))
+                           card-target
+                           (if (:suppress-card-click? @app)
+                             (do
+                               (.preventDefault event)
+                               (clear-suppressed-card-click!))
+                             (when-not (= "true" (.getAttribute card-target "data-card-disabled"))
+                               (play-card! (read-card-attr card-target))))
 
                            (.hasAttribute target "data-auto-play")
                            (auto-play!)
