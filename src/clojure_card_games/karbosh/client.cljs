@@ -42,6 +42,7 @@
   (set! (.-textContent node) content))
 
 (defonce viewport-update-frame (atom nil))
+(defonce viewport-settle-timeout (atom nil))
 (defonce viewport-listeners-bound? (atom false))
 
 (defn update-mobile-viewport! []
@@ -49,9 +50,18 @@
         height (if visual-viewport
                  (.-height visual-viewport)
                  (.-innerHeight js/window))
-        height (js/Math.max 320 (js/Math.floor height))]
+        height (js/Math.max 320 (js/Math.floor height))
+        offset-top (if visual-viewport
+                     (.-offsetTop visual-viewport)
+                     0)
+        bottom-inset (js/Math.max
+                      0
+                      (js/Math.floor
+                       (- (.-innerHeight js/window) height offset-top)))]
     (.. js/document -documentElement -style
-        (setProperty "--karbosh-visible-height" (str height "px")))))
+        (setProperty "--karbosh-visible-height" (str height "px")))
+    (.. js/document -documentElement -style
+        (setProperty "--karbosh-browser-bottom-inset" (str bottom-inset "px")))))
 
 (defn schedule-mobile-viewport-update! []
   (when-not @viewport-update-frame
@@ -60,7 +70,11 @@
              js/window
              (fn []
                (reset! viewport-update-frame nil)
-               (update-mobile-viewport!))))))
+               (update-mobile-viewport!)))))
+  (when-let [timeout @viewport-settle-timeout]
+    (js/clearTimeout timeout))
+  (reset! viewport-settle-timeout
+          (js/setTimeout update-mobile-viewport! 180)))
 
 (defn bind-mobile-viewport! []
   (when-not @viewport-listeners-bound?
