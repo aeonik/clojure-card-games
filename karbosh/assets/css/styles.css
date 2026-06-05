@@ -1166,11 +1166,11 @@ button:disabled {
   border-radius: 8px;
   background: #f8f5ed;
   box-shadow: 0 0.25rem 0.65rem rgba(8, 12, 26, 0.18);
-  font-size: 4.25rem;
+  font-size: 3rem;
   font-weight: 700;
   letter-spacing: 0;
-  line-height: 0.72;
-  overflow: visible;
+  line-height: 1;
+  overflow: hidden;
   padding: 0;
   text-transform: none;
 }
@@ -2637,21 +2637,24 @@ input {
 }
 
 body.has-karbosh-game .trump-control-group {
+  --trump-picker-tile: clamp(3.65rem, 8vw, 4.9rem);
+  --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.72);
   position: fixed;
   top: 50%;
   left: 50%;
   z-index: 50;
   display: grid;
-  grid-template-columns: repeat(4, minmax(4.6rem, 1fr));
-  gap: 0.7rem;
-  width: min(34rem, calc(100vw - 1.5rem));
+  grid-template-columns: repeat(4, var(--trump-picker-tile));
+  gap: 0.55rem;
+  justify-content: center;
+  width: min(25rem, calc(100vw - 1.25rem));
   border: 1px solid rgba(111, 208, 199, 0.45);
   border-radius: 8px;
   background: rgba(18, 22, 34, 0.94);
   box-shadow:
     0 0 0 999vmax rgba(8, 12, 26, 0.32),
     0 1.1rem 2.4rem rgba(8, 12, 26, 0.42);
-  padding: 1.05rem;
+  padding: 0.85rem;
   transform: translate(-50%, -50%);
 }
 
@@ -2667,11 +2670,12 @@ body.has-karbosh-game .trump-picker-label {
 
 body.has-karbosh-game .trump-control-group .trump-button {
   aspect-ratio: 1;
-  min-height: 4.8rem;
+  min-height: 0;
   min-width: 0;
-  width: 100%;
-  font-size: clamp(4.6rem, 11vw, 6.2rem);
-  line-height: 0.68;
+  width: var(--trump-picker-tile);
+  height: var(--trump-picker-tile);
+  font-size: var(--trump-picker-symbol);
+  line-height: 1;
 }
 
 body.has-karbosh-game .trump-control-group .auto-play-button {
@@ -2683,26 +2687,29 @@ body.has-karbosh-game .trump-control-group .auto-play-button {
   letter-spacing: 0.08em;
 }
 
-@media screen and (max-width: 680px) and (orientation: portrait) {
+@media screen and (max-width: 680px) {
   body.has-karbosh-game .trump-control-group {
-    grid-template-columns: repeat(2, minmax(5.9rem, 1fr));
-    gap: 0.75rem;
-    width: min(18rem, calc(100vw - 1.25rem));
-    padding: 1rem;
+    --trump-picker-tile: clamp(4.45rem, 24vw, 5.5rem);
+    --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.7);
+    grid-template-columns: repeat(2, var(--trump-picker-tile));
+    gap: 0.65rem;
+    width: min(15rem, calc(100vw - 1.25rem));
+    padding: 0.9rem;
   }
 
   body.has-karbosh-game .trump-control-group .trump-button {
-    min-height: 5.9rem;
-    font-size: clamp(5.3rem, 24vw, 6.6rem);
+    min-height: 0;
   }
 }
 
 @media screen and (orientation: landscape) and (max-height: 560px) {
   body.has-karbosh-game .trump-control-group {
-    grid-template-columns: repeat(4, minmax(4.15rem, 1fr));
-    gap: 0.45rem;
-    width: min(28rem, calc(100vw - 1rem));
-    padding: 0.7rem;
+    --trump-picker-tile: clamp(3.35rem, 12vh, 4.2rem);
+    --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.72);
+    grid-template-columns: repeat(4, var(--trump-picker-tile));
+    gap: 0.42rem;
+    width: min(22rem, calc(100vw - 1rem));
+    padding: 0.62rem;
   }
 
   body.has-karbosh-game .trump-picker-label {
@@ -2710,8 +2717,7 @@ body.has-karbosh-game .trump-control-group .auto-play-button {
   }
 
   body.has-karbosh-game .trump-control-group .trump-button {
-    min-height: 4.15rem;
-    font-size: clamp(4.2rem, 10vw, 5.4rem);
+    min-height: 0;
   }
 
   body.has-karbosh-game .trump-control-group .auto-play-button {
