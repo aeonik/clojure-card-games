@@ -88,6 +88,29 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest refresh-room-view-state-adds-legacy-bot-personas-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/seat-player :player1 "Human")
+                 (assoc-in [:seats :player2]
+                           {:name "Bot 2"
+                            :connected? true
+                            :bot? true})
+                 (assoc :connections {:human {:player :player1
+                                               :out out}}))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (server/refresh-room-view-state!)
+      (let [message (async/<!! out)
+            bot-view (some #(when (= :player2 (:id %)) %)
+                           (get-in message [:view :players]))]
+        (is (some? (get-in @server/rooms ["ABC123" :seats :player2 :persona])))
+        (is (some? (:persona bot-view)))
+        (is (= (:name (:persona bot-view)) (:name bot-view))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-delete-room-removes-room-and-notifies-clients-test
   (let [out (async/chan 2)
         old-rooms @server/rooms

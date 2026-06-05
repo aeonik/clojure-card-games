@@ -39,8 +39,11 @@
   (.querySelector js/document selector))
 
 (defn closest [node selector]
-  (when (and node (.-closest node))
-    (.closest node selector)))
+  (let [node (if (and node (.-closest node))
+               node
+               (some-> node .-parentElement))]
+    (when (and node (.-closest node))
+      (.closest node selector))))
 
 (defn html! [node content]
   (set! (.-innerHTML node) (if (string? content)

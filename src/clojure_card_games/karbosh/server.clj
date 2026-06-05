@@ -31,6 +31,8 @@
     clojure-card-games.karbosh.admin
     clojure-card-games.karbosh.server])
 
+(declare broadcast-room!)
+
 (def bot-action-delay-ms 1300)
 (def trick-complete-delay-ms 4850)
 
@@ -302,12 +304,26 @@
                 (catch Throwable _
                   (reset! stop true))))))))))
 
+(defn refresh-room-view-state! []
+  (let [rooms' (swap! rooms
+                      (fn [rooms]
+                        (reduce-kv (fn [rooms room-id room]
+                                     (assoc rooms room-id
+                                            (room/ensure-bot-personas room)))
+                                   {}
+                                   rooms)))]
+    (doseq [room (vals rooms')
+            :when (seq (:connections room))]
+      (broadcast-room! room))
+    rooms'))
+
 (defn reload-karbosh-namespaces! []
   (let [started (System/nanoTime)]
     (doseq [namespace reloadable-namespaces]
       (require namespace :reload))
     (start-room-sweeper!)
     (install-runtime-handlers!)
+    (refresh-room-view-state!)
     (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
           result {:ok true
                   :reloaded reloadable-namespaces
