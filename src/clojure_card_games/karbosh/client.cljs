@@ -640,6 +640,12 @@
                    :aria-label "Close player options"}
           "x"]]))))
 
+(defn render-seat-popover! []
+  (when-let [root (el "seat-popover-root")]
+    (let [{:keys [view seat-popover-player]} @app]
+      (html! root (or (seat-popover-html view seat-popover-player)
+                      "")))))
+
 (defn card-button [{:keys [card disabled? dragging?]}]
   [:button {:class (str "card-button" (card-suit-class card)
                         (when disabled? " is-disabled")
@@ -829,7 +835,7 @@
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
-                seat-popover-player hand-order card-drag pending-card pending-auto?]} @app]
+                hand-order card-drag pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root") "")
@@ -861,18 +867,19 @@
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
                                     pending-auto?)]]
-                 (seat-popover-html view seat-popover-player)
+                 [:div {:id "seat-popover-root"}]
                  (mobile-seat-roster-html view)]])))
+    (render-seat-popover!)
     (schedule-fit-seat-names!)
     (render-trump-picker!)))
 
 (defn show-seat-popover! [player]
   (swap! app assoc :seat-popover-player player)
-  (render-game!))
+  (render-seat-popover!))
 
 (defn close-seat-popover! []
   (swap! app assoc :seat-popover-player nil)
-  (render-game!))
+  (render-seat-popover!))
 
 (defn card-event [view card]
   (case (:phase view)
