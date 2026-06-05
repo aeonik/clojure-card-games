@@ -1077,7 +1077,8 @@
                      (fn []
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
                          (.. js/navigator -clipboard (writeText text)))))
-  (.addEventListener (el "fill-bots") "click" fill-bots!)
+  (when-let [fill-bots (el "fill-bots")]
+    (.addEventListener fill-bots "click" fill-bots!))
   (.addEventListener (el "modal-root") "click"
                      (fn [event]
                        (let [target (.-target event)

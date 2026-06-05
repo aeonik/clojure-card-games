@@ -126,6 +126,10 @@ h2 {
   background: var(--panel-2);
 }
 
+body.has-karbosh-game .section-secondary {
+  display: none;
+}
+
 .section-inner {
   width: min(100%, 88rem);
   margin: 0;
@@ -165,7 +169,7 @@ h2 {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: 8rem 8rem minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 8rem 8rem minmax(0, 1fr) auto;
   margin-bottom: 1.25rem;
 }
 
