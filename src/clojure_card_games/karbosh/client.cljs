@@ -122,6 +122,33 @@
 (defn latest-bid [view player]
   (last (filter #(= player (:player %)) (:bids-this-hand view))))
 
+(defn fit-number-attr [node attr fallback]
+  (let [n (js/parseFloat (or (.getAttribute node attr) ""))]
+    (if (js/isNaN n) fallback n)))
+
+(defn fit-seat-name-node! [node]
+  (let [style (.-style node)
+        computed (js/getComputedStyle node)
+        max-size (js/parseFloat (.-fontSize computed))
+        min-size (fit-number-attr node "data-fit-min" 4.5)]
+    (set! (.-fontSize style) (str max-size "px"))
+    (when (pos? (.-clientWidth node))
+      (loop [size max-size]
+        (when (and (> (.-scrollWidth node) (inc (.-clientWidth node)))
+                   (> size min-size))
+          (let [next-size (max min-size (- size 0.5))]
+            (set! (.-fontSize style) (str next-size "px"))
+            (when (< min-size size)
+              (recur next-size))))))))
+
+(defn fit-seat-names! []
+  (let [nodes (.querySelectorAll js/document ".seat-name")]
+    (doseq [idx (range (.-length nodes))]
+      (fit-seat-name-node! (.item nodes idx)))))
+
+(defn schedule-fit-seat-names! []
+  (js/requestAnimationFrame fit-seat-names!))
+
 (defn bot-player-persona [view player]
   (:persona (player-by-id view player)))
 
@@ -419,9 +446,11 @@
            :title (when bot? "Show bot personality")}
      (when dealer-seat? (dealer-chip-html))
      [:div {:class "seat-copy"}
-      [:strong (if open?
-                 "Open seat"
-                 (or name (clojure.core/name id)))]
+      [:strong {:class "seat-name"
+                :data-fit-min 3.2}
+       (if open?
+         "Open seat"
+         (or name (clojure.core/name id)))]
       [:small (team-label team) " / " hand-count " cards / " (seat-state-label seat)]
       (when-let [bid (latest-bid view id)]
         [:em {:class "bid-chip"} (bid-label bid)])]
@@ -446,7 +475,9 @@
                   :title (when bot? "Show bot personality")}
              (when dealer-seat? (dealer-chip-html))
              [:div
-              [:strong (or name (clojure.core/name id))]
+              [:strong {:class "seat-name"
+                        :data-fit-min 5}
+               (or name (clojure.core/name id))]
               [:span (team-label team) " / " hand-count " cards / "
                (seat-state-label seat)]]
              (if-let [bid (latest-bid view id)]
@@ -792,6 +823,7 @@
                                     pending-auto?)]]
                  (bot-persona-popover-html view bot-persona-player)
                  (mobile-seat-roster-html view)]])))
+    (schedule-fit-seat-names!)
     (render-trump-picker!)))
 
 (defn show-bot-persona! [player]
@@ -1142,6 +1174,7 @@
   (.addEventListener js/window "pointermove" update-card-drag!)
   (.addEventListener js/window "pointerup" finish-card-drag!)
   (.addEventListener js/window "pointercancel" finish-card-drag!)
+  (.addEventListener js/window "resize" schedule-fit-seat-names!)
   (.addEventListener (el "game-root") "click"
                      (fn [event]
                        (let [target (.-target event)

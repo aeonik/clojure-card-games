@@ -656,7 +656,9 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .player-seat strong {
+  max-width: 100%;
   overflow: hidden;
+  letter-spacing: 0;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -785,6 +787,8 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .mobile-seat-roster strong {
+  max-width: 100%;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
