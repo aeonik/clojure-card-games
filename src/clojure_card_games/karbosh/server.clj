@@ -548,7 +548,8 @@
                                  (if (contains? rooms room-id)
                                    (if-let [room (get rooms room-id)]
                                      (if-let [room' (apply f room args)]
-                                       (assoc rooms room-id room')
+                                       (assoc rooms room-id
+                                              (room/ensure-bot-personas room'))
                                        (dissoc rooms room-id))
                                      (dissoc rooms room-id))
                                    rooms)))
@@ -569,9 +570,10 @@
                                      (if (contains? rooms room-id)
                                        (if-let [room (get rooms room-id)]
                                          (assoc rooms room-id
-                                                (if (= token (bot-turn-token room))
-                                                  (room/advance-bot room)
-                                                  room))
+                                                (room/ensure-bot-personas
+                                                 (if (= token (bot-turn-token room))
+                                                   (room/advance-bot room)
+                                                   room)))
                                          (dissoc rooms room-id))
                                        rooms)))
                             room-id)]

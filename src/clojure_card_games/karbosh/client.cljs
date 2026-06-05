@@ -16,6 +16,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
+         :bot-persona-player nil
          :join-modal nil
          :public-rooms {:loading? false
                         :rooms []
@@ -120,6 +121,9 @@
 
 (defn latest-bid [view player]
   (last (filter #(= player (:player %)) (:bids-this-hand view))))
+
+(defn bot-player-persona [view player]
+  (:persona (player-by-id view player)))
 
 (defn dealer? [view player]
   (= player (:dealer view)))
@@ -410,7 +414,9 @@
                        (when (false? active?) " is-sitting-out")
                        (when dealer-seat? " is-dealer")
                        (when current? " is-current")
-                       (when you? " is-you"))}
+                       (when you? " is-you"))
+           :data-bot-player (when bot? (kw-name id))
+           :title (when bot? "Show bot personality")}
      (when dealer-seat? (dealer-chip-html))
      [:div {:class "seat-copy"}
       [:strong (if open?
@@ -435,7 +441,9 @@
                               (when (false? active?) " is-sitting-out")
                               (when dealer-seat? " is-dealer")
                               (when current? " is-current")
-                              (when you? " is-you"))}
+                              (when you? " is-you"))
+                  :data-bot-player (when bot? (kw-name id))
+                  :title (when bot? "Show bot personality")}
              (when dealer-seat? (dealer-chip-html))
              [:div
               [:strong (or name (clojure.core/name id))]
@@ -545,6 +553,21 @@
              (into [:ul {:class "trick-pile"}]
                    (trick-html view trick animation))]
             (or (trick-popup-html view trick-popup) "")]))))
+
+(defn bot-persona-popover-html [view player]
+  (when-let [{:keys [name icon catchphrase]} (bot-player-persona view player)]
+    [:aside {:class (str "bot-persona-popover " (player-class player))
+             :data-bot-persona-popover true
+             :aria-live "polite"}
+     [:span {:class "bot-persona-icon"} icon]
+     [:div
+      [:strong name]
+      [:p catchphrase]]
+     [:button {:type "button"
+               :class "bot-persona-close"
+               :data-close-bot-persona true
+               :aria-label "Close bot personality"}
+      "x"]]))
 
 (defn card-button [{:keys [card disabled? dragging?]}]
   [:button {:class (str "card-button" (card-suit-class card)
@@ -735,7 +758,7 @@
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
-                hand-order card-drag pending-card pending-auto?]} @app]
+                bot-persona-player hand-order card-drag pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root") "")
@@ -767,8 +790,17 @@
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
                                     pending-auto?)]]
+                 (bot-persona-popover-html view bot-persona-player)
                  (mobile-seat-roster-html view)]])))
     (render-trump-picker!)))
+
+(defn show-bot-persona! [player]
+  (swap! app assoc :bot-persona-player player)
+  (render-game!))
+
+(defn close-bot-persona! []
+  (swap! app assoc :bot-persona-player nil)
+  (render-game!))
 
 (defn card-event [view card]
   (case (:phase view)
@@ -859,6 +891,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
+         :bot-persona-player nil
          :join-modal nil
          :hand-order nil
          :card-drag nil
@@ -1112,8 +1145,22 @@
   (.addEventListener (el "game-root") "click"
                      (fn [event]
                        (let [target (.-target event)
-                             card-target (card-button-node target)]
+                             card-target (card-button-node target)
+                             bot-target (closest target "[data-bot-player]")
+                             close-bot-target (closest target "[data-close-bot-persona]")
+                             persona-target (closest target "[data-bot-persona-popover]")]
                          (cond
+                           close-bot-target
+                           (do
+                             (.preventDefault event)
+                             (close-bot-persona!))
+
+                           bot-target
+                           (do
+                             (.preventDefault event)
+                             (show-bot-persona!
+                              (keyword (.getAttribute bot-target "data-bot-player"))))
+
                            (.hasAttribute target "data-bid")
                            (let [bid (keyword (.getAttribute target "data-bid"))]
                              (action! {:type :bid :bid-type bid}))
@@ -1155,7 +1202,11 @@
                            (action! {:type :new-game})
 
                            (.hasAttribute target "data-new-hand")
-                           (action! {:type :new-hand}))))))
+                           (action! {:type :new-hand})
+
+                           (and (:bot-persona-player @app)
+                                (not persona-target))
+                           (close-bot-persona!))))))
 
 (defn focus-join-flow! []
   (let [name-input (el "player-name")

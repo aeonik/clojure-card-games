@@ -724,6 +724,10 @@ body:not(.has-karbosh-game) .meta-grid,
   background: rgba(34, 42, 71, 0.94);
 }
 
+.player-seat.is-bot {
+  cursor: pointer;
+}
+
 .player-seat.is-sitting-out {
   opacity: 0.48;
 }
@@ -845,6 +849,73 @@ body:not(.has-karbosh-game) .meta-grid,
   margin-top: 0.08rem;
   padding: 0.2rem 0.5rem;
   text-transform: uppercase;
+}
+
+.bot-persona-popover {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 14;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  max-width: min(26rem, calc(100% - 2.5rem));
+  border: 1px solid rgba(230, 189, 90, 0.5);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(230, 189, 90, 0.16), transparent 42%),
+    rgba(18, 22, 34, 0.96);
+  box-shadow: 0 1rem 2.2rem rgba(8, 12, 26, 0.42);
+  color: var(--white);
+  padding: 0.8rem;
+}
+
+.bot-persona-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: var(--accent-3);
+  color: #101722;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.bot-persona-popover strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bot-persona-popover p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.bot-persona-close {
+  align-self: start;
+  width: 1.65rem;
+  height: 1.65rem;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
 }
 
 .seat-hand-backs {
@@ -2391,6 +2462,12 @@ input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .bot-persona-popover {
+    right: 0.7rem;
+    bottom: 6.7rem;
+    max-width: calc(100% - 1.4rem);
+  }
+
   .felt-oval {
     inset: 7.8rem 0.9rem 5.6rem;
   }
@@ -2766,6 +2843,36 @@ input {
 
   body.has-karbosh-game .table-center {
     width: min(13rem, 62%);
+  }
+
+  body.has-karbosh-game .bot-persona-popover {
+    top: 2.2rem;
+    right: 0.55rem;
+    bottom: auto;
+    max-width: min(21rem, 48vw);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  body.has-karbosh-game .bot-persona-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 0.62rem;
+  }
+
+  body.has-karbosh-game .bot-persona-popover strong {
+    font-size: 0.72rem;
+  }
+
+  body.has-karbosh-game .bot-persona-popover p {
+    font-size: 0.62rem;
+  }
+
+  body.has-karbosh-game .bot-persona-close {
+    width: 1.35rem;
+    height: 1.35rem;
+    font-size: 0.68rem;
   }
 }
 

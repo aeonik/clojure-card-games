@@ -12,6 +12,35 @@
     (is (room/bot-player? state :player2))
     (is (= "Human" (get-in state [:seats :player1 :name])))))
 
+(deftest bot-personas-test
+  (let [persona {:name "Deal-E"
+                 :icon "DE"
+                 :catchphrase "The adorable card-dealing bot."}
+        state (room/seat-bot (room/new-room "ABC123" 9) :player1 persona)]
+    (is (= persona (get-in state [:seats :player1 :persona])))
+    (is (= "Deal-E" (get-in state [:seats :player1 :name])))
+    (is (= persona
+           (-> (game/public-view (:game state) (:seats state) :player2)
+               :players
+               first
+               :persona)))))
+
+(deftest fill-bots-samples-distinct-personas
+  (let [state (room/fill-bots (room/new-room "ABC123" 9))
+        personas (keep #(get-in % [1 :persona]) (:seats state))]
+    (is (= 6 (count personas)))
+    (is (= (count personas) (count (distinct (map :name personas)))))))
+
+(deftest legacy-bot-seats-get-personas
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (assoc-in [:seats :player2]
+                            {:name "Bot 2"
+                             :connected? true
+                             :bot? true})
+                  (room/ensure-bot-personas))]
+    (is (some? (get-in state [:seats :player2 :persona])))
+    (is (not= "Bot 2" (get-in state [:seats :player2 :name])))))
+
 (deftest room-visibility-defaults-to-private
   (is (false? (:public? (room/new-room "ABC123" 9))))
   (is (true? (:public? (room/new-room "ABC123" 9 true))))

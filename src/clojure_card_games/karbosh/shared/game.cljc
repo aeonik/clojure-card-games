@@ -394,6 +394,7 @@
                        :name (:name seat)
                        :connected? (:connected? seat)
                        :bot? (:bot? seat)
+                       :persona (:persona seat)
                        :active? (contains? (set (trick-players game)) p)
                        :hand-count (count (get-in game [:players p :hand]))}))
                   players)})
