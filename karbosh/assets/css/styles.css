@@ -2166,6 +2166,7 @@ input {
 
   body.has-karbosh-game .trick-card,
   body.has-karbosh-game .trick-empty {
+    gap: 0.12rem;
     width: 3.7rem;
     min-height: 4.7rem;
   }
@@ -2502,6 +2503,7 @@ input {
 
   body.has-karbosh-game .trick-card,
   body.has-karbosh-game .trick-empty {
+    gap: 0.08rem;
     width: 3.2rem;
     min-height: 3.8rem;
   }
