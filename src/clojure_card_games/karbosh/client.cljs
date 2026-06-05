@@ -129,27 +129,39 @@
   (let [n (js/parseFloat (or (.getAttribute node attr) ""))]
     (if (js/isNaN n) fallback n)))
 
+(defonce seat-name-measure-context
+  (delay
+    (let [canvas (.createElement js/document "canvas")]
+      (.getContext canvas "2d"))))
+
+(defn text-width [font text]
+  (when-let [context @seat-name-measure-context]
+    (set! (.-font context) font)
+    (.-width (.measureText context text))))
+
+(defn computed-font [computed]
+  (let [font (.-font computed)]
+    (if (str/blank? font)
+      (str (.-fontStyle computed) " "
+           (.-fontWeight computed) " "
+           (.-fontSize computed) " "
+           (.-fontFamily computed))
+      font)))
+
 (defn fit-seat-name-node! [node]
-  (let [style (.-style node)
-        previous-overflow (.-overflow style)
-        previous-text-overflow (.-textOverflow style)]
+  (let [style (.-style node)]
     (set! (.-fontSize style) "")
-    (set! (.-overflow style) "visible")
-    (set! (.-textOverflow style) "clip")
     (let [computed (js/getComputedStyle node)
           max-size (js/parseFloat (.-fontSize computed))
-          min-size (fit-number-attr node "data-fit-min" 4.5)]
-      (set! (.-fontSize style) (str max-size "px"))
-      (when (pos? (.-clientWidth node))
-        (loop [size max-size]
-          (when (and (> (.-scrollWidth node) (inc (.-clientWidth node)))
-                     (> size min-size))
-            (let [next-size (max min-size (- size 0.25))]
-              (set! (.-fontSize style) (str next-size "px"))
-              (when (< min-size size)
-                (recur next-size))))))
-      (set! (.-overflow style) previous-overflow)
-      (set! (.-textOverflow style) previous-text-overflow))))
+          min-size (fit-number-attr node "data-fit-min" 4.5)
+          available (.-clientWidth node)
+          measured (text-width (computed-font computed) (.-textContent node))]
+      (when (and (pos? available) (pos? max-size) (pos? measured))
+        (let [target (* max-size (/ (- available 1) measured))
+              size (-> target
+                       (min max-size)
+                       (max min-size))]
+          (set! (.-fontSize style) (str size "px")))))))
 
 (defn fit-seat-names! []
   (let [nodes (.querySelectorAll js/document ".seat-name")]
