@@ -2658,6 +2658,7 @@ input {
 }
 
 .trump-picker-backdrop {
+  left: 18rem;
   place-items: center;
   background: rgba(8, 12, 26, 0.58);
   padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
@@ -2705,6 +2706,12 @@ input {
   width: min(12rem, 100%);
   font-size: 0.62rem;
   letter-spacing: 0.08em;
+}
+
+@media screen and (max-width: 980px) {
+  .trump-picker-backdrop {
+    left: 0;
+  }
 }
 
 @media screen and (max-width: 680px) {
