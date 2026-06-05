@@ -41,6 +41,9 @@
 (defn text! [node content]
   (set! (.-textContent node) content))
 
+(defn active-game-layout! [active?]
+  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?))
+
 (defn kw-name [x]
   (when x (name x)))
 
@@ -627,6 +630,7 @@
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup pending-card pending-auto?]} @app]
+    (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root")
              [:section {:class "panel empty-panel"}

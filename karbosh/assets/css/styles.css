@@ -1782,8 +1782,179 @@ input {
 }
 
 @media screen and (max-width: 680px) {
+  body.has-karbosh-game {
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .sidebar,
+  body.has-karbosh-game .section-secondary,
+  body.has-karbosh-game .meta-grid,
+  body.has-karbosh-game .connection-pill,
+  body.has-karbosh-game .mobile-seat-roster {
+    display: none;
+  }
+
+  body.has-karbosh-game .page-shell {
+    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .section-primary,
+  body.has-karbosh-game .section-inner,
+  body.has-karbosh-game #game-root,
+  body.has-karbosh-game .table-grid,
+  body.has-karbosh-game .table-panel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  body.has-karbosh-game .section-inner {
+    width: 100%;
+    padding: 0.35rem;
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .table-grid {
+    gap: 0;
+  }
+
+  body.has-karbosh-game .table-panel {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(10rem, 1fr) auto auto;
+    gap: 0.35rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  body.has-karbosh-game .panel-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem;
+    align-items: center;
+    border-bottom: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.has-karbosh-game .panel-heading .eyebrow {
+    display: none;
+  }
+
+  body.has-karbosh-game .panel-heading h1 {
+    margin: 0;
+    overflow: hidden;
+    font-size: 0.95rem;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .status-line {
+    margin: 0;
+    overflow: hidden;
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .score-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: center;
+    margin: 0;
+  }
+
+  body.has-karbosh-game .score-summary-label {
+    font-size: 0.52rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .score-row {
+    gap: 0.3rem;
+  }
+
+  body.has-karbosh-game .score-row span {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.6rem;
+    line-height: 1.1;
+  }
+
+  body.has-karbosh-game .score-row strong {
+    font-size: 0.88rem;
+  }
+
   .table-status {
     order: 7;
+  }
+
+  body.has-karbosh-game .table-status {
+    order: initial;
+    display: grid;
+    grid-template-columns: minmax(5.8rem, auto) minmax(0, 1fr);
+    gap: 0.35rem;
+    min-height: 0;
+    margin: 0;
+    padding: 0.35rem;
+  }
+
+  body.has-karbosh-game .turn-summary {
+    width: auto;
+    padding: 0.28rem 0.45rem;
+  }
+
+  body.has-karbosh-game .turn-summary span,
+  body.has-karbosh-game .bid-trail > span {
+    font-size: 0.48rem;
+    letter-spacing: 0.08em;
+  }
+
+  body.has-karbosh-game .turn-summary strong {
+    overflow: hidden;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .bid-trail {
+    min-width: 0;
+  }
+
+  body.has-karbosh-game .bid-trail > span {
+    margin: 0 0 0.22rem;
+  }
+
+  body.has-karbosh-game .bid-log {
+    flex-wrap: nowrap;
+    gap: 0.22rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body.has-karbosh-game .bid-log::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.has-karbosh-game .bid-log li {
+    flex: 0 0 auto;
+    padding: 0.16rem 0.3rem;
+  }
+
+  body.has-karbosh-game .bid-log span {
+    font-size: 0.48rem;
+    letter-spacing: 0.04em;
+  }
+
+  body.has-karbosh-game .bid-log strong {
+    font-size: 0.62rem;
   }
 
   .table-surface {
@@ -1791,9 +1962,123 @@ input {
     min-height: 31rem;
   }
 
+  body.has-karbosh-game .table-surface {
+    order: initial;
+    min-height: 0;
+    height: 100%;
+    margin: 0;
+  }
+
+  body.has-karbosh-game .felt-oval {
+    inset: 4.6rem 0.65rem 2.9rem;
+    border-width: 0.45rem;
+  }
+
+  body.has-karbosh-game .table-center {
+    top: calc(50% + 0.35rem);
+    width: min(14.25rem, 68vw);
+    min-height: 9.7rem;
+  }
+
+  body.has-karbosh-game .trick-pile {
+    min-height: 9.7rem;
+  }
+
+  body.has-karbosh-game .trick-card,
+  body.has-karbosh-game .trick-empty {
+    width: 3.7rem;
+    min-height: 4.7rem;
+  }
+
+  body.has-karbosh-game .card-face {
+    min-width: 2.05rem;
+    min-height: 2.65rem;
+    font-size: 0.92rem;
+  }
+
+  body.has-karbosh-game .trick-card span,
+  body.has-karbosh-game .trick-empty span {
+    font-size: 0.48rem;
+    letter-spacing: 0.06em;
+  }
+
+  body.has-karbosh-game .table-hand-status {
+    top: 0.35rem;
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+    gap: 0.2rem 0.45rem;
+    width: auto;
+    max-width: calc(100% - 0.7rem);
+  }
+
+  body.has-karbosh-game .table-hand-status > div {
+    gap: 0.22rem;
+  }
+
+  body.has-karbosh-game .table-hand-status span {
+    font-size: 0.46rem;
+    letter-spacing: 0.05em;
+  }
+
+  body.has-karbosh-game .table-hand-status strong {
+    font-size: 0.78rem;
+  }
+
+  body.has-karbosh-game .trump-symbol {
+    font-size: 1.05rem;
+  }
+
   .controls {
     order: 5;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.has-karbosh-game .controls {
+    order: initial;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.28rem;
+    align-items: stretch;
+    margin: 0;
+  }
+
+  body.has-karbosh-game .controls::before {
+    display: none;
+  }
+
+  body.has-karbosh-game .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  body.has-karbosh-game .controls button {
+    min-height: 1.75rem;
+    min-width: 0;
+    padding: 0 0.22rem;
+    font-size: 0.52rem;
+    letter-spacing: 0.04em;
+  }
+
+  body.has-karbosh-game .trump-control-group {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  body.has-karbosh-game .trump-button {
+    min-height: 2.15rem;
+    font-size: 1.35rem;
+  }
+
+  body.has-karbosh-game .auto-play-control {
+    grid-column: 1;
+  }
+
+  body.has-karbosh-game .room-visibility-control {
+    grid-column: 2;
+  }
+
+  body.has-karbosh-game .leave-room-control {
+    grid-column: 3;
   }
 
   .auto-play-control {
@@ -1826,6 +2111,47 @@ input {
   .hand-panel {
     order: 4;
     margin-bottom: 1.35rem;
+  }
+
+  body.has-karbosh-game .hand-panel {
+    order: initial;
+    min-height: 0;
+    border-top: 0;
+    margin: 0;
+    padding-top: 0;
+  }
+
+  body.has-karbosh-game .hand-heading {
+    margin-bottom: 0.28rem;
+  }
+
+  body.has-karbosh-game .hand-heading h2 {
+    font-size: 0.8rem;
+  }
+
+  body.has-karbosh-game .hand-heading span {
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+  }
+
+  body.has-karbosh-game .hand-row {
+    flex-wrap: nowrap;
+    gap: 0.28rem;
+    overflow-x: auto;
+    padding-bottom: 0.08rem;
+    scrollbar-width: none;
+  }
+
+  body.has-karbosh-game .hand-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.has-karbosh-game .card-button {
+    flex: 0 0 2.28rem;
+    width: 2.28rem;
+    min-width: 2.28rem;
+    height: 3rem;
+    font-size: 0.88rem;
   }
 
   .mobile-seat-roster {
@@ -1925,10 +2251,26 @@ input {
     grid-template-columns: 1fr;
   }
 
+  body.has-karbosh-game .controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .auto-play-control,
   .room-visibility-control,
   .leave-room-control {
     grid-column: 1;
+  }
+
+  body.has-karbosh-game .auto-play-control {
+    grid-column: 1;
+  }
+
+  body.has-karbosh-game .leave-room-control {
+    grid-column: 3;
+  }
+
+  body.has-karbosh-game .room-visibility-control {
+    grid-column: 2;
   }
 
   .mobile-seat-roster {
@@ -1937,5 +2279,9 @@ input {
 
   .table-center {
     width: min(15rem, 70vw);
+  }
+
+  body.has-karbosh-game .table-center {
+    width: min(13.5rem, 68vw);
   }
 }
