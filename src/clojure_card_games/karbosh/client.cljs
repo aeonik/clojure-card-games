@@ -731,12 +731,13 @@
                  (or (game-over-html view) "")
                  (table-status-html view bid-popup)
                  (table-surface-html view play-animation trick-popup queued-trick-popup)
-                 (hand-panel-html view pending-card (or (some? trick-popup)
-                                                       (some? queued-trick-popup)))
-                 [:div {:class "controls"}
-                  (render-controls view (or (some? trick-popup)
-                                           (some? queued-trick-popup))
-                                   pending-auto?)]
+                 [:div {:class "play-controls-panel"}
+                  (hand-panel-html view pending-card (or (some? trick-popup)
+                                                        (some? queued-trick-popup)))
+                  [:div {:class "controls"}
+                   (render-controls view (or (some? trick-popup)
+                                            (some? queued-trick-popup))
+                                    pending-auto?)]]
                  (mobile-seat-roster-html view)]])))))
 
 (defn card-event [view card]

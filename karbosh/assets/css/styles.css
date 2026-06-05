@@ -964,6 +964,10 @@ h2 {
   background: rgba(143, 164, 209, 0.22);
 }
 
+.play-controls-panel {
+  display: contents;
+}
+
 .control-group,
 .hand-row {
   display: flex;
@@ -2488,6 +2492,106 @@ input {
   body.has-karbosh-game .trump-button {
     min-height: 1.7rem;
     font-size: 1rem;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-height: 560px) {
+  body.has-karbosh-game {
+    --karbosh-mobile-edge: 0.24rem;
+    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 0.45rem);
+  }
+
+  body.has-karbosh-game .section-inner {
+    padding: var(--karbosh-mobile-edge);
+  }
+
+  body.has-karbosh-game .table-panel {
+    grid-template-columns: minmax(0, 1fr) clamp(14rem, 36vw, 19rem);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "heading heading"
+      "status side"
+      "surface side";
+    gap: 0.22rem 0.38rem;
+  }
+
+  body.has-karbosh-game .panel-heading {
+    grid-area: heading;
+  }
+
+  body.has-karbosh-game .table-status {
+    grid-area: status;
+  }
+
+  body.has-karbosh-game .table-surface {
+    grid-area: surface;
+  }
+
+  body.has-karbosh-game .play-controls-panel {
+    display: grid;
+    grid-area: side;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.28rem;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .hand-panel {
+    display: grid;
+    min-height: 0;
+  }
+
+  body.has-karbosh-game .hand-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 2.55rem;
+    gap: 0.2rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0;
+  }
+
+  body.has-karbosh-game .card-button {
+    width: 100%;
+    min-width: 0;
+    height: 2.55rem;
+    font-size: 0.72rem;
+  }
+
+  body.has-karbosh-game .controls {
+    align-content: start;
+    gap: 0.2rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.2rem;
+  }
+
+  body.has-karbosh-game .controls button {
+    min-height: 1.55rem;
+    font-size: 0.45rem;
+  }
+
+  body.has-karbosh-game .trump-control-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.has-karbosh-game .trump-button {
+    min-height: 2rem;
+    font-size: 1.15rem;
+  }
+
+  body.has-karbosh-game .table-status {
+    grid-template-columns: minmax(4.7rem, auto) minmax(0, 1fr);
+  }
+
+  body.has-karbosh-game .table-center {
+    width: min(13rem, 62%);
   }
 }
 
