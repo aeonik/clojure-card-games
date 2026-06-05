@@ -18,9 +18,28 @@
    :karbosh-min-trumps 6
    :karbosh-min-high-trumps 6
    :karbosh-min-bowers 2
-   :karbosh-min-winners 7})
+   :karbosh-min-winners 7
+   :karbosh-target-prob 0.72
+   :karbosh-desperate-target-prob 0.66
+   :karbosh-protect-target-prob 0.80
+   :karbosh-score-context-band 12
+   :karbosh-failure-opponent-tricks 1.2
+   :karbosh-prob-intercept -3.9
+   :karbosh-prob-trump-weight 0.22
+   :karbosh-prob-high-trump-weight 0.38
+   :karbosh-prob-bower-weight 0.55
+   :karbosh-prob-right-bower-weight 0.20
+   :karbosh-prob-left-bower-weight 0.16
+   :karbosh-prob-off-ace-weight 0.18
+   :karbosh-prob-low-trump-weight -0.20
+   :karbosh-prob-off-junk-weight -0.35
+   :karbosh-prob-missing-bower-weight -0.18})
 
 (def ^:dynamic *bid-config* default-bid-config)
+
+(def default-bid-strategy :karbosh-probability)
+
+(def ^:dynamic *bid-strategy* default-bid-strategy)
 
 (def default-play-config
   {:lead-risk-tolerance 0.32
@@ -64,24 +83,148 @@
          (>= (count bowers) (:karbosh-min-bowers config))
          (>= winners (:karbosh-min-winners config)))))
 
+(defn numeric-target-bid [config hand]
+  (let [trump (best-trump hand)
+        strength (suit-strength hand trump)]
+    (cond
+      (>= strength (:bid-6-strength config)) {:type :bid :bid-type :bid :value 6}
+      (>= strength (:bid-5-strength config)) {:type :bid :bid-type :bid :value 5}
+      (>= strength (:bid-4-strength config)) {:type :bid :bid-type :bid :value 4}
+      :else {:type :bid :bid-type :pass})))
+
 (defn target-bid
   ([hand] (target-bid *bid-config* hand))
   ([config hand]
-   (let [trump (best-trump hand)
-         strength (suit-strength hand trump)]
-     (cond
-       (karbosh-hand? config hand trump) {:type :bid :bid-type :karbosh}
-       (>= strength (:bid-6-strength config)) {:type :bid :bid-type :bid :value 6}
-       (>= strength (:bid-5-strength config)) {:type :bid :bid-type :bid :value 5}
-       (>= strength (:bid-4-strength config)) {:type :bid :bid-type :bid :value 4}
-       :else {:type :bid :bid-type :pass}))))
+   (let [hand (vec hand)
+         trump (best-trump hand)]
+     (if (karbosh-hand? config hand trump)
+       {:type :bid :bid-type :karbosh}
+       (numeric-target-bid config hand)))))
 
-(defn bid-action [game player]
+(defn sigmoid [x]
+  (/ 1.0 (+ 1.0 (Math/exp (- x)))))
+
+(defn karbosh-features [config hand trump]
+  (let [trumps (filter #(trump-card? trump %) hand)
+        high-trumps (filter #(high-trump? config trump %) trumps)
+        right-bowers (filter #(rules/right-bower? % trump) trumps)
+        left-bowers (filter #(rules/left-bower? % trump) trumps)
+        bowers (concat right-bowers left-bowers)
+        off-cards (remove #(trump-card? trump %) hand)
+        off-aces (filter #(off-ace? trump %) off-cards)
+        low-trumps (remove #(high-trump? config trump %) trumps)
+        off-junk (remove #(off-ace? trump %) off-cards)]
+    {:trump trump
+     :trumps (count trumps)
+     :high-trumps (count high-trumps)
+     :right-bowers (count right-bowers)
+     :left-bowers (count left-bowers)
+     :bowers (count bowers)
+     :missing-bowers (- 4 (count bowers))
+     :off-aces (count off-aces)
+     :low-trumps (count low-trumps)
+     :off-junk (count off-junk)
+     :threshold-qualified? (karbosh-hand? config hand trump)}))
+
+(defn weighted-karbosh-score [config features]
+  (+ (:karbosh-prob-intercept config)
+     (* (:karbosh-prob-trump-weight config) (:trumps features))
+     (* (:karbosh-prob-high-trump-weight config) (:high-trumps features))
+     (* (:karbosh-prob-bower-weight config) (:bowers features))
+     (* (:karbosh-prob-right-bower-weight config) (:right-bowers features))
+     (* (:karbosh-prob-left-bower-weight config) (:left-bowers features))
+     (* (:karbosh-prob-off-ace-weight config) (:off-aces features))
+     (* (:karbosh-prob-low-trump-weight config) (:low-trumps features))
+     (* (:karbosh-prob-off-junk-weight config) (:off-junk features))
+     (* (:karbosh-prob-missing-bower-weight config) (:missing-bowers features))))
+
+(defn team-score [game player]
+  (get (:scores game) (game/player-team game player) 0))
+
+(defn opponent-score [game player]
+  (let [team (game/player-team game player)
+        opponent (if (= team 1) 2 1)]
+    (get (:scores game) opponent 0)))
+
+(defn karbosh-target-prob [config game player]
+  (let [own (team-score game player)
+        opp (opponent-score game player)
+        band (:karbosh-score-context-band config)]
+    (cond
+      (or (>= own (- game/target-score band))
+          (>= (- own opp) band))
+      (:karbosh-protect-target-prob config)
+
+      (or (>= opp (- game/target-score band))
+          (>= (- opp own) band))
+      (:karbosh-desperate-target-prob config)
+
+      :else
+      (:karbosh-target-prob config))))
+
+(defn karbosh-ev [config make-prob]
+  (let [fail-prob (- 1.0 make-prob)
+        fail-diff-loss (+ rules/special-bid-points
+                          (:karbosh-failure-opponent-tricks config))]
+    {:score-ev (+ (* make-prob rules/special-bid-points)
+                  (* fail-prob (- rules/special-bid-points)))
+     :diff-ev (+ (* make-prob rules/special-bid-points)
+                 (* fail-prob (- fail-diff-loss)))
+     :diff-break-even (/ fail-diff-loss
+                         (+ rules/special-bid-points fail-diff-loss))}))
+
+(defn karbosh-evaluation [config game player trump]
+  (let [hand (get-in game [:players player :hand])
+        features (karbosh-features config hand trump)
+        make-prob (sigmoid (weighted-karbosh-score config features))
+        target-prob (karbosh-target-prob config game player)
+        ev (karbosh-ev config make-prob)]
+    (assoc ev
+           :trump trump
+           :features features
+           :make-prob make-prob
+           :target-prob target-prob
+           :call? (and (:threshold-qualified? features)
+                       (>= make-prob target-prob)
+                       (pos? (:diff-ev ev))))))
+
+(defn threshold-bid-action [game player]
   (let [candidate (target-bid (get-in game [:players player :hand]))
         current-rank (rules/bid-rank (game/current-bid game))]
     (if (> (rules/bid-rank candidate) current-rank)
       candidate
       {:type :bid :bid-type :pass})))
+
+(defn probability-bid-action [game player]
+  (let [hand (get-in game [:players player :hand])
+        trump (best-trump hand)
+        karbosh (karbosh-evaluation *bid-config* game player trump)
+        candidate (if (:call? karbosh)
+                    {:type :bid :bid-type :karbosh}
+                    (numeric-target-bid *bid-config* hand))
+        current-rank (rules/bid-rank (game/current-bid game))]
+    (if (> (rules/bid-rank candidate) current-rank)
+      candidate
+      {:type :bid :bid-type :pass})))
+
+(def bid-strategies
+  {:karbosh-threshold threshold-bid-action
+   :karbosh-probability probability-bid-action})
+
+(defn resolve-bid-strategy [strategy]
+  (cond
+    (fn? strategy) strategy
+    (keyword? strategy) (or (get bid-strategies strategy)
+                            (throw (ex-info "Unknown bid strategy"
+                                            {:strategy strategy
+                                             :available (keys bid-strategies)})))
+    :else (throw (ex-info "Invalid bid strategy" {:strategy strategy}))))
+
+(defn bid-action
+  ([game player]
+   (bid-action game player *bid-strategy*))
+  ([game player strategy]
+   ((resolve-bid-strategy strategy) game player)))
 
 (defn trump-action [game player]
   {:type :trump-selection

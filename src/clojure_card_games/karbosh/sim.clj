@@ -8,6 +8,7 @@
    :min-score -100
    :max-events-per-hand 256
    :collect-analysis? false
+   :bid-strategy bot/default-bid-strategy
    :play-strategy bot/default-play-strategy
    :play-config bot/default-play-config
    :bid-config bot/default-bid-config})
@@ -94,6 +95,7 @@
   ([seed options]
    (let [options (merge default-options options)]
      (binding [bot/*bid-config* (:bid-config options)
+               bot/*bid-strategy* (:bid-strategy options)
                bot/*play-strategy* (:play-strategy options)
                bot/*play-config* (:play-config options)]
        (loop [state (game/init-game seed)]
@@ -213,6 +215,19 @@
                                          (assoc options :play-strategy strategy)))
                   :label label
                   :play-strategy strategy))
+         strategies)))
+
+(defn evaluate-bid-strategies
+  "Run named bid strategies against the same seeds so bidding changes can be
+  compared without changing the deal set."
+  ([strategies seeds] (evaluate-bid-strategies strategies seeds default-options))
+  ([strategies seeds options]
+   (mapv (fn [[label strategy]]
+           (assoc (aggregate
+                    (run-games-for-seeds seeds
+                                         (assoc options :bid-strategy strategy)))
+                  :label label
+                  :bid-strategy strategy))
          strategies)))
 
 (defn -main [& args]

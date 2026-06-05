@@ -65,6 +65,43 @@
   (testing "bots need multiple bowers before calling karbosh"
     (is (not= :karbosh (:bid-type (bot/target-bid right-only-karbosh-shape)))))
 
+  (testing "karbosh evaluation prices the sweep explicitly"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 karbosh-hand))
+          evaluation (bot/karbosh-evaluation bot/default-bid-config
+                                             game
+                                             :player1
+                                             :♠)]
+      (is (true? (:call? evaluation)))
+      (is (<= (:target-prob evaluation) (:make-prob evaluation)))
+      (is (pos? (:diff-ev evaluation)))))
+
+  (testing "score context changes the karbosh make target"
+    (let [game (-> team-game
+                   (assoc :scores {1 45 2 20})
+                   (with-hand :player1 karbosh-hand))]
+      (is (= (:karbosh-protect-target-prob bot/default-bid-config)
+             (bot/karbosh-target-prob bot/default-bid-config
+                                      game
+                                      :player1)))))
+
+  (testing "bid strategies are pluggable for old threshold comparison"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 karbosh-hand))
+          strict-config (assoc bot/default-bid-config
+                          :karbosh-target-prob 0.99)]
+      (binding [bot/*bid-config* strict-config]
+        (is (= :karbosh
+               (:bid-type (bot/bid-action game
+                                           :player1
+                                           :karbosh-threshold))))
+        (is (not= :karbosh
+                  (:bid-type (bot/bid-action game
+                                             :player1
+                                             :karbosh-probability)))))))
+
   (testing "a bot may overcall a partner's weak bid with a materially stronger hand"
     (let [game (-> team-game
                    (with-hand :player3 bid-5-hand)

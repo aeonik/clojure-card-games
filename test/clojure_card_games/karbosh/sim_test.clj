@@ -26,6 +26,14 @@
     (is (= [:default :no-sixes] (mapv :label results)))
     (is (= [2 2] (mapv :games results)))))
 
+(deftest bid-strategy-comparison-test
+  (let [results (sim/evaluate-bid-strategies [[:threshold :karbosh-threshold]
+                                              [:probability :karbosh-probability]]
+                                             [1]
+                                             {:max-hands 1})]
+    (is (= [:threshold :probability] (mapv :label results)))
+    (is (= [1 1] (mapv :games results)))))
+
 (deftest analysis-collection-test
   (let [state (sim/run-game 1 {:max-hands 1
                                :collect-analysis? true})
