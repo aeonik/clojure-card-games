@@ -3,6 +3,7 @@
             [clojure.edn :as edn]
             [clojure.test :refer [deftest is]]
             [clojure-card-games.karbosh.admin :as admin]
+            [clojure-card-games.karbosh.audit :as audit]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.server :as server]
             [clojure-card-games.karbosh.shared.game :as game]))
@@ -108,6 +109,19 @@
         (is (some? (get-in @server/rooms ["ABC123" :seats :player2 :persona])))
         (is (some? (:persona bot-view)))
         (is (= (:name (:persona bot-view)) (:name bot-view))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest audit-current-rooms-records-live-room-snapshots-test
+  (let [old-rooms @server/rooms
+        records (atom [])]
+    (try
+      (reset! server/rooms {"ABC123" (room/new-room "ABC123" 9)
+                            "STALE" nil})
+      (with-redefs [audit/record-room! (fn [event-type room]
+                                         (swap! records conj [event-type (:id room)]))]
+        (server/audit-current-rooms! :reload-snapshot)
+        (is (= [[:reload-snapshot "ABC123"]] @records)))
       (finally
         (reset! server/rooms old-rooms)))))
 

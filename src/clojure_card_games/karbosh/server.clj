@@ -257,6 +257,11 @@
   (audit/start! {:enabled? (audit-enabled?)
                  :dir (audit-dir)}))
 
+(defn audit-current-rooms! [event-type]
+  (doseq [room (vals @rooms)
+          :when (map? room)]
+    (audit/record-room! event-type room)))
+
 (defn admin-dashboard-response [request]
   (cond
     (not (admin-password))
@@ -344,6 +349,7 @@
     (doseq [namespace reloadable-namespaces]
       (require namespace :reload))
     (start-audit!)
+    (audit-current-rooms! :reload-snapshot)
     (start-room-sweeper!)
     (install-runtime-handlers!)
     (refresh-room-view-state!)
