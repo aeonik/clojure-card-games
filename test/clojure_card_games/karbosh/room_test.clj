@@ -74,6 +74,35 @@
     (is (= :player4 (room/connection-player joined :guest)))
     (is (= "Guest" (get-in joined [:seats :player4 :name])))))
 
+(deftest kick-player-clears-seat-and-connections
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (room/join-room {:conn-id :first
+                                   :out nil
+                                   :player :player1
+                                   :name "First"})
+                  (room/join-room {:conn-id :second
+                                   :out nil
+                                   :player :player2
+                                   :name "Second"})
+                  (room/kick-player :player2 1000))]
+    (is (not (contains? (:seats state) :player2)))
+    (is (not (contains? (:connections state) :second)))
+    (is (contains? (:connections state) :first))))
+
+(deftest kick-bot-clears-bot-seat
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (room/seat-bot :player2)
+                  (room/kick-player :player2 1000))]
+    (is (not (contains? (:seats state) :player2)))
+    (is (room/joinable-player? state :player2))))
+
+(deftest ensure-owner-selects-first-human-seat
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (room/seat-bot :player1)
+                  (room/seat-player :player2 "Human")
+                  (room/ensure-owner))]
+    (is (= :player2 (:owner state)))))
+
 (deftest connection-lifecycle-tracks-empty-room-time
   (let [state (-> (room/new-room "ABC123" 9)
                   (assoc :empty-since 10)

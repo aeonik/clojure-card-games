@@ -347,6 +347,60 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest kick-player-removes-seat-and-notifies-clients-test
+  (let [owner-out (async/chan 2)
+        kicked-out (async/chan 2)
+        old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/join-room {:conn-id :owner
+                                  :out owner-out
+                                  :player :player1
+                                  :name "Owner"})
+                 (room/join-room {:conn-id :guest
+                                  :out kicked-out
+                                  :player :player2
+                                  :name "Guest"})
+                 (room/ensure-owner))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (is (true? (server/kick-player! :owner "ABC123" owner-out :player2)))
+      (let [state-message (async/<!! owner-out)
+            kicked-message (async/<!! kicked-out)
+            room (get @server/rooms "ABC123")]
+        (is (= :state (:op state-message)))
+        (is (= :kicked (:op kicked-message)))
+        (is (= :player2 (:player kicked-message)))
+        (is (not (contains? (:seats room) :player2)))
+        (is (not (contains? (:connections room) :guest)))
+        (is (contains? (:connections room) :owner)))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest non-owner-cannot-kick-player-test
+  (let [guest-out (async/chan 1)
+        old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/join-room {:conn-id :owner
+                                  :out nil
+                                  :player :player1
+                                  :name "Owner"})
+                 (room/join-room {:conn-id :guest
+                                  :out guest-out
+                                  :player :player2
+                                  :name "Guest"})
+                 (room/ensure-owner))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (server/kick-player! :guest "ABC123" guest-out :player1)
+      (let [message (async/<!! guest-out)
+            room (get @server/rooms "ABC123")]
+        (is (= :error (:op message)))
+        (is (= "Only the room owner can kick players" (:message message)))
+        (is (contains? (:seats room) :player1))
+        (is (contains? (:connections room) :owner)))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-dashboard-ignores-stale-room-entries-test
   (let [html (admin/render-dashboard
               {:rooms {"STALE" nil}

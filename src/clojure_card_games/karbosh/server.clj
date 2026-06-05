@@ -309,7 +309,7 @@
                       (fn [rooms]
                         (reduce-kv (fn [rooms room-id room]
                                      (assoc rooms room-id
-                                            (room/ensure-bot-personas room)))
+                                            (room/ensure-room-metadata room)))
                                    {}
                                    rooms)))]
     (doseq [room (vals rooms')
@@ -565,7 +565,7 @@
                                    (if-let [room (get rooms room-id)]
                                      (if-let [room' (apply f room args)]
                                        (assoc rooms room-id
-                                              (room/ensure-bot-personas room'))
+                                              (room/ensure-room-metadata room'))
                                        (dissoc rooms room-id))
                                      (dissoc rooms room-id))
                                    rooms)))
@@ -586,7 +586,7 @@
                                      (if (contains? rooms room-id)
                                        (if-let [room (get rooms room-id)]
                                          (assoc rooms room-id
-                                                (room/ensure-bot-personas
+                                                (room/ensure-room-metadata
                                                  (if (= token (bot-turn-token room))
                                                    (room/advance-bot room)
                                                    room)))
@@ -626,7 +626,8 @@
           room (-> (room/new-room room-id seed public?)
                    (room/join-room {:conn-id conn-id
                                     :out out
-                                    :name name}))]
+                                    :name name})
+                   (room/ensure-owner))]
       (swap! rooms assoc room-id room)
       (publish-room! room-id room)
       room-id)))
@@ -715,6 +716,39 @@
                   :room-id room-id
                   :message "Left room"}))
 
+(defn kick-player! [conn-id room-id out player]
+  (metric! :player-kicks)
+  (let [player (when player (keyword player))
+        room (get @rooms room-id)
+        requester (room/connection-player room conn-id)]
+    (cond
+      (not room)
+      (send-edn! out {:op :error :message "Room not found"})
+
+      (not requester)
+      (send-edn! out {:op :error :message "Join a room first"})
+
+      (not= requester (:owner room))
+      (send-edn! out {:op :error :message "Only the room owner can kick players"})
+
+      (nil? player)
+      (send-edn! out {:op :error :message "Choose a player to kick"})
+
+      :else
+      (let [kicked-connections (room/player-connections room player)]
+        (try
+          (update-room! room-id room/kick-player player)
+          (doseq [{:keys [out]} (vals kicked-connections)]
+            (send-edn! out {:op :kicked
+                            :room-id room-id
+                            :player player
+                            :message "Kicked from room"}))
+          true
+          (catch Exception e
+            (record-error!)
+            (send-edn! out {:op :error :message (.getMessage e)})
+            false))))))
+
 (defn handle-client-message! [conn-id out session message]
   (case (:op message)
     :create-room
@@ -729,6 +763,9 @@
     (do
       (leave-room! conn-id out (:room-id @session))
       (reset! session nil))
+
+    :kick-player
+    (kick-player! conn-id (:room-id @session) out (:player message))
 
     :action
     (handle-action! conn-id (:room-id @session) out message)

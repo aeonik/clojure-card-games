@@ -16,7 +16,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
-         :bot-persona-player nil
+         :seat-popover-player nil
          :join-modal nil
          :public-rooms {:loading? false
                         :rooms []
@@ -154,6 +154,13 @@
 
 (defn bot-player-persona [view player]
   (:persona (player-by-id view player)))
+
+(defn player-initials [label]
+  (let [words (remove str/blank? (str/split (or label "") #"\s+"))
+        initials (apply str (take 2 (map #(subs % 0 1) words)))]
+    (str/upper-case (if (str/blank? initials)
+                      "P"
+                      initials))))
 
 (defn dealer? [view player]
   (= player (:dealer view)))
@@ -435,18 +442,20 @@
   (let [current? (= id (:current-player view))
         dealer-seat? (dealer? view id)
         you? (= id (:you view))
-        open? (open-seat? seat)]
+        open? (open-seat? seat)
+        occupied? (not open?)]
     [:div {:class (str "player-seat " (player-class id)
                        (team-class team)
                        (when connected? " is-connected")
                        (when bot? " is-bot")
+                       (when occupied? " is-occupied")
                        (when open? " is-empty")
                        (when (false? active?) " is-sitting-out")
                        (when dealer-seat? " is-dealer")
                        (when current? " is-current")
                        (when you? " is-you"))
-           :data-bot-player (when bot? (kw-name id))
-           :title (when bot? "Show bot personality")}
+           :data-seat-player (when occupied? (kw-name id))
+           :title (when occupied? "Player options")}
      (when dealer-seat? (dealer-chip-html))
      [:div {:class "seat-copy"}
       [:strong {:class "seat-name"
@@ -465,17 +474,21 @@
         (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
           (let [current? (= id (:current-player view))
                 dealer-seat? (dealer? view id)
-                you? (= id (:you view))]
+                you? (= id (:you view))
+                open? (open-seat? seat)
+                occupied? (not open?)]
             [:li {:class (str (player-class id)
                               (team-class team)
                               (when connected? " is-connected")
                               (when bot? " is-bot")
+                              (when occupied? " is-occupied")
+                              (when open? " is-empty")
                               (when (false? active?) " is-sitting-out")
                               (when dealer-seat? " is-dealer")
                               (when current? " is-current")
                               (when you? " is-you"))
-                  :data-bot-player (when bot? (kw-name id))
-                  :title (when bot? "Show bot personality")}
+                  :data-seat-player (when occupied? (kw-name id))
+                  :title (when occupied? "Player options")}
              (when dealer-seat? (dealer-chip-html))
              [:div
               [:strong {:class "seat-name"
@@ -588,20 +601,34 @@
                    (trick-html view trick animation))]
             (or (trick-popup-html view trick-popup) "")]))))
 
-(defn bot-persona-popover-html [view player]
-  (when-let [{:keys [name icon catchphrase]} (bot-player-persona view player)]
-    [:aside {:class (str "bot-persona-popover " (player-class player))
-             :data-bot-persona-popover true
-             :aria-live "polite"}
-     [:span {:class "bot-persona-icon"} icon]
-     [:div
-      [:strong name]
-      [:p catchphrase]]
-     [:button {:type "button"
-               :class "bot-persona-close"
-               :data-close-bot-persona true
-               :aria-label "Close bot personality"}
-      "x"]]))
+(defn seat-popover-html [view player]
+  (when-let [{:keys [team bot? connected?] :as seat} (player-by-id view player)]
+    (when-not (open-seat? seat)
+      (let [{:keys [name icon catchphrase]} (bot-player-persona view player)
+            label (or name (player-label view player))
+            can-kick? (and (:can-kick? view)
+                           (not= player (:you view)))]
+        [:aside {:class (str "bot-persona-popover seat-popover " (player-class player))
+                 :data-seat-popover true
+                 :aria-live "polite"}
+         [:span {:class "bot-persona-icon"}
+          (or icon (player-initials label))]
+         [:div
+          [:strong label]
+          [:p (or catchphrase
+                  (str (team-label team) " / "
+                       (seat-state-label {:bot? bot?
+                                          :connected? connected?})))]]
+         (when can-kick?
+           [:button {:type "button"
+                     :class "seat-kick-button"
+                     :data-kick-player (kw-name player)}
+            "Kick"])
+         [:button {:type "button"
+                   :class "bot-persona-close"
+                   :data-close-seat-popover true
+                   :aria-label "Close player options"}
+          "x"]]))))
 
 (defn card-button [{:keys [card disabled? dragging?]}]
   [:button {:class (str "card-button" (card-suit-class card)
@@ -792,7 +819,7 @@
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
-                bot-persona-player hand-order card-drag pending-card pending-auto?]} @app]
+                seat-popover-player hand-order card-drag pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root") "")
@@ -824,17 +851,17 @@
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
                                     pending-auto?)]]
-                 (bot-persona-popover-html view bot-persona-player)
+                 (seat-popover-html view seat-popover-player)
                  (mobile-seat-roster-html view)]])))
     (schedule-fit-seat-names!)
     (render-trump-picker!)))
 
-(defn show-bot-persona! [player]
-  (swap! app assoc :bot-persona-player player)
+(defn show-seat-popover! [player]
+  (swap! app assoc :seat-popover-player player)
   (render-game!))
 
-(defn close-bot-persona! []
-  (swap! app assoc :bot-persona-player nil)
+(defn close-seat-popover! []
+  (swap! app assoc :seat-popover-player nil)
   (render-game!))
 
 (defn card-event [view card]
@@ -926,7 +953,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
-         :bot-persona-player nil
+         :seat-popover-player nil
          :join-modal nil
          :hand-order nil
          :card-drag nil
@@ -997,6 +1024,9 @@
       :room-closed
       (reset-room-state! "Room closed")
 
+      :kicked
+      (reset-room-state! "Kicked from room")
+
       nil)))
 
 (defn connect! [after-open]
@@ -1041,6 +1071,10 @@
 
 (defn leave-room! []
   (send! {:op :leave-room}))
+
+(defn kick-player! [player]
+  (close-seat-popover!)
+  (send! {:op :kick-player :player (kw-name player)}))
 
 (defn set-room-visibility! [public?]
   (send! {:op :set-room-visibility :public? public?})
@@ -1182,20 +1216,27 @@
                      (fn [event]
                        (let [target (.-target event)
                              card-target (card-button-node target)
-                             bot-target (closest target "[data-bot-player]")
-                             close-bot-target (closest target "[data-close-bot-persona]")
-                             persona-target (closest target "[data-bot-persona-popover]")]
+                             seat-target (closest target "[data-seat-player]")
+                             close-seat-target (closest target "[data-close-seat-popover]")
+                             kick-target (closest target "[data-kick-player]")
+                             popover-target (closest target "[data-seat-popover]")]
                          (cond
-                           close-bot-target
+                           close-seat-target
                            (do
                              (.preventDefault event)
-                             (close-bot-persona!))
+                             (close-seat-popover!))
 
-                           bot-target
+                           kick-target
                            (do
                              (.preventDefault event)
-                             (show-bot-persona!
-                              (keyword (.getAttribute bot-target "data-bot-player"))))
+                             (kick-player!
+                              (keyword (.getAttribute kick-target "data-kick-player"))))
+
+                           seat-target
+                           (do
+                             (.preventDefault event)
+                             (show-seat-popover!
+                              (keyword (.getAttribute seat-target "data-seat-player"))))
 
                            (.hasAttribute target "data-bid")
                            (let [bid (keyword (.getAttribute target "data-bid"))]
@@ -1240,9 +1281,9 @@
                            (.hasAttribute target "data-new-hand")
                            (action! {:type :new-hand})
 
-                           (and (:bot-persona-player @app)
-                                (not persona-target))
-                           (close-bot-persona!))))))
+                           (and (:seat-popover-player @app)
+                                (not popover-target))
+                           (close-seat-popover!))))))
 
 (defn focus-join-flow! []
   (let [name-input (el "player-name")

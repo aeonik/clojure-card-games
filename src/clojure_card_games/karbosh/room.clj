@@ -111,6 +111,7 @@
    {:id room-id
     :seed seed
     :created-at (System/currentTimeMillis)
+    :owner nil
     :public? (true? public?)
     :game (game/init-game seed)
     :seats {}
@@ -142,6 +143,21 @@
               room))
           room
           game/players))
+
+(defn first-human-player [room]
+  (first (filter #(human-seat? (get-in room [:seats %])) game/players)))
+
+(defn ensure-owner [room]
+  (if (:owner room)
+    room
+    (if-let [owner (first-human-player room)]
+      (assoc room :owner owner)
+      room)))
+
+(defn ensure-room-metadata [room]
+  (-> room
+      (ensure-bot-personas)
+      (ensure-owner)))
 
 (defn fill-bots [room]
   (reduce (fn [room player]
@@ -200,6 +216,29 @@
 
 (defn connection-player [room conn-id]
   (:player (connection room conn-id)))
+
+(defn player-connections [room player]
+  (select-keys (:connections room)
+               (for [[conn-id connection] (:connections room)
+                     :when (= player (:player connection))]
+                 conn-id)))
+
+(defn occupied-player? [room player]
+  (contains? (:seats room) player))
+
+(defn kick-player
+  ([room player]
+   (kick-player room player (System/currentTimeMillis)))
+  ([room player now]
+   (when-not (some #{player} game/players)
+     (throw (ex-info "Unknown player" {:player player})))
+   (when-not (occupied-player? room player)
+     (throw (ex-info "Seat is empty" {:player player})))
+   (let [conn-ids (keys (player-connections room player))]
+     (-> room
+         (update :connections #(apply dissoc % conn-ids))
+         (update :seats dissoc player)
+         (mark-empty now)))))
 
 (defn reshuffle-seed [room]
   (hash [(:seed room)
@@ -300,4 +339,6 @@
                :room-id (:id room)
                :player player
                :view (assoc (game/public-view (:game room) (:seats room) player)
+                            :owner (:owner room)
+                            :can-kick? (= player (:owner room))
                             :public? (true? (:public? room)))}}))

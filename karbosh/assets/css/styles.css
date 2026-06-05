@@ -726,7 +726,7 @@ body:not(.has-karbosh-game) .meta-grid,
   background: rgba(34, 42, 71, 0.94);
 }
 
-.player-seat.is-bot {
+.player-seat.is-occupied {
   cursor: pointer;
 }
 
@@ -838,6 +838,10 @@ body:not(.has-karbosh-game) .meta-grid,
   opacity: 0.56;
 }
 
+.mobile-seat-roster .is-occupied {
+  cursor: pointer;
+}
+
 .turn-badge {
   position: static;
   display: inline-flex;
@@ -861,7 +865,7 @@ body:not(.has-karbosh-game) .meta-grid,
   bottom: 1.25rem;
   z-index: 14;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 0.75rem;
   align-items: center;
   max-width: min(26rem, calc(100% - 2.5rem));
@@ -920,6 +924,27 @@ body:not(.has-karbosh-game) .meta-grid,
   font-weight: 900;
   line-height: 1;
   padding: 0;
+}
+
+.seat-kick-button {
+  align-self: center;
+  min-height: 0;
+  border: 1px solid rgba(231, 101, 101, 0.55);
+  border-radius: 999px;
+  background: rgba(231, 101, 101, 0.14);
+  color: #ffd8d8;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 0.45rem 0.62rem;
+  text-transform: uppercase;
+}
+
+.seat-kick-button:hover,
+.seat-kick-button:focus-visible {
+  border-color: rgba(255, 170, 170, 0.9);
+  background: rgba(231, 101, 101, 0.24);
 }
 
 .seat-hand-backs {
@@ -2860,7 +2885,7 @@ input {
     right: 0.55rem;
     bottom: auto;
     max-width: min(21rem, 48vw);
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     gap: 0.5rem;
     padding: 0.5rem;
   }
@@ -2883,6 +2908,11 @@ input {
     width: 1.35rem;
     height: 1.35rem;
     font-size: 0.68rem;
+  }
+
+  body.has-karbosh-game .seat-kick-button {
+    font-size: 0.56rem;
+    padding: 0.38rem 0.48rem;
   }
 }
 
