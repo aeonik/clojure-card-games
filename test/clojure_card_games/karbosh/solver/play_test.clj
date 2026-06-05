@@ -15,6 +15,14 @@
    :trump trump
    :tricks-this-hand (or tricks {1 0 2 0})})
 
+(defn solve-contract-exhaustive [s contract]
+  (let [team (play/contract-team s contract)]
+    (play/solve-value-exhaustive
+      s
+      {:objective [:test-contract contract]
+       :max-team team
+       :terminal-value #(play/contract-utility % contract)})))
+
 (deftest solve-future-tricks-test
   (testing "solves a forced single trick"
     (let [s (state {:hands {:player1 [[:A :♥]]
@@ -101,3 +109,41 @@
              (play/solve-contract
                s
                {:type :bid :player :player1 :bid-type :karbosh}))))))
+
+(deftest alpha-beta-matches-exhaustive-test
+  (testing "contract search matches exhaustive minimax"
+    (let [s (state {:hands {:player1 [[:A :♥] [9 :♠]]
+                            :player2 [[:K :♥] [:A :♠]]
+                            :player3 [[:Q :♥] [10 :♠]]}
+                    :teams {:player1 1
+                            :player2 2
+                            :player3 1}
+                    :active-players [:player1 :player2 :player3]
+                    :current-player :player1
+                    :trump :♠})
+          contract {:type :bid
+                    :player :player1
+                    :bid-type :bid
+                    :value 2}]
+      (is (= (solve-contract-exhaustive s contract)
+             (play/solve-contract s contract)))))
+
+  (testing "future-tricks search still matches exhaustive value"
+    (let [s (state {:hands {:player1 [[:A :♥] [9 :♠]]
+                            :player2 [[:K :♥] [:A :♠]]
+                            :player3 [[:Q :♥] [10 :♠]]}
+                    :teams {:player1 1
+                            :player2 2
+                            :player3 1}
+                    :active-players [:player1 :player2 :player3]
+                    :current-player :player1
+                    :trump :♠})
+          exhaustive (let [baseline (get-in s [:tricks-this-hand 1] 0)]
+                       (- (play/solve-value-exhaustive
+                            s
+                            {:objective [:test-future-tricks 1]
+                             :max-team 1
+                             :terminal-value #(get-in % [:tricks-this-hand 1] 0)})
+                          baseline))]
+      (is (= exhaustive
+             (play/solve-future-tricks s 1))))))

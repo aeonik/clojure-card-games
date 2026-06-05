@@ -84,7 +84,31 @@
   (team-differential (contract-points state contract)
                      (contract-team state contract)))
 
-(defn solve-value
+(defn maximizing-player? [state max-team]
+  (= max-team (player-team state (:current-player state))))
+
+(defn move-priority [state max-team card]
+  (let [player (:current-player state)
+        trump (:trump state)
+        trick (conj (:current-trick state) {:player player :card card})
+        lead (or (rules/trick-lead (:current-trick state) trump)
+                 (rules/effective-suit card trump))
+        winner (rules/resolve-trick trick trump)
+        winner-team (player-team state winner)
+        complete? (= (count trick) (count (active-players state)))
+        trick-value (cond
+                      (and complete? (= max-team winner-team)) 100000
+                      complete? -100000
+                      (= max-team winner-team) 10000
+                      :else -10000)]
+    (+ trick-value (rules/card-value card trump lead))))
+
+(defn ordered-plays [state max-team]
+  (let [plays (legal-plays state)
+        order (if (maximizing-player? state max-team) > <)]
+    (sort-by #(move-priority state max-team %) order plays)))
+
+(defn solve-value-exhaustive
   "Solve a perfect-information play state with a terminal evaluator.
 
   `max-team` chooses actions that maximize the terminal value. All other teams
@@ -104,13 +128,85 @@
                                          min)
                                 scores (map (fn [card]
                                               (solve* (play-card state player card)))
-                                            (legal-plays state))]
+                                            (ordered-plays state max-team))]
                             (if (seq scores)
                               (apply choose scores)
                               (terminal-value state))))]
                     (swap! cache assoc k value)
                     value))))]
       (solve* state))))
+
+(def negative-infinity Double/NEGATIVE_INFINITY)
+(def positive-infinity Double/POSITIVE_INFINITY)
+
+(defn solve-value
+  "Solve a perfect-information play state using alpha-beta pruning.
+
+  The public result is still an exact minimax value. Cutoff nodes are not
+  stored in the exact transposition cache."
+  [state {:keys [objective max-team terminal-value]}]
+  (let [cache (atom {})]
+    (letfn [(result [value exact?]
+              {:value value :exact? exact?})
+            (search-children [k state plays max? best alpha beta exact?]
+              (if-let [card (first plays)]
+                (let [child (solve*
+                              (play-card state (:current-player state) card)
+                              alpha
+                              beta)
+                      value (:value child)
+                      best (if max?
+                             (max best value)
+                             (min best value))
+                      alpha (if max?
+                              (max alpha best)
+                              alpha)
+                      beta (if max?
+                             beta
+                             (min beta best))
+                      exact? (and exact? (:exact? child))]
+                  (if (if max?
+                        (>= alpha beta)
+                        (<= beta alpha))
+                    (result best false)
+                    (recur k
+                           state
+                           (rest plays)
+                           max?
+                           best
+                           alpha
+                           beta
+                           exact?)))
+                (do
+                  (when exact?
+                    (swap! cache assoc k best))
+                  (result best exact?))))
+            (solve* [state alpha beta]
+              (let [k (state-key state objective)]
+                (cond
+                  (terminal? state)
+                  (result (terminal-value state) true)
+
+                  (contains? @cache k)
+                  (result (get @cache k) true)
+
+                  :else
+                  (let [plays (seq (ordered-plays state max-team))]
+                    (if-not plays
+                      (result (terminal-value state) true)
+                      (let [max? (maximizing-player? state max-team)
+                            initial-best (if max?
+                                           negative-infinity
+                                           positive-infinity)]
+                        (search-children k
+                                         state
+                                         plays
+                                         max?
+                                         initial-best
+                                         alpha
+                                         beta
+                                         true)))))))]
+      (:value (solve* state negative-infinity positive-infinity)))))
 
 (defn solve-future-tricks
   "Return the number of future tricks `target-team` can force from a perfect
