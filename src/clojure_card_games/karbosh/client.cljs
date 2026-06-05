@@ -650,20 +650,39 @@
 
     nil))
 
+(defn fill-bots-button []
+  [:button {:class "table-fill-bots-button"
+            :type "button"
+            :data-fill-bots true}
+   "Fill Bots"])
+
+(defn leave-room-button []
+  [:button {:class "leave-room-button"
+            :type "button"
+            :data-leave-room true}
+   "Leave Room"])
+
+(defn room-visibility-button [view]
+  (let [public? (:public? view)]
+    [:button {:class "visibility-button"
+              :type "button"
+              :data-room-public (if public? "false" "true")}
+     (if public? "Make Private" "Make Public")]))
+
 (defn leave-room-controls []
   [:div {:class "control-group leave-room-control"}
-   [:button {:class "leave-room-button"
-             :type "button"
-             :data-leave-room true}
-    "Leave Room"]])
+   (leave-room-button)])
 
 (defn room-visibility-controls [view]
-  (let [public? (:public? view)]
-    [:div {:class "control-group room-visibility-control"}
-     [:button {:class "visibility-button"
-               :type "button"
-               :data-room-public (if public? "false" "true")}
-      (if public? "Make Private" "Make Public")]]))
+  [:div {:class "control-group room-visibility-control"}
+   (room-visibility-button view)])
+
+(defn table-top-actions [view]
+  [:div {:class "table-top-actions"}
+   (fill-bots-button)
+   [:div {:class "table-room-actions"}
+    (room-visibility-button view)
+    (leave-room-button)]])
 
 (defn render-controls [view paused? pending-auto?]
   (let [active? (= (:you view) (:current-player view))]
@@ -693,10 +712,7 @@
                   [:p {:class "status-line"}
                    (phase-label (:phase view)) " / Current: "
                    (player-label view (:current-player view))]
-                  [:button {:class "table-fill-bots-button"
-                            :type "button"
-                            :data-fill-bots true}
-                   "Fill Bots"]]
+                  (table-top-actions view)]
                  [:section {:class "score-summary" :aria-label "Total scores"}
                   [:span {:class "score-summary-label"} "Total scores"]
                   [:div {:class "score-row"}
