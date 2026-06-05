@@ -689,6 +689,37 @@ body:not(.has-karbosh-game) .meta-grid,
     0 0.85rem 1.8rem rgba(8, 12, 26, 0.28);
 }
 
+.player-seat.is-dealer {
+  border-color: rgba(230, 189, 90, 0.76);
+}
+
+.player-seat.is-dealer .seat-copy {
+  padding-left: 1.45rem;
+}
+
+.dealer-chip {
+  position: absolute;
+  top: 0.48rem;
+  left: 0.48rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.18rem;
+  height: 1.18rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background: var(--accent-3);
+  box-shadow:
+    0 0.25rem 0.55rem rgba(8, 12, 26, 0.32),
+    0 0 0 3px rgba(230, 189, 90, 0.12);
+  color: #101722;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .player-seat.is-you {
   background: rgba(34, 42, 71, 0.94);
 }
@@ -778,6 +809,17 @@ body:not(.has-karbosh-game) .meta-grid,
 .mobile-seat-roster .is-current {
   border-color: rgba(111, 208, 199, 0.74);
   background: rgba(111, 208, 199, 0.1);
+}
+
+.mobile-seat-roster .is-dealer {
+  border-color: rgba(230, 189, 90, 0.7);
+  padding-left: 2rem;
+}
+
+.mobile-seat-roster .dealer-chip {
+  top: 50%;
+  left: 0.58rem;
+  transform: translateY(-50%);
 }
 
 .mobile-seat-roster .is-you {
@@ -2374,6 +2416,18 @@ input {
     text-align: center;
   }
 
+  .player-seat.is-dealer .seat-copy {
+    padding-left: 0;
+  }
+
+  .player-seat .dealer-chip {
+    top: 0.22rem;
+    left: 0.22rem;
+    width: 0.92rem;
+    height: 0.92rem;
+    font-size: 0.48rem;
+  }
+
   .player-seat strong {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2542,6 +2596,16 @@ input {
     width: clamp(4rem, 17vw, 5.1rem);
     min-height: 1.55rem;
     padding: 0.18rem 0.28rem;
+  }
+
+  body.has-karbosh-game .player-seat .dealer-chip {
+    top: 0.12rem;
+    left: 0.12rem;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-width: 0;
+    font-size: 0.38rem;
+    box-shadow: 0 0.12rem 0.3rem rgba(8, 12, 26, 0.28);
   }
 
   body.has-karbosh-game .player-seat strong {

@@ -59,11 +59,17 @@
                    complete-with-passes
                    (game/apply-event {:type :new-hand}))]
     (is (= :player1 (:current-player hand-1)))
+    (is (= :player1 (:dealer hand-1)))
+    (is (= :player1 (:dealer (game/public-view hand-1 {} :player1))))
     (is (= game/players (:bidding-order hand-1)))
     (is (= :player2 (:current-player hand-2)))
+    (is (= :player2 (:dealer hand-2)))
+    (is (= :player2 (:dealer (game/public-view hand-2 {} :player1))))
     (is (= [:player2 :player3 :player4 :player5 :player6 :player1]
            (:bidding-order hand-2)))
     (is (= :player3 (:current-player hand-3)))
+    (is (= :player3 (:dealer hand-3)))
+    (is (= :player3 (:dealer (game/public-view hand-3 {} :player1))))
     (is (= [:player3 :player4 :player5 :player6 :player1 :player2]
            (:bidding-order hand-3)))))
 

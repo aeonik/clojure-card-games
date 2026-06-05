@@ -121,6 +121,15 @@
 (defn latest-bid [view player]
   (last (filter #(= player (:player %)) (:bids-this-hand view))))
 
+(defn dealer? [view player]
+  (= player (:dealer view)))
+
+(defn dealer-chip-html []
+  [:span {:class "dealer-chip"
+          :title "Dealer"
+          :aria-label "Dealer"}
+   "D"])
+
 (defn ws-url []
   (let [params (js/URLSearchParams. (.-search js/location))
         explicit (.get params "ws")
@@ -390,6 +399,7 @@
 
 (defn player-seat-html [view {:keys [id team name connected? bot? active? hand-count] :as seat}]
   (let [current? (= id (:current-player view))
+        dealer-seat? (dealer? view id)
         you? (= id (:you view))
         open? (open-seat? seat)]
     [:div {:class (str "player-seat " (player-class id)
@@ -398,9 +408,11 @@
                        (when bot? " is-bot")
                        (when open? " is-empty")
                        (when (false? active?) " is-sitting-out")
+                       (when dealer-seat? " is-dealer")
                        (when current? " is-current")
                        (when you? " is-you"))}
-     [:div
+     (when dealer-seat? (dealer-chip-html))
+     [:div {:class "seat-copy"}
       [:strong (if open?
                  "Open seat"
                  (or name (clojure.core/name id)))]
@@ -414,14 +426,17 @@
   (into [:ul {:class "mobile-seat-roster" :aria-label "Players"}]
         (for [{:keys [id team name connected? bot? active? hand-count] :as seat} (:players view)]
           (let [current? (= id (:current-player view))
+                dealer-seat? (dealer? view id)
                 you? (= id (:you view))]
             [:li {:class (str (player-class id)
                               (team-class team)
                               (when connected? " is-connected")
                               (when bot? " is-bot")
                               (when (false? active?) " is-sitting-out")
+                              (when dealer-seat? " is-dealer")
                               (when current? " is-current")
                               (when you? " is-you"))}
+             (when dealer-seat? (dealer-chip-html))
              [:div
               [:strong (or name (clojure.core/name id))]
               [:span (team-label team) " / " hand-count " cards / "
