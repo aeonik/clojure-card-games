@@ -263,6 +263,8 @@
          [:h2 (:id room)]]
         [:div {:class "admin-actions"}
          [:a {:href "/karbosh/admin"} "All rooms"]
+         [:a {:href (str "/karbosh/admin/rooms/" (:id room) "/snapshot")}
+          "Snapshot"]
          (delete-room-control (:id room))]]
        [:div {:class "stats room-stats"}
         (stat-card "Phase" (kw-label (:phase view)))

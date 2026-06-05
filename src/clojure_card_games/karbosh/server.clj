@@ -5,6 +5,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure-card-games.karbosh.admin :as admin]
+            [clojure-card-games.karbosh.audit :as audit]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
@@ -26,6 +27,7 @@
   '[clojure-card-games.karbosh.shared.cards
     clojure-card-games.karbosh.shared.rules
     clojure-card-games.karbosh.shared.game
+    clojure-card-games.karbosh.audit
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.bot
     clojure-card-games.karbosh.admin
@@ -59,6 +61,13 @@
 
 (defn idle-room-sweep-ms []
   (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_SWEEP_MS") "60000")))
+
+(defn audit-enabled? []
+  (not= "false" (str/lower-case (or (System/getenv "KARBOSH_AUDIT_ENABLED")
+                                    "true"))))
+
+(defn audit-dir []
+  (or (System/getenv "KARBOSH_AUDIT_DIR") "data/karbosh-audit"))
 
 (defn static-root []
   (io/file (or (System/getenv "KARBOSH_STATIC_ROOT") "karbosh")))
@@ -233,7 +242,20 @@
     (normalize-room-id
      (decode-query-value (subs uri (count "/karbosh/admin/rooms/"))))))
 
+(defn admin-room-snapshot-id [uri]
+  (let [prefix "/karbosh/admin/rooms/"
+        suffix "/snapshot"]
+    (when (and (str/starts-with? uri prefix)
+               (str/ends-with? uri suffix))
+      (normalize-room-id
+       (decode-query-value
+        (subs uri (count prefix) (- (count uri) (count suffix))))))))
+
 (declare start-room-sweeper! install-runtime-handlers!)
+
+(defn start-audit! []
+  (audit/start! {:enabled? (audit-enabled?)
+                 :dir (audit-dir)}))
 
 (defn admin-dashboard-response [request]
   (cond
@@ -321,6 +343,7 @@
   (let [started (System/nanoTime)]
     (doseq [namespace reloadable-namespaces]
       (require namespace :reload))
+    (start-audit!)
     (start-room-sweeper!)
     (install-runtime-handlers!)
     (refresh-room-view-state!)
@@ -437,6 +460,26 @@
                        :message "Room not found"})
               "application/edn; charset=utf-8")))
 
+(defn admin-room-snapshot-response [request room-id]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (if-let [room (get @rooms room-id)]
+      (edn-response {:ok true
+                     :room-id room-id
+                     :room (audit/sanitize-room room)
+                     :view (game/admin-view (:game room) (:seats room))})
+      (response 404
+                (pr-str {:ok false
+                         :room-id room-id
+                         :message "Room not found"})
+                "application/edn; charset=utf-8"))))
+
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
   (async/put! out message))
@@ -449,6 +492,7 @@
   (let [room-id (normalize-room-id room-id)
         room (get @rooms room-id)]
     (when room
+      (audit/record-room! (keyword "room-delete" (name reason)) room)
       (notify-room! room {:op :room-closed
                           :room-id room-id
                           :reason reason
@@ -552,6 +596,7 @@
     bot-action-delay-ms))
 
 (defn publish-room! [room-id room]
+  (audit/record-room! :room-publish room)
   (broadcast-room! room)
   (schedule-bot-turn! room-id room)
   room)
@@ -847,7 +892,8 @@
   (str/starts-with? uri "/karbosh/admin/rooms/"))
 
 (defn handler [{:keys [uri request-method] :as request}]
-  (let [room-preview-id (room-preview-id uri)]
+  (let [room-preview-id (room-preview-id uri)
+        snapshot-room-id (admin-room-snapshot-id uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -862,6 +908,9 @@
 
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
+
+      (and (= request-method :get) snapshot-room-id)
+      (admin-room-snapshot-response request snapshot-room-id)
 
       (and (= request-method :get) (= uri "/karbosh/api/health"))
       (edn-response {:ok true :rooms (count @rooms)})
@@ -899,6 +948,7 @@
   (let [port (parse-port)
         ip (bind-address)]
     (install-runtime-handlers!)
+    (start-audit!)
     (start-room-sweeper!)
     (start-nrepl-if-enabled!)
     (reset! server (http/run-server #'runtime/current-handler {:ip ip :port port}))
@@ -906,6 +956,7 @@
 
 (defn stop! []
   (stop-room-sweeper!)
+  (audit/stop!)
   (stop-nrepl!)
   (when-let [stop @server]
     (stop)

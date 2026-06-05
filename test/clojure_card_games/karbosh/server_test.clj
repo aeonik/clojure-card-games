@@ -247,6 +247,33 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-room-snapshot-test
+  (let [old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/seat-player :player1 "Dave")
+                 (assoc :connections {:conn {:player :player1
+                                              :out :channel}}))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/rooms/ABC123/snapshot"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})
+              body (edn/read-string (:body response))]
+          (is (= 200 (:status response)))
+          (is (:ok body))
+          (is (= "ABC123" (:room-id body)))
+          (is (= 9 (get-in body [:room :seed])))
+          (is (= 9 (get-in body [:room :game :initial-seed])))
+          (is (not (contains? (:room body) :connections)))
+          (is (= "Dave" (get-in body [:room :seats :player1 :name])))
+          (is (seq (get-in body [:view :debug :deals])))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest public-rooms-response-test
   (let [old-rooms @server/rooms
         public-room (-> (room/new-room "PUB123" 9 true)
@@ -445,6 +472,7 @@
                :started-at 1000})]
     (is (not (re-find #"admin/delete-room\?room=" html)))
     (is (re-find #"data-delete-room=\"ABC123\"" html))
+    (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot\"" html))
     (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-stream\"" html))
     (is (re-find #"\.trick>div" html))
     (is (not (re-find #"\.trick&gt;div" html)))

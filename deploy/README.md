@@ -135,6 +135,8 @@ KARBOSH_MAX_ROOMS=128
 KARBOSH_MAX_ROOM_CONNECTIONS=24
 KARBOSH_MAX_WEBSOCKET_CONNECTIONS=256
 KARBOSH_IDLE_ROOM_MS=14400000
+KARBOSH_AUDIT_ENABLED=true
+KARBOSH_AUDIT_DIR=data/karbosh-audit
 KARBOSH_NREPL_ENABLED=false
 KARBOSH_NREPL_BIND=127.0.0.1
 KARBOSH_NREPL_PORT=7888
@@ -143,6 +145,13 @@ KARBOSH_NREPL_PORT=7888
 The admin panel is available at `/karbosh/admin` and uses HTTP Basic Auth. The
 default username is `admin`; override it with `KARBOSH_ADMIN_USER` if needed. If
 `KARBOSH_ADMIN_PASSWORD` is unset, admin routes return disabled responses.
+
+Room snapshots are available at `/karbosh/admin/rooms/{ROOM}/snapshot` under the
+same Basic Auth. The server also appends sanitized EDN room snapshots to
+`KARBOSH_AUDIT_DIR` through a core.async writer after room publishes and before
+room deletion. The audit log preserves seeds, deals, hands, bids, tricks, and
+completed hand histories for long-term bot/game analysis, but omits live
+websocket connection objects.
 
 ## Production REPL
 
