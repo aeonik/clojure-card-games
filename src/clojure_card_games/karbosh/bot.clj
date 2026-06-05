@@ -291,6 +291,9 @@
     (and (special-contract? bid)
          (= player (:player bid)))))
 
+(defn contract-caller? [game player]
+  (= player (:player (game/current-bid game))))
+
 (defn context-play-config [config game player]
   (if (special-contract-caller? game player)
     (assoc config
@@ -334,6 +337,17 @@
                                     (unseen-card-counts game player)
                                     card))
 
+(defn secure-trump-lead-card [game unseen-counts cards]
+  (let [trumps (filter #(trump-card? (:trump game) %) cards)
+        secure-trumps (filter #(good-card-with-counts? game unseen-counts %)
+                              trumps)]
+    (when (seq secure-trumps)
+      (highest-card game secure-trumps))))
+
+(defn partner-preserving-card [game player cards]
+  (let [non-overtakers (remove #(wins-trick? game player %) cards)]
+    (lowest-card game (or (seq non-overtakers) cards))))
+
 (defn lowest-card [game cards]
   (first (sort-by #(card-score game %) cards)))
 
@@ -362,7 +376,7 @@
                  (highest-card game cards))
 
                (same-team? game player winner)
-               (lowest-card game cards)
+               (partner-preserving-card game player cards)
 
                (seq secure-winning-cards)
                (lowest-card game secure-winning-cards)
@@ -410,21 +424,28 @@
 (defn safe-cards [config analyses threshold-key cards]
   (filter #(<= (card-risk analyses %) (threshold-key config)) cards))
 
-(defn probability-lead-card [config game analyses cards]
-  (let [safe (safe-cards config analyses :lead-risk-tolerance cards)]
-    (if (seq safe)
-      (lowest-card game safe)
-      (first (sort-by #(risk-adjusted-lead-value config game analyses %)
-                      >
-                      cards)))))
+(defn probability-lead-card [config game player analyses cards]
+  (let [unseen-counts (unseen-card-counts game player)
+        trump-control (when (contract-caller? game player)
+                        (secure-trump-lead-card game unseen-counts cards))
+        safe (safe-cards config analyses :lead-risk-tolerance cards)]
+    (cond
+      trump-control
+      trump-control
 
-(defn karbosh-caller-lead-card [config game analyses cards]
+      (seq safe)
+      (lowest-card game safe)
+
+      :else
+      (lowest-card game cards))))
+
+(defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
     (if (seq trumps)
       (first (sort-by #(risk-adjusted-lead-value config game analyses %)
                       >
                       trumps))
-      (probability-lead-card config game analyses cards))))
+      (probability-lead-card config game player analyses cards))))
 
 (defn probability-winning-card [config game analyses cards]
   (let [safe (safe-cards config analyses :win-risk-tolerance cards)]
@@ -445,11 +466,11 @@
 
                (empty? (:current-trick game))
                (if (special-contract-caller? game player)
-                 (karbosh-caller-lead-card config game analyses cards)
-                 (probability-lead-card config game analyses cards))
+                 (karbosh-caller-lead-card config game player analyses cards)
+                 (probability-lead-card config game player analyses cards))
 
                (same-team? game player winner)
-               (lowest-card game cards)
+               (partner-preserving-card game player cards)
 
                (seq winning-cards)
                (probability-winning-card config game analyses winning-cards)

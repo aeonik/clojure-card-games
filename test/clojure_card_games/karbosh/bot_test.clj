@@ -245,6 +245,46 @@
       (is (= {:type :play-card :card [:A :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
+  (testing "numeric trump callers pull with the right bower before off-suit aces"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[:J :♠] [:A :♥] [:A :♦]
+                                             [9 :♠] [9 :♦] [10 :♦]
+                                             [9 :♣] [10 :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:J :♠]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [:J :♠]}
+             (bot/card-action game :player1 :hybrid)))))
+
+  (testing "unsafe trump-only leads bleed low trump instead of the ace"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♠] [9 :♠]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player1 :hybrid)))))
+
   (testing "when a partner is winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}
                           :player3 {:team 1
@@ -252,6 +292,15 @@
                 :trump :♠
                 :current-trick [{:player :player1 :card [:Q :♥]}]}]
       (is (= {:type :play-card :card [9 :♥]}
+             (bot/card-action game :player3)))))
+
+  (testing "when a partner is winning with trump, a bot avoids overtrumping when possible"
+    (let [game {:players {:player1 {:team 1}
+                          :player3 {:team 1
+                                    :hand [[:A :♠] [9 :♠]]}}
+                :trump :♠
+                :current-trick [{:player :player1 :card [:K :♠]}]}]
+      (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player3))))))
 
 (deftest karbosh-setup-actions-test
