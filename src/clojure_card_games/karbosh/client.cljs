@@ -403,18 +403,27 @@
   (for [n (range (min 5 hand-count))]
     [:i {:style (str "--i:" n)}]))
 
+(defn open-seat? [{:keys [bot? name connected?]}]
+  (and (not bot?)
+       (not connected?)
+       (str/blank? (or name ""))))
+
 (defn player-seat-html [view {:keys [id team name connected? bot? active? hand-count] :as seat}]
   (let [current? (= id (:current-player view))
-        you? (= id (:you view))]
+        you? (= id (:you view))
+        open? (open-seat? seat)]
     [:div {:class (str "player-seat " (player-class id)
                        (team-class team)
                        (when connected? " is-connected")
                        (when bot? " is-bot")
+                       (when open? " is-empty")
                        (when (false? active?) " is-sitting-out")
                        (when current? " is-current")
                        (when you? " is-you"))}
      [:div
-      [:strong (or name (clojure.core/name id))]
+      [:strong (if open?
+                 "Open seat"
+                 (or name (clojure.core/name id)))]
       [:small (team-label team) " / " hand-count " cards / " (seat-state-label seat)]
       (when-let [bid (latest-bid view id)]
         [:em {:class "bid-chip"} (bid-label bid)])]
@@ -596,19 +605,28 @@
        (auto-play-button-for-phase view active? paused? pending?)])))
 
 (defn trump-controls [view active? paused? pending?]
+  nil)
+
+(defn trump-picker-html [view active? paused? pending?]
   (when (= :trump-selection (:phase view))
-    [:div {:class "control-group trump-control-group"}
-     [:strong {:class "trump-picker-label"}
-      (if active?
-        "Choose trump"
-        (str "Waiting for " (player-label view (:current-player view))))]
-     (for [suit cards/suits]
-       [:button {:type "button"
-                 :class (str "trump-button" (suit-class suit))
-                 :data-trump (pr-str suit)
-                 :disabled (not active?)}
-        (cards/suit->str suit)])
-     (auto-play-button-for-phase view active? paused? pending?)]))
+    [:div {:class "modal-backdrop trump-picker-backdrop"}
+     [:section {:class "trump-picker-modal"
+                :role "dialog"
+                :aria-modal "true"
+                :aria-labelledby "trump-picker-title"}
+      [:strong {:id "trump-picker-title"
+                :class "trump-picker-label"}
+       (if active?
+         "Choose trump"
+         (str "Waiting for " (player-label view (:current-player view))))]
+      [:div {:class "trump-suit-grid"}
+       (for [suit cards/suits]
+         [:button {:type "button"
+                   :class (str "trump-button" (suit-class suit))
+                   :data-trump (pr-str suit)
+                   :disabled (not active?)}
+          (cards/suit->str suit)])]
+      (auto-play-button-for-phase view active? paused? pending?)]]))
 
 (defn auto-play-controls [view active? paused? pending?]
   (when (and (auto-play-phases (:phase view))
@@ -712,6 +730,16 @@
              (room-visibility-controls view)
              (leave-room-controls)])))
 
+(defn render-trump-picker! []
+  (when-not (:join-modal @app)
+    (let [{:keys [view trick-popup queued-trick-popup pending-auto?]} @app
+          active? (= (:you view) (:current-player view))
+          paused? (or (some? trick-popup)
+                      (some? queued-trick-popup))]
+      (html! (el "modal-root")
+             (or (trump-picker-html view active? paused? pending-auto?)
+                 "")))))
+
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
                 hand-order card-drag pending-card pending-auto?]} @app]
@@ -738,7 +766,6 @@
                    [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
                    [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
                  (or (game-over-html view) "")
-                 (table-status-html view bid-popup)
                  (table-surface-html view play-animation trick-popup queued-trick-popup)
                  [:div {:class "play-controls-panel"}
                   (hand-panel-html view pending-card (or (some? trick-popup)
@@ -749,7 +776,8 @@
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
                                     pending-auto?)]]
-                 (mobile-seat-roster-html view)]])))))
+                 (mobile-seat-roster-html view)]])))
+    (render-trump-picker!)))
 
 (defn card-event [view card]
   (case (:phase view)
@@ -1072,6 +1100,19 @@
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
                          (.. js/navigator -clipboard (writeText text)))))
   (.addEventListener (el "fill-bots") "click" fill-bots!)
+  (.addEventListener (el "modal-root") "click"
+                     (fn [event]
+                       (let [target (.-target event)
+                             trump-target (closest target "[data-trump]")
+                             auto-target (closest target "[data-auto-play]")]
+                         (cond
+                           trump-target
+                           (action! {:type :trump-selection
+                                     :suit (reader/read-string
+                                            (.getAttribute trump-target "data-trump"))})
+
+                           auto-target
+                           (auto-play!)))))
   (.addEventListener (el "game-root") "pointerdown" begin-card-drag!)
   (.addEventListener js/window "pointermove" update-card-drag!)
   (.addEventListener js/window "pointerup" finish-card-drag!)

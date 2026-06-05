@@ -377,7 +377,7 @@ h2 {
 
 .table-status {
   position: relative;
-  display: grid;
+  display: none;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 0.75rem;
   align-items: start;
@@ -573,11 +573,12 @@ h2 {
   position: absolute;
   z-index: 5;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.6rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.34rem;
+  align-content: center;
   align-items: center;
   width: 11.8rem;
-  min-height: 5.25rem;
+  min-height: 4.35rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(18, 22, 34, 0.86);
@@ -611,10 +612,15 @@ h2 {
   display: block;
 }
 
+.player-seat strong {
+  overflow: hidden;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .player-seat small {
-  color: var(--muted);
-  font-size: 0.7rem;
-  line-height: 1.35;
+  display: none;
 }
 
 .bid-chip {
@@ -646,6 +652,15 @@ h2 {
 
 .player-seat.is-sitting-out {
   opacity: 0.48;
+}
+
+.player-seat.is-empty {
+  border-style: dashed;
+  background: rgba(18, 22, 34, 0.5);
+}
+
+.player-seat.is-empty strong {
+  color: var(--muted);
 }
 
 .mobile-seat-roster {
@@ -731,9 +746,9 @@ h2 {
 }
 
 .turn-badge {
-  position: absolute;
-  right: 0.7rem;
-  bottom: -0.65rem;
+  position: static;
+  display: inline-flex;
+  width: fit-content;
   border-radius: 999px;
   background: var(--accent-3);
   color: #101722;
@@ -741,6 +756,8 @@ h2 {
   font-style: normal;
   font-weight: 700;
   letter-spacing: 0.12em;
+  line-height: 1;
+  margin-top: 0.08rem;
   padding: 0.2rem 0.5rem;
   text-transform: uppercase;
 }
@@ -769,6 +786,10 @@ h2 {
   left: calc(var(--i) * 0.34rem);
   top: calc(var(--i) * 0.08rem);
   transform: rotate(calc((var(--i) - 2) * 4deg));
+}
+
+.seat-hand-backs {
+  display: none;
 }
 
 .player-seat.player-player1 {
@@ -2636,30 +2657,24 @@ input {
   }
 }
 
-body.has-karbosh-game .trump-control-group {
-  --trump-picker-tile: clamp(3.65rem, 8vw, 4.9rem);
-  --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.72);
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 50;
-  display: grid;
-  grid-template-columns: repeat(4, var(--trump-picker-tile));
-  gap: 0.55rem;
-  justify-content: center;
-  width: min(25rem, calc(100vw - 1.25rem));
-  border: 1px solid rgba(111, 208, 199, 0.45);
-  border-radius: 8px;
-  background: rgba(18, 22, 34, 0.94);
-  box-shadow:
-    0 0 0 999vmax rgba(8, 12, 26, 0.32),
-    0 1.1rem 2.4rem rgba(8, 12, 26, 0.42);
-  padding: 0.85rem;
-  transform: translate(-50%, -50%);
+.trump-picker-backdrop {
+  place-items: center;
+  background: rgba(8, 12, 26, 0.58);
+  padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
 }
 
-body.has-karbosh-game .trump-picker-label {
-  grid-column: 1 / -1;
+.trump-picker-modal {
+  display: grid;
+  gap: 0.8rem;
+  width: min(30rem, calc(100vw - 1.5rem));
+  border: 1px solid rgba(111, 208, 199, 0.54);
+  border-radius: 8px;
+  background: rgba(18, 22, 34, 0.96);
+  box-shadow: 0 1.1rem 2.4rem rgba(8, 12, 26, 0.42);
+  padding: 1rem;
+}
+
+.trump-picker-label {
   color: var(--white);
   font-size: 0.82rem;
   letter-spacing: 0.12em;
@@ -2668,18 +2683,23 @@ body.has-karbosh-game .trump-picker-label {
   text-transform: uppercase;
 }
 
-body.has-karbosh-game .trump-control-group .trump-button {
+.trump-suit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.trump-suit-grid .trump-button {
   aspect-ratio: 1;
-  min-height: 0;
+  width: 100%;
   min-width: 0;
-  width: var(--trump-picker-tile);
-  height: var(--trump-picker-tile);
-  font-size: var(--trump-picker-symbol);
+  min-height: 0;
+  height: auto;
+  font-size: clamp(2.4rem, 5vw, 3.5rem);
   line-height: 1;
 }
 
-body.has-karbosh-game .trump-control-group .auto-play-button {
-  grid-column: 1 / -1;
+.trump-picker-modal .auto-play-button {
   justify-self: center;
   min-height: 2.2rem;
   width: min(12rem, 100%);
@@ -2688,39 +2708,42 @@ body.has-karbosh-game .trump-control-group .auto-play-button {
 }
 
 @media screen and (max-width: 680px) {
-  body.has-karbosh-game .trump-control-group {
-    --trump-picker-tile: clamp(4.45rem, 24vw, 5.5rem);
-    --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.7);
-    grid-template-columns: repeat(2, var(--trump-picker-tile));
-    gap: 0.65rem;
-    width: min(15rem, calc(100vw - 1.25rem));
+  .trump-picker-modal {
+    width: min(17rem, calc(100vw - 1.25rem));
+    gap: 0.75rem;
     padding: 0.9rem;
   }
 
-  body.has-karbosh-game .trump-control-group .trump-button {
-    min-height: 0;
+  .trump-suit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .trump-suit-grid .trump-button {
+    font-size: clamp(2.75rem, 15vw, 3.8rem);
   }
 }
 
 @media screen and (orientation: landscape) and (max-height: 560px) {
-  body.has-karbosh-game .trump-control-group {
-    --trump-picker-tile: clamp(3.35rem, 12vh, 4.2rem);
-    --trump-picker-symbol: calc(var(--trump-picker-tile) * 0.72);
-    grid-template-columns: repeat(4, var(--trump-picker-tile));
-    gap: 0.42rem;
-    width: min(22rem, calc(100vw - 1rem));
-    padding: 0.62rem;
+  .trump-picker-modal {
+    width: min(23rem, calc(100vw - 1rem));
+    gap: 0.45rem;
+    padding: 0.65rem;
   }
 
-  body.has-karbosh-game .trump-picker-label {
+  .trump-picker-label {
     font-size: 0.68rem;
   }
 
-  body.has-karbosh-game .trump-control-group .trump-button {
-    min-height: 0;
+  .trump-suit-grid {
+    gap: 0.42rem;
   }
 
-  body.has-karbosh-game .trump-control-group .auto-play-button {
+  .trump-suit-grid .trump-button {
+    font-size: clamp(2rem, 8vh, 2.85rem);
+  }
+
+  .trump-picker-modal .auto-play-button {
     min-height: 1.85rem;
     font-size: 0.52rem;
   }
