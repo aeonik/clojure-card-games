@@ -598,6 +598,10 @@
 (defn trump-controls [view active? paused? pending?]
   (when (= :trump-selection (:phase view))
     [:div {:class "control-group trump-control-group"}
+     [:strong {:class "trump-picker-label"}
+      (if active?
+        "Choose trump"
+        (str "Waiting for " (player-label view (:current-player view))))]
      (for [suit cards/suits]
        [:button {:type "button"
                  :class (str "trump-button" (suit-class suit))
