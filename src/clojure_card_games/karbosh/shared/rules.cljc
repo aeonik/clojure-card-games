@@ -33,12 +33,30 @@
       (= suit lead) (* base 10)
       :else base)))
 
+(defn trick-lead [trick trump]
+  (some-> trick first :card (effective-suit trump)))
+
+(defn beats? [trump lead challenger incumbent]
+  (> (card-value challenger trump lead)
+     (card-value incumbent trump lead)))
+
+(defn winning-play
+  "Return the winning play in a trick.
+
+  Equal cards can appear because Karbosh uses two copies of each card. Ties are
+  intentionally settled by keeping the earlier play."
+  [trick trump]
+  (when (seq trick)
+    (let [lead (trick-lead trick trump)]
+      (reduce (fn [winner play]
+                (if (beats? trump lead (:card play) (:card winner))
+                  play
+                  winner))
+              (first trick)
+              (rest trick)))))
+
 (defn resolve-trick [trick trump]
-  (let [lead (some-> trick first :card (effective-suit trump))]
-    (->> trick
-         (sort-by #(card-value (:card %) trump lead) >)
-         first
-         :player)))
+  (:player (winning-play trick trump)))
 
 (defn valid-bid-value? [value]
   (and (number? value) (<= 1 value 8) (= value (long value))))
@@ -67,13 +85,27 @@
        first))
 
 (defn legal-play? [hand trick card trump]
-  (let [lead (some-> trick first :card (effective-suit trump))
+  (let [lead (trick-lead trick trump)
         follows? (= (effective-suit card trump) lead)
         can-follow? (some #(= (effective-suit % trump) lead) hand)]
     (and (some #(= card %) hand)
          (or (empty? trick)
              follows?
              (not can-follow?)))))
+
+(defn distinct-cards [cards]
+  (vec (distinct cards)))
+
+(defn legal-cards
+  "Return distinct logical cards that can legally be played from `hand`.
+
+  Duplicate physical copies are collapsed because playing either copy has the
+  same public meaning and should not create duplicate solver branches."
+  [hand trick trump]
+  (->> hand
+       distinct-cards
+       (filter #(legal-play? hand trick % trump))
+       vec))
 
 (defn score-hand [players bid tricks]
   (let [bidder-team (get-in players [(:player bid) :team])

@@ -78,7 +78,7 @@
 
 (defn legal-cards [game player]
   (let [hand (get-in game [:players player :hand])]
-    (filter #(rules/legal-play? hand (:current-trick game) % (:trump game)) hand)))
+    (rules/legal-cards hand (:current-trick game) (:trump game))))
 
 (defn card-score [game card]
   (let [lead (or (some-> (:current-trick game) first :card
