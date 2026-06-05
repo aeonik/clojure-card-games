@@ -723,9 +723,7 @@
                 hand-order card-drag pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
-      (html! (el "game-root")
-             [:section {:class "panel empty-panel"}
-              [:h2 "Open a table"]])
+      (html! (el "game-root") "")
       (do
         (set-share-link! room-id)
         (html! (el "game-root")

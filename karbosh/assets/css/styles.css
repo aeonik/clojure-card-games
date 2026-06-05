@@ -130,6 +130,14 @@ body.has-karbosh-game .section-secondary {
   display: none;
 }
 
+body:not(.has-karbosh-game) .section-primary .section-inner {
+  padding-bottom: 1.25rem;
+}
+
+body:not(.has-karbosh-game) .section-secondary .section-inner {
+  padding-top: 1.25rem;
+}
+
 .section-inner {
   width: min(100%, 88rem);
   margin: 0;
@@ -171,6 +179,11 @@ body.has-karbosh-game .section-secondary {
   display: grid;
   grid-template-columns: 8rem 8rem minmax(0, 1fr) auto;
   margin-bottom: 1.25rem;
+}
+
+body:not(.has-karbosh-game) .meta-grid,
+#game-root:empty {
+  display: none;
 }
 
 .meta-grid > div {
