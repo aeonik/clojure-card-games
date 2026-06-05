@@ -41,3 +41,12 @@
                                           :play-strategy :card-counting})]
     (is (= 1 (count results)))
     (is (= 1 (:hands (first results))))))
+
+(deftest play-strategy-comparison-test
+  (let [results (sim/evaluate-play-strategies [[:counting :card-counting]
+                                               [:probability :probability]
+                                               [:hybrid :hybrid]]
+                                              [1]
+                                              {:max-hands 1})]
+    (is (= [:counting :probability :hybrid] (mapv :label results)))
+    (is (= [1 1 1] (mapv :games results)))))

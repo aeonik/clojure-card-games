@@ -202,6 +202,19 @@
                   :bid-config bid-config))
          configs)))
 
+(defn evaluate-play-strategies
+  "Run named play strategies against the same seeds so card-play changes can be
+  compared without changing the deal set."
+  ([strategies seeds] (evaluate-play-strategies strategies seeds default-options))
+  ([strategies seeds options]
+   (mapv (fn [[label strategy]]
+           (assoc (aggregate
+                    (run-games-for-seeds seeds
+                                         (assoc options :play-strategy strategy)))
+                  :label label
+                  :play-strategy strategy))
+         strategies)))
+
 (defn -main [& args]
   (let [n (if-let [arg (first args)]
             (Long/parseLong arg)

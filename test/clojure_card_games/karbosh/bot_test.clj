@@ -28,6 +28,9 @@
 (def karbosh-hand
   [[:A :♦] [:K :♠] [:J :♣] [:A :♠] [:J :♠] [:K :♠] [10 :♠] [:Q :♠]])
 
+(def right-only-karbosh-shape
+  [[:J :♠] [:A :♠] [:K :♠] [:K :♠] [:Q :♠] [:Q :♠] [10 :♠] [:A :♥]])
+
 (def hidden-hand-size (vec (repeat 8 [9 :♣])))
 
 (defn with-hand [game player hand]
@@ -58,6 +61,9 @@
   (testing "bots use karbosh for credible sweep hands instead of numeric 7 or 8"
     (is (= {:type :bid :bid-type :karbosh}
            (bot/target-bid karbosh-hand))))
+
+  (testing "bots need multiple bowers before calling karbosh"
+    (is (not= :karbosh (:bid-type (bot/target-bid right-only-karbosh-shape)))))
 
   (testing "a bot may overcall a partner's weak bid with a materially stronger hand"
     (let [game (-> team-game
@@ -179,7 +185,28 @@
       (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player1 :card-counting)))
       (is (= {:type :play-card :card [:A :♥]}
-             (bot/card-action game :player1 :probability)))))
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [:A :♥]}
+             (bot/card-action game :player1 :hybrid)))))
+
+  (testing "karbosh callers lead trump before cashing off-suit aces"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :karbosh
+                          :hand-index 0}]
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♥] [:A :♠] [9 :♦] [10 :♦]
+                                             [:Q :♦] [9 :♣] [10 :♣] [:Q :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player1 :hybrid)))))
 
   (testing "when a partner is winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}

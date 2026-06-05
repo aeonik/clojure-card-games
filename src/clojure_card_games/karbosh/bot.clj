@@ -16,7 +16,8 @@
    :bid-6-strength 6500
    :high-trump-strength 600
    :karbosh-min-trumps 6
-   :karbosh-min-high-trumps 5
+   :karbosh-min-high-trumps 6
+   :karbosh-min-bowers 2
    :karbosh-min-winners 7})
 
 (def ^:dynamic *bid-config* default-bid-config)
@@ -25,9 +26,13 @@
   {:lead-risk-tolerance 0.32
    :win-risk-tolerance 0.22
    :lead-risk-penalty 900
-   :win-risk-penalty 700})
+   :win-risk-penalty 700
+   :karbosh-lead-risk-tolerance 0.03
+   :karbosh-win-risk-tolerance 0.01
+   :karbosh-lead-risk-penalty 6500
+   :karbosh-win-risk-penalty 6500})
 
-(def default-play-strategy :probability)
+(def default-play-strategy :hybrid)
 
 (def ^:dynamic *play-config* default-play-config)
 (def ^:dynamic *play-strategy* default-play-strategy)
@@ -43,14 +48,20 @@
   (and (= :A rank)
        (not (trump-card? trump card))))
 
+(defn bower? [trump card]
+  (or (rules/right-bower? card trump)
+      (rules/left-bower? card trump)))
+
 (defn karbosh-hand? [config hand trump]
   (let [trumps (filter #(trump-card? trump %) hand)
         high-trumps (filter #(high-trump? config trump %) trumps)
+        bowers (filter #(bower? trump %) trumps)
         winners (+ (count high-trumps)
                    (count (filter #(off-ace? trump %) hand)))]
     (and (some #(rules/right-bower? % trump) hand)
          (>= (count trumps) (:karbosh-min-trumps config))
          (>= (count high-trumps) (:karbosh-min-high-trumps config))
+         (>= (count bowers) (:karbosh-min-bowers config))
          (>= winners (:karbosh-min-winners config)))))
 
 (defn target-bid
@@ -126,6 +137,25 @@
 (defn same-team? [game a b]
   (and a b (= (get-in game [:players a :team])
               (get-in game [:players b :team]))))
+
+(def special-bid-types #{:karbosh :double-karbosh})
+
+(defn special-contract? [bid]
+  (contains? special-bid-types (:bid-type bid)))
+
+(defn special-contract-caller? [game player]
+  (let [bid (game/current-bid game)]
+    (and (special-contract? bid)
+         (= player (:player bid)))))
+
+(defn context-play-config [config game player]
+  (if (special-contract-caller? game player)
+    (assoc config
+           :lead-risk-tolerance (:karbosh-lead-risk-tolerance config)
+           :win-risk-tolerance (:karbosh-win-risk-tolerance config)
+           :lead-risk-penalty (:karbosh-lead-risk-penalty config)
+           :win-risk-penalty (:karbosh-win-risk-penalty config))
+    config))
 
 (defn wins-trick? [game player card]
   (= player (rules/resolve-trick (conj (:current-trick game)
@@ -245,6 +275,14 @@
                       >
                       cards)))))
 
+(defn karbosh-caller-lead-card [config game analyses cards]
+  (let [trumps (filter #(trump-card? (:trump game) %) cards)]
+    (if (seq trumps)
+      (first (sort-by #(risk-adjusted-lead-value config game analyses %)
+                      >
+                      trumps))
+      (probability-lead-card config game analyses cards))))
+
 (defn probability-winning-card [config game analyses cards]
   (let [safe (safe-cards config analyses :win-risk-tolerance cards)]
     (if (seq safe)
@@ -255,6 +293,7 @@
 (defn probability-card-action [game player]
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
+        config (context-play-config *play-config* game player)
         analyses (card-analyses game player cards)
         winning-cards (filter #(wins-trick? game player %) cards)
         card (cond
@@ -262,16 +301,15 @@
                nil
 
                (empty? (:current-trick game))
-               (probability-lead-card *play-config* game analyses cards)
+               (if (special-contract-caller? game player)
+                 (karbosh-caller-lead-card config game analyses cards)
+                 (probability-lead-card config game analyses cards))
 
                (same-team? game player winner)
                (lowest-card game cards)
 
                (seq winning-cards)
-               (probability-winning-card *play-config*
-                                         game
-                                         analyses
-                                         winning-cards)
+               (probability-winning-card config game analyses winning-cards)
 
                :else
                (lowest-card game cards))]
@@ -279,9 +317,15 @@
       {:type :play-card
        :card card})))
 
+(defn hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (probability-card-action game player)))
+
 (def play-strategies
   {:card-counting card-counting-card-action
-   :probability probability-card-action})
+   :probability probability-card-action
+   :hybrid hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond
