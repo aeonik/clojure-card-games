@@ -41,57 +41,8 @@
 (defn text! [node content]
   (set! (.-textContent node) content))
 
-(defonce viewport-update-frame (atom nil))
-(defonce viewport-settle-timeout (atom nil))
-(defonce viewport-listeners-bound? (atom false))
-
-(defn update-mobile-viewport! []
-  (let [visual-viewport (.-visualViewport js/window)
-        height (if visual-viewport
-                 (.-height visual-viewport)
-                 (.-innerHeight js/window))
-        height (js/Math.floor height)
-        offset-top (if visual-viewport
-                     (.-offsetTop visual-viewport)
-                     0)
-        bottom-inset (js/Math.max
-                      0
-                      (js/Math.floor
-                       (- (.-innerHeight js/window) height offset-top)))]
-    (.. js/document -documentElement -style
-        (setProperty "--karbosh-visible-height" (str height "px")))
-    (.. js/document -documentElement -style
-        (setProperty "--karbosh-viewport-top" (str (js/Math.floor offset-top) "px")))
-    (.. js/document -documentElement -style
-        (setProperty "--karbosh-browser-bottom-inset" (str bottom-inset "px")))))
-
-(defn schedule-mobile-viewport-update! []
-  (when-not @viewport-update-frame
-    (reset! viewport-update-frame
-            (.requestAnimationFrame
-             js/window
-             (fn []
-               (reset! viewport-update-frame nil)
-               (update-mobile-viewport!)))))
-  (when-let [timeout @viewport-settle-timeout]
-    (js/clearTimeout timeout))
-  (reset! viewport-settle-timeout
-          (js/setTimeout update-mobile-viewport! 180)))
-
-(defn bind-mobile-viewport! []
-  (when-not @viewport-listeners-bound?
-    (reset! viewport-listeners-bound? true)
-    (update-mobile-viewport!)
-    (.addEventListener js/window "resize" schedule-mobile-viewport-update!)
-    (.addEventListener js/window "orientationchange" schedule-mobile-viewport-update!)
-    (when-let [visual-viewport (.-visualViewport js/window)]
-      (.addEventListener visual-viewport "resize" schedule-mobile-viewport-update!)
-      (.addEventListener visual-viewport "scroll" schedule-mobile-viewport-update!))))
-
 (defn active-game-layout! [active?]
-  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?)
-  (when active?
-    (schedule-mobile-viewport-update!)))
+  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?))
 
 (defn kw-name [x]
   (when x (name x)))
@@ -1086,7 +1037,6 @@
   (let [stored-name (.getItem js/localStorage "karbosh-name")]
     (when stored-name
       (set! (.-value (el "player-name")) stored-name)))
-  (bind-mobile-viewport!)
   (bind-controls!)
   (render-status!)
   (render-game!)
