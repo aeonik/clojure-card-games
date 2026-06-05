@@ -1795,15 +1795,8 @@ input {
   body.has-karbosh-game {
     --karbosh-mobile-edge: 0.35rem;
     --karbosh-mobile-height: var(--karbosh-visible-height, 100dvh);
-    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 1.75rem);
     overflow: hidden;
     overscroll-behavior: none;
-  }
-
-  @supports (height: 100svh) {
-    body.has-karbosh-game {
-      --karbosh-mobile-height: min(var(--karbosh-visible-height, 100svh), 100svh);
-    }
   }
 
   body.has-karbosh-game .sidebar,
@@ -1815,6 +1808,9 @@ input {
   }
 
   body.has-karbosh-game .page-shell {
+    position: fixed;
+    top: var(--karbosh-viewport-top, 0);
+    left: 0;
     width: 100vw;
     max-width: 100vw;
     min-height: var(--karbosh-mobile-height);
@@ -1837,7 +1833,7 @@ input {
     padding:
       var(--karbosh-mobile-edge)
       var(--karbosh-mobile-edge)
-      calc(var(--karbosh-mobile-edge) + var(--karbosh-mobile-bottom-reserve));
+      max(var(--karbosh-mobile-edge), env(safe-area-inset-bottom));
     overflow: hidden;
   }
 
@@ -1847,7 +1843,7 @@ input {
 
   body.has-karbosh-game .table-panel {
     display: grid;
-    grid-template-rows: auto auto auto minmax(8.5rem, 1fr) auto auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     gap: 0.3rem;
     overflow: hidden;
     border: 0;
@@ -2310,11 +2306,10 @@ input {
 @media screen and (max-height: 560px) {
   body.has-karbosh-game {
     --karbosh-mobile-edge: 0.22rem;
-    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 1.25rem);
   }
 
   body.has-karbosh-game .table-panel {
-    grid-template-rows: auto auto minmax(5.2rem, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     gap: 0.18rem;
   }
 
@@ -2498,7 +2493,6 @@ input {
 @media screen and (orientation: landscape) and (max-height: 560px) {
   body.has-karbosh-game {
     --karbosh-mobile-edge: 0.24rem;
-    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 0.45rem);
   }
 
   body.has-karbosh-game .section-inner {

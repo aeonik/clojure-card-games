@@ -50,7 +50,7 @@
         height (if visual-viewport
                  (.-height visual-viewport)
                  (.-innerHeight js/window))
-        height (js/Math.max 320 (js/Math.floor height))
+        height (js/Math.floor height)
         offset-top (if visual-viewport
                      (.-offsetTop visual-viewport)
                      0)
@@ -60,6 +60,8 @@
                        (- (.-innerHeight js/window) height offset-top)))]
     (.. js/document -documentElement -style
         (setProperty "--karbosh-visible-height" (str height "px")))
+    (.. js/document -documentElement -style
+        (setProperty "--karbosh-viewport-top" (str (js/Math.floor offset-top) "px")))
     (.. js/document -documentElement -style
         (setProperty "--karbosh-browser-bottom-inset" (str bottom-inset "px")))))
 
