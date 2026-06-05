@@ -650,6 +650,11 @@ body:not(.has-karbosh-game) .meta-grid,
   --seat-team-color: var(--team-2);
 }
 
+.seat-copy {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .player-seat strong,
 .player-seat small {
   display: block;
