@@ -1000,6 +1000,10 @@ h2 {
   grid-column: 3;
 }
 
+.table-fill-bots-button {
+  display: none;
+}
+
 .auto-play-button,
 .visibility-button,
 .leave-room-button {
@@ -1784,7 +1788,8 @@ input {
 @media screen and (max-width: 680px) {
   body.has-karbosh-game {
     --karbosh-mobile-edge: 0.35rem;
-    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 3rem);
+    --karbosh-mobile-height: var(--karbosh-visible-height, 100dvh);
+    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 0.85rem);
     overflow: hidden;
   }
 
@@ -1797,8 +1802,8 @@ input {
   }
 
   body.has-karbosh-game .page-shell {
-    min-height: 100dvh;
-    height: 100dvh;
+    min-height: var(--karbosh-mobile-height);
+    height: var(--karbosh-mobile-height);
     overflow: hidden;
   }
 
@@ -1838,8 +1843,8 @@ input {
 
   body.has-karbosh-game .panel-heading {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.35rem;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.3rem;
     align-items: center;
     border-bottom: 0;
     margin: 0;
@@ -1867,6 +1872,20 @@ input {
     line-height: 1.15;
     text-align: right;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .table-fill-bots-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.65rem;
+    min-width: 0;
+    border-color: rgba(111, 208, 199, 0.56);
+    background: rgba(111, 208, 199, 0.08);
+    padding: 0 0.42rem;
+    font-size: 0.48rem;
+    letter-spacing: 0.05em;
     white-space: nowrap;
   }
 

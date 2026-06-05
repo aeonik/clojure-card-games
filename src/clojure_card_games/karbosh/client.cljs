@@ -41,8 +41,41 @@
 (defn text! [node content]
   (set! (.-textContent node) content))
 
+(defonce viewport-update-frame (atom nil))
+(defonce viewport-listeners-bound? (atom false))
+
+(defn update-mobile-viewport! []
+  (let [visual-viewport (.-visualViewport js/window)
+        height (if visual-viewport
+                 (.-height visual-viewport)
+                 (.-innerHeight js/window))
+        height (js/Math.max 320 (js/Math.floor height))]
+    (.. js/document -documentElement -style
+        (setProperty "--karbosh-visible-height" (str height "px")))))
+
+(defn schedule-mobile-viewport-update! []
+  (when-not @viewport-update-frame
+    (reset! viewport-update-frame
+            (.requestAnimationFrame
+             js/window
+             (fn []
+               (reset! viewport-update-frame nil)
+               (update-mobile-viewport!))))))
+
+(defn bind-mobile-viewport! []
+  (when-not @viewport-listeners-bound?
+    (reset! viewport-listeners-bound? true)
+    (update-mobile-viewport!)
+    (.addEventListener js/window "resize" schedule-mobile-viewport-update!)
+    (.addEventListener js/window "orientationchange" schedule-mobile-viewport-update!)
+    (when-let [visual-viewport (.-visualViewport js/window)]
+      (.addEventListener visual-viewport "resize" schedule-mobile-viewport-update!)
+      (.addEventListener visual-viewport "scroll" schedule-mobile-viewport-update!))))
+
 (defn active-game-layout! [active?]
-  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?))
+  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?)
+  (when active?
+    (schedule-mobile-viewport-update!)))
 
 (defn kw-name [x]
   (when x (name x)))
@@ -645,7 +678,11 @@
                   [:h1 "Room " room-id]
                   [:p {:class "status-line"}
                    (phase-label (:phase view)) " / Current: "
-                   (player-label view (:current-player view))]]
+                   (player-label view (:current-player view))]
+                  [:button {:class "table-fill-bots-button"
+                            :type "button"
+                            :data-fill-bots true}
+                   "Fill Bots"]]
                  [:section {:class "score-summary" :aria-label "Total scores"}
                   [:span {:class "score-summary-label"} "Total scores"]
                   [:div {:class "score-row"}
@@ -904,6 +941,9 @@
                            (.hasAttribute target "data-auto-play")
                            (auto-play!)
 
+                           (.hasAttribute target "data-fill-bots")
+                           (fill-bots!)
+
                            (.hasAttribute target "data-leave-room")
                            (leave-room!)
 
@@ -1003,6 +1043,7 @@
   (let [stored-name (.getItem js/localStorage "karbosh-name")]
     (when stored-name
       (set! (.-value (el "player-name")) stored-name)))
+  (bind-mobile-viewport!)
   (bind-controls!)
   (render-status!)
   (render-game!)
