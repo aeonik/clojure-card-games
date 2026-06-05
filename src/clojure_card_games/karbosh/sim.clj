@@ -142,13 +142,18 @@
      :karbosh-attempts (get bid-frequencies :karbosh 0)
      :double-karbosh-attempts (get bid-frequencies :double-karbosh 0)}))
 
-(defn run-games
-  ([n] (run-games n default-options))
-  ([n options]
+(defn run-games-for-seeds
+  ([seeds] (run-games-for-seeds seeds default-options))
+  ([seeds options]
    (mapv (fn [seed]
            (let [state (run-game seed options)]
              (assoc (summarize-game state) :seed seed)))
-         (range n))))
+         seeds)))
+
+(defn run-games
+  ([n] (run-games n default-options))
+  ([n options]
+   (run-games-for-seeds (range n) options)))
 
 (defn aggregate [results]
   (let [outcomes (mapcat :bid-outcomes results)]
@@ -159,6 +164,19 @@
      :bid-results (summarize-outcomes outcomes)
      :karbosh-attempts (count (filter #(= :karbosh (:bid-key %)) outcomes))
      :double-karbosh-attempts (count (filter #(= :double-karbosh (:bid-key %)) outcomes))}))
+
+(defn evaluate-bid-configs
+  "Run named bid configs against the same seeds so tuning comparisons are
+  driven by policy differences, not different shuffled hands."
+  ([configs seeds] (evaluate-bid-configs configs seeds default-options))
+  ([configs seeds options]
+   (mapv (fn [[label bid-config]]
+           (assoc (aggregate
+                    (run-games-for-seeds seeds
+                                         (assoc options :bid-config bid-config)))
+                  :label label
+                  :bid-config bid-config))
+         configs)))
 
 (defn -main [& args]
   (let [n (if-let [arg (first args)]
