@@ -225,6 +225,25 @@ h2 {
   padding-bottom: 0.9rem;
 }
 
+.table-panel > .panel-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 1rem;
+  align-items: center;
+}
+
+.table-panel > .panel-heading .eyebrow,
+.table-panel > .panel-heading h1,
+.table-panel > .panel-heading .status-line {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.table-panel > .panel-heading h1,
+.table-panel > .panel-heading .status-line {
+  margin-bottom: 0;
+}
+
 .score-summary {
   display: grid;
   gap: 0.45rem;
@@ -1075,6 +1094,49 @@ h2 {
 .table-room-actions,
 .table-fill-bots-button {
   display: none;
+}
+
+body.has-karbosh-game .controls {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+body.has-karbosh-game .controls > .room-visibility-control,
+body.has-karbosh-game .controls > .leave-room-control {
+  display: none;
+}
+
+body.has-karbosh-game .auto-play-control {
+  grid-column: 2;
+}
+
+body.has-karbosh-game .table-top-actions,
+body.has-karbosh-game .table-room-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+body.has-karbosh-game .table-top-actions {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  justify-content: flex-end;
+  align-self: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+body.has-karbosh-game .table-room-actions {
+  gap: 0.5rem;
+}
+
+body.has-karbosh-game .table-fill-bots-button,
+body.has-karbosh-game .table-top-actions .visibility-button,
+body.has-karbosh-game .table-top-actions .leave-room-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.15rem;
+  white-space: nowrap;
 }
 
 .auto-play-button,

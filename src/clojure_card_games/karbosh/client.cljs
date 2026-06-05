@@ -706,9 +706,7 @@
             [(bid-controls view active? paused? pending-auto?)
              (trump-controls view active? paused? pending-auto?)
              (auto-play-controls view active? paused? pending-auto?)
-             (next-hand-controls view)
-             (room-visibility-controls view)
-             (leave-room-controls)])))
+             (next-hand-controls view)])))
 
 (defn render-trump-picker! []
   (when-not (:join-modal @app)
