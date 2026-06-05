@@ -1851,7 +1851,7 @@ input {
 
   body.has-karbosh-game .table-panel {
     display: grid;
-    grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     gap: 0.3rem;
     overflow: hidden;
     border: 0;
@@ -2029,7 +2029,7 @@ input {
   }
 
   body.has-karbosh-game .table-surface {
-    order: 6;
+    order: 4;
     min-height: 0;
     height: 100%;
     margin: 0;
@@ -2104,7 +2104,7 @@ input {
   }
 
   body.has-karbosh-game .controls {
-    order: 5;
+    order: 6;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.28rem;
     align-items: stretch;
@@ -2181,7 +2181,7 @@ input {
   }
 
   body.has-karbosh-game .hand-panel {
-    order: 4;
+    order: 5;
     min-height: 0;
     border-top: 0;
     margin: 0;
@@ -2319,7 +2319,7 @@ input {
   }
 
   body.has-karbosh-game .table-panel {
-    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     gap: 0.18rem;
   }
 
@@ -2474,10 +2474,10 @@ input {
   }
 
   body.has-karbosh-game .card-button {
-    flex-basis: 1.9rem;
-    width: 1.9rem;
-    min-width: 1.9rem;
-    height: 2.42rem;
+    flex-basis: 1.72rem;
+    width: 1.72rem;
+    min-width: 1.72rem;
+    height: 2.58rem;
     font-size: 0.72rem;
   }
 
@@ -2510,7 +2510,7 @@ input {
   }
 
   body.has-karbosh-game .table-panel {
-    grid-template-columns: minmax(0, 1fr) clamp(14rem, 36vw, 19rem);
+    grid-template-columns: minmax(0, 1fr) clamp(10.5rem, 29vw, 14rem);
     grid-template-rows: auto auto minmax(0, 1fr);
     grid-template-areas:
       "heading heading"
@@ -2534,8 +2534,9 @@ input {
   body.has-karbosh-game .play-controls-panel {
     display: grid;
     grid-area: side;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.28rem;
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: 0.22rem;
     min-width: 0;
     min-height: 0;
     height: 100%;
@@ -2550,8 +2551,8 @@ input {
   body.has-karbosh-game .hand-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-rows: 2.55rem;
-    gap: 0.2rem;
+    grid-auto-rows: clamp(2.35rem, 19vh, 2.85rem);
+    gap: 0.16rem;
     overflow-x: hidden;
     overflow-y: auto;
     padding: 0;
@@ -2560,7 +2561,7 @@ input {
   body.has-karbosh-game .card-button {
     width: 100%;
     min-width: 0;
-    height: 2.55rem;
+    height: clamp(2.35rem, 19vh, 2.85rem);
     font-size: 0.72rem;
   }
 
@@ -2573,11 +2574,11 @@ input {
 
   body.has-karbosh-game .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.2rem;
+    gap: 0.16rem;
   }
 
   body.has-karbosh-game .controls button {
-    min-height: 1.55rem;
+    min-height: 1.38rem;
     font-size: 0.45rem;
   }
 
