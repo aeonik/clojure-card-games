@@ -1120,7 +1120,8 @@ button:disabled {
   border-radius: 8px;
   background: #f8f5ed;
   box-shadow: 0 0.25rem 0.65rem rgba(8, 12, 26, 0.18);
-  font-size: 2rem;
+  font-size: 3rem;
+  letter-spacing: 0;
   line-height: 1;
   padding: 0;
   text-transform: none;
@@ -1851,7 +1852,7 @@ input {
 
   body.has-karbosh-game .table-panel {
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     gap: 0.3rem;
     overflow: hidden;
     border: 0;
@@ -1963,64 +1964,7 @@ input {
   }
 
   body.has-karbosh-game .table-status {
-    order: 3;
-    display: grid;
-    grid-template-columns: minmax(5.8rem, auto) minmax(0, 1fr);
-    gap: 0.35rem;
-    min-height: 0;
-    margin: 0;
-    padding: 0.35rem;
-  }
-
-  body.has-karbosh-game .turn-summary {
-    width: auto;
-    padding: 0.28rem 0.45rem;
-  }
-
-  body.has-karbosh-game .turn-summary span,
-  body.has-karbosh-game .bid-trail > span {
-    font-size: 0.48rem;
-    letter-spacing: 0.08em;
-  }
-
-  body.has-karbosh-game .turn-summary strong {
-    overflow: hidden;
-    font-size: 0.72rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  body.has-karbosh-game .bid-trail {
-    min-width: 0;
-  }
-
-  body.has-karbosh-game .bid-trail > span {
-    margin: 0 0 0.22rem;
-  }
-
-  body.has-karbosh-game .bid-log {
-    flex-wrap: nowrap;
-    gap: 0.22rem;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  body.has-karbosh-game .bid-log::-webkit-scrollbar {
     display: none;
-  }
-
-  body.has-karbosh-game .bid-log li {
-    flex: 0 0 auto;
-    padding: 0.16rem 0.3rem;
-  }
-
-  body.has-karbosh-game .bid-log span {
-    font-size: 0.48rem;
-    letter-spacing: 0.04em;
-  }
-
-  body.has-karbosh-game .bid-log strong {
-    font-size: 0.62rem;
   }
 
   .table-surface {
@@ -2029,7 +1973,7 @@ input {
   }
 
   body.has-karbosh-game .table-surface {
-    order: 4;
+    order: 3;
     min-height: 0;
     height: 100%;
     margin: 0;
@@ -2136,7 +2080,7 @@ input {
 
   body.has-karbosh-game .trump-button {
     min-height: 2.15rem;
-    font-size: 1.35rem;
+    font-size: 2.65rem;
   }
 
   body.has-karbosh-game .auto-play-control {
@@ -2241,7 +2185,11 @@ input {
   }
 
   .player-seat {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    justify-items: center;
+    gap: 0.16rem;
     width: clamp(4.9rem, 22vw, 6rem);
     min-height: 2.35rem;
     padding: 0.38rem 0.45rem;
@@ -2257,10 +2205,21 @@ input {
   }
 
   .player-seat small,
-  .player-seat .bid-chip,
   .player-seat .seat-hand-backs,
   .player-seat .turn-badge {
     display: none;
+  }
+
+  .player-seat .bid-chip {
+    display: inline-flex;
+    margin-top: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0.13rem 0.3rem;
+    font-size: 0.48rem;
+    letter-spacing: 0.05em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .player-seat.is-current {
@@ -2319,7 +2278,7 @@ input {
   }
 
   body.has-karbosh-game .table-panel {
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     gap: 0.18rem;
   }
 
@@ -2349,41 +2308,6 @@ input {
 
   body.has-karbosh-game .score-summary {
     display: none;
-  }
-
-  body.has-karbosh-game .table-status {
-    grid-template-columns: minmax(4.7rem, auto) minmax(0, 1fr);
-    gap: 0.24rem;
-    padding: 0.22rem;
-  }
-
-  body.has-karbosh-game .turn-summary {
-    padding: 0.18rem 0.32rem;
-  }
-
-  body.has-karbosh-game .turn-summary span,
-  body.has-karbosh-game .bid-trail > span {
-    font-size: 0.43rem;
-  }
-
-  body.has-karbosh-game .turn-summary strong {
-    font-size: 0.62rem;
-  }
-
-  body.has-karbosh-game .bid-log {
-    gap: 0.16rem;
-  }
-
-  body.has-karbosh-game .bid-log li {
-    padding: 0.1rem 0.22rem;
-  }
-
-  body.has-karbosh-game .bid-log span {
-    font-size: 0.42rem;
-  }
-
-  body.has-karbosh-game .bid-log strong {
-    font-size: 0.55rem;
   }
 
   body.has-karbosh-game .felt-oval {
@@ -2438,6 +2362,12 @@ input {
 
   body.has-karbosh-game .player-seat strong {
     font-size: 0.62rem;
+  }
+
+  body.has-karbosh-game .player-seat .bid-chip {
+    padding: 0.08rem 0.22rem;
+    font-size: 0.39rem;
+    letter-spacing: 0.04em;
   }
 
   body.has-karbosh-game .player-seat.player-player1 {
@@ -2496,7 +2426,7 @@ input {
 
   body.has-karbosh-game .trump-button {
     min-height: 1.7rem;
-    font-size: 1rem;
+    font-size: 2rem;
   }
 }
 
@@ -2511,20 +2441,15 @@ input {
 
   body.has-karbosh-game .table-panel {
     grid-template-columns: minmax(0, 1fr) clamp(10.5rem, 29vw, 14rem);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "heading heading"
-      "status side"
       "surface side";
     gap: 0.22rem 0.38rem;
   }
 
   body.has-karbosh-game .panel-heading {
     grid-area: heading;
-  }
-
-  body.has-karbosh-game .table-status {
-    grid-area: status;
   }
 
   body.has-karbosh-game .table-surface {
@@ -2588,11 +2513,7 @@ input {
 
   body.has-karbosh-game .trump-button {
     min-height: 2rem;
-    font-size: 1.15rem;
-  }
-
-  body.has-karbosh-game .table-status {
-    grid-template-columns: minmax(4.7rem, auto) minmax(0, 1fr);
+    font-size: 2.3rem;
   }
 
   body.has-karbosh-game .table-center {
