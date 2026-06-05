@@ -2498,11 +2498,15 @@ input {
   }
 
   .player-seat .dealer-chip {
-    top: 0.22rem;
-    left: 0.22rem;
-    width: 0.92rem;
-    height: 0.92rem;
-    font-size: 0.48rem;
+    top: 0.24rem;
+    left: 0.24rem;
+    width: 0.48rem;
+    height: 0.48rem;
+    border-width: 0;
+    font-size: 0;
+    box-shadow:
+      0 0.12rem 0.3rem rgba(8, 12, 26, 0.34),
+      0 0 0 2px rgba(230, 189, 90, 0.18);
   }
 
   .player-seat strong {
@@ -2676,13 +2680,15 @@ input {
   }
 
   body.has-karbosh-game .player-seat .dealer-chip {
-    top: 0.12rem;
-    left: 0.12rem;
-    width: 0.72rem;
-    height: 0.72rem;
+    top: 0.14rem;
+    left: 0.14rem;
+    width: 0.42rem;
+    height: 0.42rem;
     border-width: 0;
-    font-size: 0.38rem;
-    box-shadow: 0 0.12rem 0.3rem rgba(8, 12, 26, 0.28);
+    font-size: 0;
+    box-shadow:
+      0 0.1rem 0.24rem rgba(8, 12, 26, 0.28),
+      0 0 0 2px rgba(230, 189, 90, 0.16);
   }
 
   body.has-karbosh-game .player-seat strong {
