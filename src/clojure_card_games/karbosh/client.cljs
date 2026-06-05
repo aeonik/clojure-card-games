@@ -130,8 +130,12 @@
     (if (js/isNaN n) fallback n)))
 
 (defn fit-seat-name-node! [node]
-  (let [style (.-style node)]
+  (let [style (.-style node)
+        previous-overflow (.-overflow style)
+        previous-text-overflow (.-textOverflow style)]
     (set! (.-fontSize style) "")
+    (set! (.-overflow style) "visible")
+    (set! (.-textOverflow style) "clip")
     (let [computed (js/getComputedStyle node)
           max-size (js/parseFloat (.-fontSize computed))
           min-size (fit-number-attr node "data-fit-min" 4.5)]
@@ -140,10 +144,12 @@
         (loop [size max-size]
           (when (and (> (.-scrollWidth node) (inc (.-clientWidth node)))
                      (> size min-size))
-            (let [next-size (max min-size (- size 0.5))]
+            (let [next-size (max min-size (- size 0.25))]
               (set! (.-fontSize style) (str next-size "px"))
               (when (< min-size size)
-                (recur next-size)))))))))
+                (recur next-size))))))
+      (set! (.-overflow style) previous-overflow)
+      (set! (.-textOverflow style) previous-text-overflow))))
 
 (defn fit-seat-names! []
   (let [nodes (.querySelectorAll js/document ".seat-name")]
