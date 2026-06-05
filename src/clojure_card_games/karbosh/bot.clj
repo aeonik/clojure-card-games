@@ -80,6 +80,31 @@
   (let [hand (get-in game [:players player :hand])]
     (rules/legal-cards hand (:current-trick game) (:trump game))))
 
+(defn completed-trick-cards [game]
+  (mapcat (fn [trick]
+            (map :card trick))
+          (:completed-tricks game)))
+
+(defn current-trick-cards [game]
+  (map :card (:current-trick game)))
+
+(defn public-played-cards [game]
+  (concat (completed-trick-cards game)
+          (current-trick-cards game)))
+
+(defn seen-cards [game player]
+  (concat (get-in game [:players player :hand])
+          (public-played-cards game)))
+
+(defn unseen-cards [game player]
+  (reduce (fn [deck card]
+            (game/remove-first card deck))
+          (cards/deck)
+          (seen-cards game player)))
+
+(defn unseen-card-counts [game player]
+  (frequencies (unseen-cards game player)))
+
 (defn card-score [game card]
   (let [lead (or (some-> (:current-trick game) first :card
                          (rules/effective-suit (:trump game)))
@@ -99,6 +124,35 @@
                                        {:player player :card card})
                                  (:trump game))))
 
+(defn can-be-beaten-by? [game unseen-counts card lead]
+  (let [trump (:trump game)
+        value (rules/card-value card trump lead)]
+    (some (fn [[hidden-card n]]
+            (and (pos? n)
+                 (> (rules/card-value hidden-card trump lead) value)))
+          unseen-counts)))
+
+(defn can-be-beaten? [game player card lead]
+  (can-be-beaten-by? game (unseen-card-counts game player) card lead))
+
+(defn good-card-with-counts? [game unseen-counts card]
+  (let [lead (or (rules/trick-lead (:current-trick game) (:trump game))
+                 (rules/effective-suit card (:trump game)))]
+    (not (can-be-beaten-by? game unseen-counts card lead))))
+
+(defn good-card? [game player card]
+  (good-card-with-counts? game (unseen-card-counts game player) card))
+
+(defn secure-winning-card-with-counts? [game player unseen-counts card]
+  (and (wins-trick? game player card)
+       (good-card-with-counts? game unseen-counts card)))
+
+(defn secure-winning-card? [game player card]
+  (secure-winning-card-with-counts? game
+                                    player
+                                    (unseen-card-counts game player)
+                                    card))
+
 (defn lowest-card [game cards]
   (first (sort-by #(card-score game %) cards)))
 
@@ -108,16 +162,29 @@
 (defn card-action [game player]
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
+        unseen-counts (unseen-card-counts game player)
         winning-cards (filter #(wins-trick? game player %) cards)
+        good-cards (filter #(good-card-with-counts? game unseen-counts %) cards)
+        secure-winning-cards (filter #(secure-winning-card-with-counts?
+                                        game
+                                        player
+                                        unseen-counts
+                                        %)
+                                     winning-cards)
         card (cond
                (empty? cards)
                nil
 
                (empty? (:current-trick game))
-               (highest-card game cards)
+               (if (seq good-cards)
+                 (lowest-card game good-cards)
+                 (highest-card game cards))
 
                (same-team? game player winner)
                (lowest-card game cards)
+
+               (seq secure-winning-cards)
+               (lowest-card game secure-winning-cards)
 
                (seq winning-cards)
                (lowest-card game winning-cards)

@@ -80,6 +80,42 @@
              (bot/bid-action game :player3))))))
 
 (deftest card-policy-test
+  (testing "bots count own cards and public played cards as seen"
+    (let [game {:players {:player1 {:team 1
+                                    :hand [[:A :♥]]}}
+                :completed-tricks [[{:player :player2 :card [:A :♥]}]]
+                :current-trick [{:player :player3 :card [:K :♥]}]}]
+      (is (= 0 (get (bot/unseen-card-counts game :player1) [:A :♥] 0)))
+      (is (= 1 (get (bot/unseen-card-counts game :player1) [:K :♥] 0)))))
+
+  (testing "bots know when a trump card is good"
+    (let [game {:players {:player1 {:team 1
+                                    :hand [[:A :♠]]}}
+                :trump :♠
+                :completed-tricks [[{:player :player2 :card [:J :♠]}
+                                    {:player :player3 :card [:J :♠]}]
+                                   [{:player :player4 :card [:J :♣]}
+                                    {:player :player5 :card [:J :♣]}]]
+                :current-trick []}]
+      (is (true? (bot/good-card? game :player1 [:A :♠])))
+      (is (false? (bot/good-card?
+                    (update game :completed-tricks pop)
+                    :player1
+                    [:A :♠])))))
+
+  (testing "when leading, a bot uses the lowest guaranteed winner"
+    (let [game {:players {:player1 {:team 1
+                                    :hand [[:A :♠] [:K :♠]]}}
+                :trump :♠
+                :completed-tricks [[{:player :player2 :card [:J :♠]}
+                                    {:player :player3 :card [:J :♠]}]
+                                   [{:player :player4 :card [:J :♣]}
+                                    {:player :player5 :card [:J :♣]}]
+                                   [{:player :player6 :card [:A :♠]}]]
+                :current-trick []}]
+      (is (= {:type :play-card :card [:K :♠]}
+             (bot/card-action game :player1)))))
+
   (testing "when a bot cannot win, it dumps the smallest legal card"
     (let [game {:players {:player3 {:team 1}
                           :player4 {:team 2
@@ -89,13 +125,31 @@
       (is (= {:type :play-card :card [9 :♦]}
              (bot/card-action game :player4)))))
 
-  (testing "when a bot can win, it uses the smallest winning card"
+  (testing "when the cheap winner is vulnerable, a bot secures the trick"
     (let [game {:players {:player1 {:team 1}
                           :player2 {:team 2
-                                    :hand [[:A :♥] [:K :♥] [9 :♣]]}}
+                                    :hand [[:A :♠] [:K :♠] [9 :♣]]}}
                 :trump :♠
-                :current-trick [{:player :player1 :card [:Q :♥]}]}]
-      (is (= {:type :play-card :card [:K :♥]}
+                :completed-tricks [[{:player :player3 :card [:J :♠]}
+                                    {:player :player4 :card [:J :♠]}]
+                                   [{:player :player5 :card [:J :♣]}
+                                    {:player :player6 :card [:J :♣]}]]
+                :current-trick [{:player :player1 :card [:Q :♠]}]}]
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player2)))))
+
+  (testing "when the smallest winner is secure, a bot still uses it"
+    (let [game {:players {:player1 {:team 1}
+                          :player2 {:team 2
+                                    :hand [[:A :♠] [:K :♠] [9 :♣]]}}
+                :trump :♠
+                :completed-tricks [[{:player :player3 :card [:J :♠]}
+                                    {:player :player4 :card [:J :♠]}]
+                                   [{:player :player5 :card [:J :♣]}
+                                    {:player :player6 :card [:J :♣]}]
+                                   [{:player :player3 :card [:A :♠]}]]
+                :current-trick [{:player :player1 :card [:Q :♠]}]}]
+      (is (= {:type :play-card :card [:K :♠]}
              (bot/card-action game :player2)))))
 
   (testing "when a partner is winning, a bot dumps low instead of overtaking"
