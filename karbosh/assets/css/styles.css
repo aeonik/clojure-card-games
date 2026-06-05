@@ -917,7 +917,10 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .bot-persona-close {
-  align-self: start;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 1.65rem;
   height: 1.65rem;
   min-height: 0;
@@ -933,6 +936,9 @@ body:not(.has-karbosh-game) .meta-grid,
 
 .seat-kick-button {
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
   border: 1px solid rgba(231, 101, 101, 0.55);
   border-radius: 999px;
