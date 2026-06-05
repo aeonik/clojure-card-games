@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.bot
-  (:require [clojure-card-games.karbosh.shared.cards :as cards]
+  (:require [clojure-card-games.karbosh.analysis :as analysis]
+            [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]))
 
@@ -81,29 +82,25 @@
     (rules/legal-cards hand (:current-trick game) (:trump game))))
 
 (defn completed-trick-cards [game]
-  (mapcat (fn [trick]
-            (map :card trick))
-          (:completed-tricks game)))
+  (analysis/completed-trick-cards game))
 
 (defn current-trick-cards [game]
-  (map :card (:current-trick game)))
+  (analysis/current-trick-cards game))
 
 (defn public-played-cards [game]
-  (concat (completed-trick-cards game)
-          (current-trick-cards game)))
+  (analysis/public-played-cards game))
 
 (defn seen-cards [game player]
-  (concat (get-in game [:players player :hand])
-          (public-played-cards game)))
+  (analysis/seen-cards game player))
 
 (defn unseen-cards [game player]
-  (reduce (fn [deck card]
-            (game/remove-first card deck))
-          (cards/deck)
-          (seen-cards game player)))
+  (analysis/unseen-cards game player))
 
 (defn unseen-card-counts [game player]
-  (frequencies (unseen-cards game player)))
+  (analysis/unseen-card-counts game player))
+
+(defn hypergeom-analysis [game player]
+  (analysis/player-analysis game player))
 
 (defn card-score [game card]
   (let [lead (or (some-> (:current-trick game) first :card

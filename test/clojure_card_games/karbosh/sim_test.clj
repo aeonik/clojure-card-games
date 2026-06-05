@@ -25,3 +25,12 @@
         results (sim/evaluate-bid-configs configs [1 2] {:max-hands 1})]
     (is (= [:default :no-sixes] (mapv :label results)))
     (is (= [2 2] (mapv :games results)))))
+
+(deftest analysis-collection-test
+  (let [state (sim/run-game 1 {:max-hands 1
+                               :collect-analysis? true})
+        snapshots (:sim/analysis state)]
+    (is (seq snapshots))
+    (is (= (count snapshots)
+           (:analysis-snapshots (sim/summarize-game state))))
+    (is (every? #(contains? (:analysis %) :unseen-count) snapshots))))

@@ -7,6 +7,7 @@
   {:max-hands 100
    :min-score -100
    :max-events-per-hand 256
+   :collect-analysis? false
    :bid-config bot/default-bid-config})
 
 (defn min-score-reached? [state min-score]
@@ -44,15 +45,33 @@
     :hand-complete {:type :new-hand}
     (bot-event state)))
 
-(defn advance [state]
-  (if-let [event (advance-event state)]
-    (game/apply-event state
-                      (if (:player event)
-                        event
-                        (cond-> event
-                          (playable-phase? state)
-                          (assoc :player (:current-player state)))))
-    state))
+(defn playable-event [state event]
+  (if (:player event)
+    event
+    (cond-> event
+      (playable-phase? state)
+      (assoc :player (:current-player state)))))
+
+(defn analysis-snapshot [state event]
+  (when (and (playable-phase? state)
+             (:player event))
+    {:hand-index (:hand-index state)
+     :phase (:phase state)
+     :player (:player event)
+     :event event
+     :analysis (bot/hypergeom-analysis state (:player event))}))
+
+(defn advance
+  ([state] (advance state default-options))
+  ([state options]
+   (if-let [event (advance-event state)]
+     (let [event (playable-event state event)
+           snapshot (when (:collect-analysis? options)
+                      (analysis-snapshot state event))]
+       (cond-> (game/apply-event state event)
+         snapshot
+         (update :sim/analysis (fnil conj []) snapshot)))
+     state)))
 
 (defn run-hand [state {:keys [max-events-per-hand] :as options}]
   (loop [state state
@@ -66,7 +85,7 @@
       (assoc state :sim/error :max-events-per-hand)
 
       :else
-      (recur (advance state) (inc events)))))
+      (recur (advance state options) (inc events)))))
 
 (defn run-game
   ([seed] (run-game seed default-options))
@@ -79,7 +98,7 @@
                           (stop-reason options state))]
            (if reason
              (assoc state :sim/stop-reason reason)
-             (recur (advance state)))))))))
+             (recur (advance state options)))))))))
 
 (defn bid-key [{:keys [bid-type value]}]
   (if bid-type
@@ -140,7 +159,8 @@
      :bid-outcomes outcomes
      :bid-results (summarize-outcomes outcomes)
      :karbosh-attempts (get bid-frequencies :karbosh 0)
-     :double-karbosh-attempts (get bid-frequencies :double-karbosh 0)}))
+     :double-karbosh-attempts (get bid-frequencies :double-karbosh 0)
+     :analysis-snapshots (count (:sim/analysis state))}))
 
 (defn run-games-for-seeds
   ([seeds] (run-games-for-seeds seeds default-options))
