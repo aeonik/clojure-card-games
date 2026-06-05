@@ -232,6 +232,7 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .table-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
 }
@@ -882,6 +883,17 @@ body:not(.has-karbosh-game) .meta-grid,
   box-shadow: 0 1rem 2.2rem rgba(8, 12, 26, 0.42);
   color: var(--white);
   padding: 0.8rem;
+}
+
+#seat-popover-root {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+}
+
+#seat-popover-root .bot-persona-popover {
+  pointer-events: auto;
 }
 
 .bot-persona-icon {
