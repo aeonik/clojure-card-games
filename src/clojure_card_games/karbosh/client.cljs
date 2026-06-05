@@ -560,7 +560,18 @@
     :karbosh-discard
     :trick-playing})
 
-(defn bid-controls [view active?]
+(defn auto-play-button [active? paused? pending?]
+  [:button {:type "button"
+            :class "auto-play-button"
+            :data-auto-play true
+            :disabled (or (not active?) paused? pending?)}
+   "Auto Play"])
+
+(defn auto-play-button-for-phase [view active? paused? pending?]
+  (when (auto-play-phases (:phase view))
+    (auto-play-button active? paused? pending?)))
+
+(defn bid-controls [view active? paused? pending?]
   (when (= :bidding (:phase view))
     (let [disabled (not active?)]
       [:div {:class "control-group"}
@@ -580,9 +591,10 @@
        [:button {:type "button"
                  :data-bid "double-karbosh"
                  :disabled disabled}
-        "Double"]])))
+        "Double"]
+       (auto-play-button-for-phase view active? paused? pending?)])))
 
-(defn trump-controls [view active?]
+(defn trump-controls [view active? paused? pending?]
   (when (= :trump-selection (:phase view))
     [:div {:class "control-group trump-control-group"}
      (for [suit cards/suits]
@@ -590,16 +602,14 @@
                  :class (str "trump-button" (suit-class suit))
                  :data-trump (pr-str suit)
                  :disabled (not active?)}
-        (cards/suit->str suit)])]))
+        (cards/suit->str suit)])
+     (auto-play-button-for-phase view active? paused? pending?)]))
 
 (defn auto-play-controls [view active? paused? pending?]
-  (when (auto-play-phases (:phase view))
+  (when (and (auto-play-phases (:phase view))
+             (not (#{:bidding :trump-selection} (:phase view))))
     [:div {:class "control-group auto-play-control"}
-     [:button {:type "button"
-               :class "auto-play-button"
-               :data-auto-play true
-               :disabled (or (not active?) paused? pending?)}
-      "Auto Play"]]))
+     (auto-play-button active? paused? pending?)]))
 
 (defn hand-title [view]
   (case (:phase view)
@@ -687,8 +697,8 @@
 (defn render-controls [view paused? pending-auto?]
   (let [active? (= (:you view) (:current-player view))]
     (filter identity
-            [(bid-controls view active?)
-             (trump-controls view active?)
+            [(bid-controls view active? paused? pending-auto?)
+             (trump-controls view active? paused? pending-auto?)
              (auto-play-controls view active? paused? pending-auto?)
              (next-hand-controls view)
              (room-visibility-controls view)
