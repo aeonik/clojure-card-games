@@ -1783,6 +1783,8 @@ input {
 
 @media screen and (max-width: 680px) {
   body.has-karbosh-game {
+    --karbosh-mobile-edge: 0.35rem;
+    --karbosh-mobile-bottom-reserve: max(env(safe-area-inset-bottom), 3rem);
     overflow: hidden;
   }
 
@@ -1811,7 +1813,10 @@ input {
 
   body.has-karbosh-game .section-inner {
     width: 100%;
-    padding: 0.35rem;
+    padding:
+      var(--karbosh-mobile-edge)
+      var(--karbosh-mobile-edge)
+      calc(var(--karbosh-mobile-edge) + var(--karbosh-mobile-bottom-reserve));
     overflow: hidden;
   }
 
@@ -1821,8 +1826,8 @@ input {
 
   body.has-karbosh-game .table-panel {
     display: grid;
-    grid-template-rows: auto auto auto minmax(10rem, 1fr) auto auto;
-    gap: 0.35rem;
+    grid-template-rows: auto auto auto minmax(8.5rem, 1fr) auto auto;
+    gap: 0.3rem;
     overflow: hidden;
     border: 0;
     border-radius: 0;
@@ -2005,23 +2010,27 @@ input {
   body.has-karbosh-game .table-hand-status {
     top: 0.35rem;
     display: grid;
-    grid-template-columns: repeat(3, max-content);
-    gap: 0.2rem 0.45rem;
-    width: auto;
+    grid-template-columns: repeat(4, max-content);
+    gap: 0.2rem 0.4rem;
+    justify-content: center;
+    width: calc(100% - 0.7rem);
     max-width: calc(100% - 0.7rem);
   }
 
   body.has-karbosh-game .table-hand-status > div {
     gap: 0.22rem;
+    white-space: nowrap;
   }
 
   body.has-karbosh-game .table-hand-status span {
     font-size: 0.46rem;
     letter-spacing: 0.05em;
+    white-space: nowrap;
   }
 
   body.has-karbosh-game .table-hand-status strong {
     font-size: 0.78rem;
+    white-space: nowrap;
   }
 
   body.has-karbosh-game .trump-symbol {
