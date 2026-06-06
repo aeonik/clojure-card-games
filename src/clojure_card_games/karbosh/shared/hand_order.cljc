@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.shared.hand-order
-  (:require [clojure-card-games.karbosh.shared.rules :as rules]))
+  (:require [clojure-card-games.karbosh.shared.cards :as cards]
+            [clojure-card-games.karbosh.shared.rules :as rules]))
 
 (defn remove-first-card [card hand]
   (let [[before after] (split-with #(not= card %) hand)]
@@ -126,10 +127,7 @@
          (sort-by #(- (suit-strength trump hand %)))
          alternating-suits)))
 
-(defn sorted-hand
-  "Sort a hand by strongest effective suit, alternating suit colors where
-  possible, and descending card strength within each suit."
-  [hand trump]
+(defn known-trump-sorted-hand [hand trump]
   (let [hand (vec (or hand []))
         grouped (group-by #(card-effective-suit trump %) hand)]
     (->> (sorted-suits hand trump)
@@ -137,3 +135,56 @@
                    (sort-by #(- (suit-card-value trump suit %))
                             (get grouped suit))))
          vec)))
+
+(def suit-index
+  (zipmap cards/suits (range)))
+
+(defn remove-cards [hand cards]
+  (reduce (fn [remaining card]
+            (remove-first-card card remaining))
+          (vec hand)
+          cards))
+
+(defn potential-trump-block [hand trump]
+  (let [block (->> hand
+                   (filter #(= trump (rules/effective-suit % trump)))
+                   (sort-by #(- (rules/card-value % trump trump)))
+                   vec)
+        values (mapv #(rules/card-value % trump trump) block)]
+    {:trump trump
+     :color (suit-color trump)
+     :cards block
+     :sort-key [(reduce + values)
+                (count block)
+                values
+                (- (get suit-index trump 0))]}))
+
+(defn strongest-potential-block [hand prior-color]
+  (let [blocks (->> cards/suits
+                    (map #(potential-trump-block hand %))
+                    (filter #(seq (:cards %)))
+                    (sort-by :sort-key #(compare %2 %1)))
+        alternate-color (first (filter #(not= prior-color (:color %))
+                                       blocks))]
+    (or alternate-color (first blocks))))
+
+(defn potential-trump-sorted-hand [hand]
+  (loop [remaining (vec (or hand []))
+         prior-color nil
+         sorted []]
+    (if-let [{:keys [cards color]} (strongest-potential-block remaining prior-color)]
+      (recur (remove-cards remaining cards)
+             color
+             (into sorted cards))
+      sorted)))
+
+(defn sorted-hand
+  "Sort a hand by strongest effective suit, alternating suit colors where
+  possible, and descending card strength within each suit.
+
+  Before trump is known, repeatedly evaluate the remaining hand under every
+  possible trump and put the strongest potential trump block next."
+  [hand trump]
+  (if trump
+    (known-trump-sorted-hand hand trump)
+    (potential-trump-sorted-hand hand)))

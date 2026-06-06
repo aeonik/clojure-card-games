@@ -65,3 +65,23 @@
             [:A :♦] [:K :♦]
             [:A :♣]]
            (hand-order/sorted-hand hand :♥)))))
+
+(deftest sorted-hand-evaluates-potential-trump-before-trump-is-known-test
+  (let [hand [[:J :♥] [:J :♦] [:A :♦]
+              [:A :♠] [:K :♠]
+              [:K :♣]]]
+    (is (= [[:J :♦] [:J :♥] [:A :♦]
+            [:A :♠] [:K :♠]
+            [:K :♣]]
+           (hand-order/sorted-hand hand nil)))))
+
+(deftest sorted-hand-repeats-potential-trump-selection-test
+  (let [hand [[:J :♥] [:J :♦] [:A :♥] [:K :♥]
+              [:A :♠] [:K :♠]
+              [:A :♦]
+              [:K :♣]]]
+    (is (= [[:J :♥] [:J :♦] [:A :♥] [:K :♥]
+            [:A :♠] [:K :♠]
+            [:A :♦]
+            [:K :♣]]
+           (hand-order/sorted-hand hand nil)))))
