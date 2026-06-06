@@ -109,6 +109,7 @@
              ": \"${KARBOSH_ADMIN_PASSWORD:?KARBOSH_ADMIN_PASSWORD missing}\"; "
              "curl -fsS -u "
              "\"${KARBOSH_ADMIN_USER:-admin}:$KARBOSH_ADMIN_PASSWORD\" "
+             "--max-time 15 "
              "-X POST https://dc3systems.com/karbosh/admin/reload")))
 
 (defn smoke [_]

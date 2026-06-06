@@ -137,7 +137,7 @@ KARBOSH_MAX_WEBSOCKET_CONNECTIONS=256
 KARBOSH_IDLE_ROOM_MS=14400000
 KARBOSH_AUDIT_ENABLED=true
 KARBOSH_AUDIT_DIR=data/karbosh-audit
-KARBOSH_NREPL_ENABLED=false
+KARBOSH_NREPL_ENABLED=true
 KARBOSH_NREPL_BIND=127.0.0.1
 KARBOSH_NREPL_PORT=7888
 ```
@@ -156,8 +156,8 @@ omits live websocket connection objects.
 
 ## Production REPL
 
-nREPL is optional and must remain localhost-only. Enable it only through
-environment:
+nREPL must remain localhost-only. The production unit enables it by default so
+we have a recovery path after bad hot reloads or expensive admin queries:
 
 ```sh
 KARBOSH_NREPL_ENABLED=true
@@ -165,7 +165,9 @@ KARBOSH_NREPL_BIND=127.0.0.1
 KARBOSH_NREPL_PORT=7888
 ```
 
-The startup guard refuses non-loopback binds such as `0.0.0.0`.
+The startup guard refuses non-loopback binds such as `0.0.0.0`. If you need to
+disable the REPL for a deployment, set `KARBOSH_NREPL_ENABLED=false` in
+`~/.config/karbosh/karbosh.env`.
 
 Reach production nREPL only through an SSH tunnel:
 

@@ -6,7 +6,9 @@ After=network.target
 WorkingDirectory=%h/apps/clojure-card-games
 Environment=KARBOSH_PORT=8090
 Environment=KARBOSH_BIND=127.0.0.1
-Environment=KARBOSH_NREPL_ENABLED=false
+Environment=KARBOSH_NREPL_ENABLED=true
+Environment=KARBOSH_NREPL_BIND=127.0.0.1
+Environment=KARBOSH_NREPL_PORT=7888
 EnvironmentFile=-%h/.config/karbosh/karbosh.env
 ExecStart=/usr/local/bin/clojure -M:karbosh-server
 Restart=always
