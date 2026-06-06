@@ -289,6 +289,8 @@
           (is (re-find #"Play by Play" (:body response)))
           (is (re-find #"Trick 1" (:body response)))
           (is (re-find #"Winner: player2" (:body response)))
+          (is (re-find #"\.trick \.card" (:body response)))
+          (is (re-find #"\.compact-list \.card" (:body response)))
           (is (re-find #"Raw EDN" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))
@@ -521,6 +523,8 @@
     (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot\"" html))
     (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-stream\"" html))
     (is (re-find #"\.trick>div" html))
+    (is (re-find #"\.trick \.card" html))
+    (is (re-find #"\.compact-list \.card" html))
     (is (not (re-find #"\.trick&gt;div" html)))
     (is (re-find #">Delete</button>" html))))
 
