@@ -1250,6 +1250,10 @@ body:not(.has-karbosh-game) .meta-grid,
     opacity 130ms ease;
 }
 
+.hand-row.is-animating .card-button {
+  animation: hand-card-settle 220ms ease both;
+}
+
 .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
   grid-column: 1 / -1;
   order: 0;
@@ -1382,6 +1386,13 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   margin-bottom: 0.75rem;
 }
 
+.hand-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .hand-heading h2 {
   margin-bottom: 0;
 }
@@ -1392,6 +1403,15 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.sort-hand-button {
+  min-height: 2rem;
+  border-color: rgba(111, 208, 199, 0.45);
+  background: rgba(111, 208, 199, 0.07);
+  padding: 0 0.75rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
 }
 
 button,
@@ -1495,6 +1515,16 @@ button:disabled {
   box-shadow:
     0 0 0 3px rgba(111, 208, 199, 0.22),
     0 0.55rem 1rem rgba(8, 12, 26, 0.3);
+}
+
+@keyframes hand-card-settle {
+  from {
+    transform: translateY(-0.12rem) scale(1.015);
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+  }
 }
 
 .debug-panel {
@@ -2785,7 +2815,21 @@ input {
   }
 
   body.has-karbosh-game .hand-heading {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.1rem;
+  }
+
+  body.has-karbosh-game .hand-heading h2,
+  body.has-karbosh-game .hand-actions span {
     display: none;
+  }
+
+  body.has-karbosh-game .sort-hand-button {
+    min-height: 1.3rem;
+    padding: 0 0.52rem;
+    font-size: 0.45rem;
+    letter-spacing: 0.06em;
   }
 
   body.has-karbosh-game .hand-row {

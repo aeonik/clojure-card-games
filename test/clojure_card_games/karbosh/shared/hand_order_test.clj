@@ -37,3 +37,31 @@
            (hand-order/move-card-to [ace-heart king-spade ace-heart ace-diamond]
                                     ace-heart
                                     2)))))
+
+(deftest move-index-to-reorders-duplicate-cards-test
+  (let [ace-heart [:A :♥]
+        king-spade [:K :♠]
+        queen-club [:Q :♣]]
+    (is (= {:cards [ace-heart king-spade ace-heart queen-club]
+            :index 2}
+           (hand-order/move-index-to [ace-heart ace-heart king-spade queen-club]
+                                     0
+                                     2
+                                     true)))
+    (is (= {:cards [ace-heart queen-club ace-heart king-spade]
+            :index 1}
+           (hand-order/move-index-to [ace-heart ace-heart king-spade queen-club]
+                                     3
+                                     0
+                                     true)))))
+
+(deftest sorted-hand-uses-trump-and-alternates-suit-colors-test
+  (let [hand [[:A :♥] [:K :♥] [:J :♥] [:J :♦]
+              [:A :♦] [:K :♦]
+              [:A :♠] [:K :♠]
+              [:A :♣]]]
+    (is (= [[:J :♥] [:J :♦] [:A :♥] [:K :♥]
+            [:A :♠] [:K :♠]
+            [:A :♦] [:K :♦]
+            [:A :♣]]
+           (hand-order/sorted-hand hand :♥)))))

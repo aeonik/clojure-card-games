@@ -1,4 +1,5 @@
-(ns clojure-card-games.karbosh.shared.hand-order)
+(ns clojure-card-games.karbosh.shared.hand-order
+  (:require [clojure-card-games.karbosh.shared.rules :as rules]))
 
 (defn remove-first-card [card hand]
   (let [[before after] (split-with #(not= card %) hand)]
@@ -47,3 +48,92 @@
       (let [without-card (remove-first-card card cards)]
         (insert-at without-card index card))
       cards)))
+
+(defn valid-index? [cards index]
+  (and (integer? index)
+       (<= 0 index)
+       (< index (count cards))))
+
+(defn move-index-to
+  "Move the card at `from-index` next to `target-index`.
+
+  The result includes the moved card's new index so callers can keep tracking
+  the same physical position while drag-reordering duplicate logical cards."
+  [cards from-index target-index after?]
+  (let [cards (vec (or cards []))]
+    (if (and (valid-index? cards from-index)
+             (valid-index? cards target-index))
+      (let [card (nth cards from-index)
+            without-card (vec (concat (subvec cards 0 from-index)
+                                      (subvec cards (inc from-index))))
+            adjusted-target (if (> target-index from-index)
+                              (dec target-index)
+                              target-index)
+            insert-index (+ adjusted-target (if after? 1 0))
+            insert-index (max 0 (min insert-index (count without-card)))]
+        {:cards (insert-at without-card insert-index card)
+         :index insert-index})
+      {:cards cards
+       :index from-index})))
+
+(defn suit-color [suit]
+  (case suit
+    (:♥ :♦) :red
+    (:♠ :♣) :black
+    nil))
+
+(defn card-effective-suit [trump card]
+  (if trump
+    (rules/effective-suit card trump)
+    (second card)))
+
+(defn suit-card-value [trump suit card]
+  (if trump
+    (rules/card-value card trump suit)
+    (let [[rank card-suit] card
+          base ({:A 8 :K 7 :Q 6 :J 5 10 4 9 3} rank 0)]
+      (if (= suit card-suit) (* base 10) base))))
+
+(defn suit-strength [trump cards suit]
+  (->> cards
+       (filter #(= suit (card-effective-suit trump %)))
+       (map #(suit-card-value trump suit %))
+       (reduce +)))
+
+(defn next-suit [ordered-suits prior-color]
+  (let [opposite (first (filter #(not= prior-color (suit-color %))
+                                ordered-suits))]
+    (or opposite (first ordered-suits))))
+
+(defn alternating-suits [ordered-suits]
+  (loop [remaining (vec ordered-suits)
+         prior-color nil
+         result []]
+    (if (empty? remaining)
+      result
+      (let [suit (or (next-suit remaining prior-color)
+                     (first remaining))]
+        (recur (vec (remove #(= suit %) remaining))
+               (suit-color suit)
+               (conj result suit))))))
+
+(defn sorted-suits [hand trump]
+  (let [hand (vec (or hand []))
+        suits (->> hand
+                   (map #(card-effective-suit trump %))
+                   distinct)]
+    (->> suits
+         (sort-by #(- (suit-strength trump hand %)))
+         alternating-suits)))
+
+(defn sorted-hand
+  "Sort a hand by strongest effective suit, alternating suit colors where
+  possible, and descending card strength within each suit."
+  [hand trump]
+  (let [hand (vec (or hand []))
+        grouped (group-by #(card-effective-suit trump %) hand)]
+    (->> (sorted-suits hand trump)
+         (mapcat (fn [suit]
+                   (sort-by #(- (suit-card-value trump suit %))
+                            (get grouped suit))))
+         vec)))
