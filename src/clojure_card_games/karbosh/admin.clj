@@ -46,13 +46,22 @@
     (str (Instant/ofEpochMilli ms))
     "--"))
 
-(defn card-class [[_ suit]]
+(defn suit-class [suit]
   (case suit
     :♥ " heart"
     :♦ " diamond"
     :♠ " spade"
     :♣ " club"
     ""))
+
+(defn card-class [[_ suit]]
+  (suit-class suit))
+
+(defn suit-html [suit]
+  (if suit
+    [:span {:class (str "suit" (suit-class suit))}
+     (cards/suit->str suit)]
+    "--"))
 
 (defn card-html [card]
   [:span {:class (str "card" (card-class card))}
@@ -614,7 +623,7 @@
 (defn hand-stats-html [hand]
   [:div {:class "stats room-stats"}
    (stat-card "Bid" (bid-label (:bid hand)))
-   (stat-card "Trump" (or (some-> (:trump hand) cards/suit->str) "--"))
+   (stat-card "Trump" (suit-html (:trump hand)))
    (stat-card "Tricks" (score-label (:tricks hand)))
    (stat-card "Points" (score-label (:points hand)))
    (stat-card "Score" (score-label (:scores-after hand)))
@@ -746,7 +755,7 @@
         (stat-card "Score" (score-label (:scores view)))
         (stat-card "Current" (player-label view (:current-player view)))
         (stat-card "Bid" (bid-label (:current-bid view)))
-        (stat-card "Trump" (or (some-> (:trump view) cards/suit->str) "--"))
+        (stat-card "Trump" (suit-html (:trump view)))
         (stat-card "Tricks" (score-label (:tricks-this-hand view)))]
        [:h3 "Seats"]
        (seats-table view)
@@ -833,7 +842,7 @@
    "@media(max-width:900px){main{padding:12px}.top,.section-heading{align-items:flex-start;flex-direction:column}.admin-actions{justify-content:flex-start}.two-col{grid-template-columns:1fr}.panel table{min-width:680px}}"))
 
 (def admin-card-styles
-  ".card{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:52px;margin:0 4px 6px 0;padding:0;border:1px solid rgba(0,0,0,.24);border-radius:6px;background:#f8f5ed;color:#141821;font-size:.95rem;font-weight:800;line-height:1;letter-spacing:0;vertical-align:middle;white-space:nowrap}.card.heart,.card.diamond{color:#c62f43}.trick .card,.compact-list .card,.hands .card{display:inline-flex;width:38px;min-width:38px;height:52px;color:#141821;font-size:.95rem;font-weight:800;line-height:1}.trick .card.heart,.trick .card.diamond,.compact-list .card.heart,.compact-list .card.diamond,.hands .card.heart,.hands .card.diamond{color:#c62f43}.trick-card{width:92px;min-width:92px}.trick-card .play-player{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trick>div:not(.trick-card) .card{display:inline-flex;width:38px;min-width:38px;height:52px}")
+  ".suit{color:#f7f8ff;font-weight:900}.suit.heart,.suit.diamond{color:#ff7d8b}.card{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:52px;margin:0 4px 6px 0;padding:0;border:1px solid rgba(0,0,0,.24);border-radius:6px;background:#f8f5ed;color:#141821;font-size:.95rem;font-weight:800;line-height:1;letter-spacing:0;vertical-align:middle;white-space:nowrap}.card.heart,.card.diamond{color:#c62f43}.trick .card,.compact-list .card,.hands .card{display:inline-flex;width:38px;min-width:38px;height:52px;color:#141821;font-size:.95rem;font-weight:800;line-height:1}.trick .card.heart,.trick .card.diamond,.compact-list .card.heart,.compact-list .card.diamond,.hands .card.heart,.hands .card.diamond{color:#c62f43}.trick-card{width:92px;min-width:92px}.trick-card .play-player{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trick>div:not(.trick-card) .card{display:inline-flex;width:38px;min-width:38px;height:52px}")
 
 (defn render-dashboard [{:keys [rooms
                                 selected-room-id
