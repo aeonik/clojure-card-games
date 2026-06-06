@@ -224,6 +224,25 @@
       (is (= {:type :play-card :card [:A :♥]}
              (bot/card-action game :player1 :probability)))
       (is (= {:type :play-card :card [:A :♥]}
+             (binding [bot/*play-config* bot/classic-play-config]
+               (bot/card-action game :player1 :hybrid-threshold))))
+      (is (= {:type :play-card :card [:A :♥]}
+             (bot/card-action game :player1 :hybrid)))))
+
+  (testing "risk-adjusted fallback leads an ace over a doomed low card"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♥
+                  :active-players game/players
+                  :players {:player1 {:team 1
+                                      :hand [[:A :♦] [10 :♦]
+                                             [:Q :♣] [10 :♣]]}}
+                  :current-trick []})]
+      (is (= {:type :play-card :card [10 :♦]}
+             (bot/card-action game :player1 :probability-threshold)))
+      (is (= {:type :play-card :card [:A :♦]}
+             (bot/card-action game :player1 :probability)))
+      (is (= {:type :play-card :card [:A :♦]}
              (bot/card-action game :player1 :hybrid)))))
 
   (testing "karbosh callers lead trump before cashing off-suit aces"
@@ -306,7 +325,7 @@
       (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
-  (testing "numeric callers without low trump do not burn a lone trump ace"
+  (testing "numeric callers without low trump use a non-trump exit"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing
                   :trump :♠
@@ -322,8 +341,10 @@
                                              [9 :♣] [10 :♣]]}}
                   :current-trick []})]
       (is (= {:type :play-card :card [9 :♦]}
+             (bot/card-action game :player1 :probability-threshold)))
+      (is (= {:type :play-card :card [10 :♣]}
              (bot/card-action game :player1 :probability)))
-      (is (= {:type :play-card :card [9 :♦]}
+      (is (= {:type :play-card :card [10 :♣]}
              (bot/card-action game :player1 :hybrid)))))
 
   (testing "unsafe trump-only leads bleed low trump instead of the ace"

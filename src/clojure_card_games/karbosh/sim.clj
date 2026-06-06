@@ -10,7 +10,11 @@
    :collect-analysis? false
    :bid-strategy bot/default-bid-strategy
    :play-strategy bot/default-play-strategy
+   :play-strategy-by-team nil
+   :play-strategy-by-player nil
    :play-config bot/default-play-config
+   :play-config-by-team nil
+   :play-config-by-player nil
    :bid-config bot/default-bid-config})
 
 (defn min-score-reached? [state min-score]
@@ -38,15 +42,27 @@
                :trick-playing}
              (:phase state)))
 
-(defn bot-event [state]
-  (when (playable-phase? state)
-    (some->> (:current-player state)
-             (bot/action state))))
+(defn play-strategy-for [options state player]
+  (or (get-in options [:play-strategy-by-player player])
+      (get-in options [:play-strategy-by-team (game/player-team state player)])
+      (:play-strategy options)))
 
-(defn advance-event [state]
+(defn play-config-for [options state player]
+  (or (get-in options [:play-config-by-player player])
+      (get-in options [:play-config-by-team (game/player-team state player)])
+      (:play-config options)))
+
+(defn bot-event [state options]
+  (when (playable-phase? state)
+    (when-let [player (:current-player state)]
+      (binding [bot/*play-strategy* (play-strategy-for options state player)
+                bot/*play-config* (play-config-for options state player)]
+        (bot/action state player)))))
+
+(defn advance-event [state options]
   (case (:phase state)
     :hand-complete {:type :new-hand}
-    (bot-event state)))
+    (bot-event state options)))
 
 (defn playable-event [state event]
   (if (:player event)
@@ -67,7 +83,7 @@
 (defn advance
   ([state] (advance state default-options))
   ([state options]
-   (if-let [event (advance-event state)]
+   (if-let [event (advance-event state options)]
      (let [event (playable-event state event)
            snapshot (when (:collect-analysis? options)
                       (analysis-snapshot state event))]
@@ -182,14 +198,68 @@
    (run-games-for-seeds (range n) options)))
 
 (defn aggregate [results]
-  (let [outcomes (mapcat :bid-outcomes results)]
+  (let [outcomes (mapcat :bid-outcomes results)
+        games (count results)
+        winners (frequencies (map #(or (:winner %) :none) results))]
     {:games (count results)
      :hands (reduce + (map :hands results))
      :stop-reasons (frequencies (map :stop-reason results))
+     :winners winners
+     :win-rates (into {}
+                      (map (fn [[team wins]]
+                             [team (if (pos? games)
+                                     (double (/ wins games))
+                                     0.0)]))
+                      winners)
      :bid-frequencies (frequencies (map :bid-key outcomes))
      :bid-results (summarize-outcomes outcomes)
      :karbosh-attempts (count (filter #(= :karbosh (:bid-key %)) outcomes))
      :double-karbosh-attempts (count (filter #(= :double-karbosh (:bid-key %)) outcomes))}))
+
+(defn policy-winner [policy-by-team result]
+  (some->> (:winner result)
+           (get policy-by-team)))
+
+(defn aggregate-policy-wins [policy-results]
+  (let [games (count policy-results)
+        winners (frequencies (map #(or (:policy-winner %) :none) policy-results))]
+    {:games games
+     :winners winners
+     :win-rates (into {}
+                      (map (fn [[policy wins]]
+                             [policy (if (pos? games)
+                                       (double (/ wins games))
+                                       0.0)]))
+                      winners)}))
+
+(defn play-strategy-matchup
+  "Compare two play strategies head-to-head on the same seeds, swapping teams to
+  reduce seat bias."
+  ([left right seeds] (play-strategy-matchup left right seeds default-options))
+  ([[left-label left-strategy] [right-label right-strategy] seeds options]
+   (let [forward-policies {1 left-label 2 right-label}
+         reverse-policies {1 right-label 2 left-label}
+         forward-options (assoc options
+                           :play-strategy-by-team {1 left-strategy
+                                                   2 right-strategy})
+         reverse-options (assoc options
+                           :play-strategy-by-team {1 right-strategy
+                                                   2 left-strategy})
+         attach-winner (fn [policy-by-team result]
+                         (assoc result
+                                :policy-by-team policy-by-team
+                                :policy-winner (policy-winner policy-by-team
+                                                              result)))
+         forward (mapv #(attach-winner forward-policies %)
+                       (run-games-for-seeds seeds forward-options))
+         reverse (mapv #(attach-winner reverse-policies %)
+                       (run-games-for-seeds seeds reverse-options))
+         results (vec (concat forward reverse))]
+     (assoc (aggregate-policy-wins results)
+            :labels [left-label right-label]
+            :seeds (count seeds)
+            :forward (aggregate forward)
+            :reverse (aggregate reverse)))))
 
 (defn evaluate-bid-configs
   "Run named bid configs against the same seeds so tuning comparisons are

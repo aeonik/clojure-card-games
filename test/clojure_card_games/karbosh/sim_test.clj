@@ -46,7 +46,11 @@
 (deftest play-strategy-option-test
   (let [results (sim/run-games-for-seeds [1]
                                          {:max-hands 1
-                                          :play-strategy :card-counting})]
+                                          :play-strategy :card-counting
+                                          :play-config-by-team
+                                          {1 bot/classic-play-config
+                                           2 (assoc bot/default-play-config
+                                               :lead-risk-tolerance 0.05)}})]
     (is (= 1 (count results)))
     (is (= 1 (:hands (first results))))))
 
@@ -58,3 +62,13 @@
                                               {:max-hands 1})]
     (is (= [:counting :probability :hybrid] (mapv :label results)))
     (is (= [1 1 1] (mapv :games results)))))
+
+(deftest play-strategy-matchup-test
+  (let [result (sim/play-strategy-matchup [:old :hybrid-threshold]
+                                          [:new :hybrid]
+                                          [1]
+                                          {:max-hands 1})]
+    (is (= [:old :new] (:labels result)))
+    (is (= 2 (:games result)))
+    (is (= 1 (:seeds result)))
+    (is (contains? result :win-rates))))

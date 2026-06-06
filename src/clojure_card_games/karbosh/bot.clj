@@ -41,7 +41,7 @@
 
 (def ^:dynamic *bid-strategy* default-bid-strategy)
 
-(def default-play-config
+(def classic-play-config
   {:lead-risk-tolerance 0.32
    :win-risk-tolerance 0.22
    :lead-risk-penalty 900
@@ -50,6 +50,9 @@
    :karbosh-win-risk-tolerance 0.01
    :karbosh-lead-risk-penalty 6500
    :karbosh-win-risk-penalty 6500})
+
+(def default-play-config
+  (assoc classic-play-config :lead-risk-tolerance 0.05))
 
 (def default-play-strategy :hybrid)
 
@@ -435,25 +438,48 @@
 (defn safe-cards [config analyses threshold-key cards]
   (filter #(<= (card-risk analyses %) (threshold-key config)) cards))
 
-(defn probability-lead-card [config game player analyses cards]
+(defn priority-lead-card [game player cards]
   (let [unseen-counts (unseen-card-counts game player)
         trump-control (when (contract-caller? game player)
                         (secure-trump-lead-card game unseen-counts cards))
         caller-pressure (when (contract-caller? game player)
-                          (caller-pressure-lead-card game cards))
+                          (caller-pressure-lead-card game cards))]
+    (or trump-control caller-pressure)))
+
+(defn threshold-lead-card [config game player analyses cards]
+  (let [priority (priority-lead-card game player cards)
         safe (safe-cards config analyses :lead-risk-tolerance cards)]
     (cond
-      trump-control
-      trump-control
-
-      caller-pressure
-      caller-pressure
+      priority
+      priority
 
       (seq safe)
       (lowest-card game safe)
 
       :else
       (lowest-card game cards))))
+
+(defn risk-adjusted-lead-candidates [game player cards]
+  (if (contract-caller? game player)
+    (or (seq (remove #(trump-card? (:trump game) %) cards))
+        cards)
+    cards))
+
+(defn probability-lead-card [config game player analyses cards]
+  (let [priority (priority-lead-card game player cards)
+        safe (safe-cards config analyses :lead-risk-tolerance cards)
+        fallback-cards (risk-adjusted-lead-candidates game player cards)]
+    (cond
+      priority
+      priority
+
+      (seq safe)
+      (lowest-card game safe)
+
+      :else
+      (first (sort-by #(risk-adjusted-lead-value config game analyses %)
+                      >
+                      fallback-cards)))))
 
 (defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
@@ -470,7 +496,7 @@
       (first (sort-by #(risk-adjusted-win-cost config game analyses %)
                       cards)))))
 
-(defn probability-card-action [game player]
+(defn probability-card-action-with-lead [lead-card-fn game player]
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
         config (context-play-config *play-config* game player)
@@ -483,7 +509,7 @@
                (empty? (:current-trick game))
                (if (special-contract-caller? game player)
                  (karbosh-caller-lead-card config game player analyses cards)
-                 (probability-lead-card config game player analyses cards))
+                 (lead-card-fn config game player analyses cards))
 
                (same-team? game player winner)
                (partner-preserving-card game player cards)
@@ -497,6 +523,17 @@
       {:type :play-card
        :card card})))
 
+(defn threshold-probability-card-action [game player]
+  (probability-card-action-with-lead threshold-lead-card game player))
+
+(defn probability-card-action [game player]
+  (probability-card-action-with-lead probability-lead-card game player))
+
+(defn hybrid-threshold-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (threshold-probability-card-action game player)))
+
 (defn hybrid-card-action [game player]
   (if (special-contract? (game/current-bid game))
     (card-counting-card-action game player)
@@ -504,7 +541,9 @@
 
 (def play-strategies
   {:card-counting card-counting-card-action
+   :probability-threshold threshold-probability-card-action
    :probability probability-card-action
+   :hybrid-threshold hybrid-threshold-card-action
    :hybrid hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
