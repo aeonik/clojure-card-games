@@ -1393,6 +1393,10 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   justify-content: flex-end;
 }
 
+.hand-auto-play {
+  display: none;
+}
+
 .hand-heading h2 {
   margin-bottom: 0;
 }
@@ -2462,6 +2466,10 @@ input {
     justify-self: end;
   }
 
+  body.has-karbosh-game .controls > .auto-play-control {
+    display: none;
+  }
+
   .auto-play-control {
     grid-column: 1;
     order: 2;
@@ -2513,7 +2521,14 @@ input {
   }
 
   body.has-karbosh-game .hand-heading {
+    align-items: center;
     margin-bottom: 0.28rem;
+  }
+
+  body.has-karbosh-game .hand-actions {
+    flex: 1 1 auto;
+    gap: 0.28rem;
+    min-width: 0;
   }
 
   body.has-karbosh-game .hand-heading h2 {
@@ -2523,6 +2538,23 @@ input {
   body.has-karbosh-game .hand-heading span {
     font-size: 0.52rem;
     letter-spacing: 0.08em;
+  }
+
+  body.has-karbosh-game .hand-auto-play {
+    display: inline-flex;
+  }
+
+  body.has-karbosh-game .hand-auto-play .auto-play-button,
+  body.has-karbosh-game .sort-hand-button {
+    min-height: 1.55rem;
+    padding: 0 0.52rem;
+    font-size: 0.47rem;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  body.has-karbosh-game .hand-auto-play .auto-play-button {
+    min-width: 5rem;
   }
 
   body.has-karbosh-game .hand-row {

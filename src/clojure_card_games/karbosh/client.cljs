@@ -746,6 +746,12 @@
     [:div {:class "control-group auto-play-control"}
      (auto-play-button active? paused? pending?)]))
 
+(defn hand-auto-play-control [view active? paused? pending?]
+  (when (and (auto-play-phases (:phase view))
+             (not (#{:bidding :trump-selection} (:phase view))))
+    [:div {:class "hand-auto-play"}
+     (auto-play-button active? paused? pending?)]))
+
 (defn hand-title [view]
   (case (:phase view)
     :karbosh-donation "Donate one card"
@@ -773,16 +779,18 @@
             :disabled disabled?}
    "Sort"])
 
-(defn hand-panel-html [view pending-card paused? hand-order card-drag hand-animating?]
+(defn hand-panel-html [view pending-card paused? hand-order card-drag hand-animating? pending-auto?]
   (let [hand (displayed-hand view pending-card hand-order)
         dragging-index (:index card-drag)
-        sorting? (:dragging? card-drag)]
+        sorting? (:dragging? card-drag)
+        active? (= (:you view) (:current-player view))]
     [:section {:class "hand-panel"}
      [:div {:class "hand-heading"}
       [:h2 (hand-title view)]
       [:div {:class "hand-actions"}
        [:span (count hand) " cards"]
-       (sort-hand-button (or pending-card (empty? hand)))]]
+       (sort-hand-button (or pending-card (empty? hand)))
+       (hand-auto-play-control view active? paused? pending-auto?)]]
      [:div {:class (str "hand-row"
                         (when sorting? " is-sorting")
                         (when hand-animating? " is-animating"))}
@@ -896,7 +904,8 @@
                                                         (some? queued-trick-popup))
                                    hand-order
                                    card-drag
-                                   hand-animating?)
+                                   hand-animating?
+                                   pending-auto?)
                   [:div {:class "controls"}
                    (render-controls view (or (some? trick-popup)
                                             (some? queued-trick-popup))
