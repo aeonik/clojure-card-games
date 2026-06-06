@@ -429,12 +429,16 @@
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-full-history-test"
                                                 (make-array FileAttribute 0)))
-        first-game (completed-room "ROOM1" 17)
-        second-game (completed-room "ROOM1" 99)]
+        first-game (assoc (completed-room "ROOM1" 17) :game-started-at 111)
+        replayed-game (assoc (completed-room "ROOM1" 17) :game-started-at 222)
+        second-game (assoc (completed-room "ROOM1" 99) :game-started-at 333)]
     (try
       (audit/append-record! dir (audit/room-record :room-delete-idle
                                                    first-game
                                                    1000))
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   replayed-game
+                                                   1500))
       (audit/append-record! dir (audit/room-record :room-delete-idle
                                                    second-game
                                                    2000))
@@ -453,8 +457,9 @@
           (is (re-find #"ROOM1" (:body response)))
           (is (re-find #">17<" (:body response)))
           (is (re-find #">99<" (:body response)))
-          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/snapshot\"" (:body response)))
-          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/99/snapshot.edn\"" (:body response)))))
+          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/111/snapshot\"" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/222/snapshot.edn\"" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/99/333/snapshot.edn\"" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -462,14 +467,17 @@
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-game-snapshot-test"
                                                 (make-array FileAttribute 0)))
-        first-game (completed-room "ROOM1" 17)
-        second-game (completed-room "ROOM1" 99)]
+        first-game (assoc (completed-room "ROOM1" 17) :game-started-at 111)
+        replayed-game (-> (completed-room "ROOM1" 17)
+                          (assoc :game-started-at 222)
+                          (assoc-in [:game :winner] 2)
+                          (assoc-in [:game :scores] {1 10 2 52}))]
     (try
       (audit/append-record! dir (audit/room-record :room-delete-idle
                                                    first-game
                                                    1000))
       (audit/append-record! dir (audit/room-record :room-delete-idle
-                                                   second-game
+                                                   replayed-game
                                                    2000))
       (reset! server/rooms {})
       (with-redefs [server/admin-user (constantly "admin")
@@ -477,14 +485,16 @@
                     server/audit-dir (constantly (.getPath dir))]
         (let [response (server/handler
                         {:request-method :get
-                         :uri "/karbosh/admin/history/ROOM1/17/snapshot.edn"
+                         :uri "/karbosh/admin/history/ROOM1/17/222/snapshot.edn"
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
                                    "host" "dc3systems.com"}})
               body (edn/read-string (:body response))]
           (is (= 200 (:status response)))
           (is (= 17 (:seed body)))
+          (is (= 222 (:timestamp body)))
           (is (= 17 (get-in body [:room :seed])))
           (is (= 17 (get-in body [:room :game :initial-seed])))
+          (is (= 52 (get-in body [:room :game :scores 2])))
           (is (= "ROOM1" (:room-id body)))))
       (finally
         (reset! server/rooms old-rooms)))))

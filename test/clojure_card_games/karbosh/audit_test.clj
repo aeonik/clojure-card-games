@@ -80,6 +80,33 @@
       (is (= 17 (-> (audit/room-game-record dir "ROOM1" 17)
                     audit/game-seed))))))
 
+(deftest game-history-records-keep-replayed-seeds-test
+  (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-replay-test"
+                                                (make-array FileAttribute 0)))
+        first-game (-> (room/new-room "ROOM1" 17)
+                       (assoc :game-started-at 111)
+                       (assoc-in [:game :phase] :game-over))
+        replayed-game (-> (room/new-room "ROOM1" 17)
+                          (assoc :game-started-at 222)
+                          (assoc-in [:game :phase] :game-over))]
+    (audit/append-record! dir (audit/room-record :room-publish first-game 1000))
+    (audit/append-record! dir (audit/room-record :room-publish replayed-game 2000))
+    (let [records (audit/game-history-records dir)]
+      (is (= [222 111] (mapv audit/game-timestamp records)))
+      (is (= 222 (-> (audit/room-game-record dir "ROOM1" 17 222)
+                     audit/game-timestamp)))
+      (is (= 111 (-> (audit/room-game-record dir "ROOM1" 17 111)
+                     audit/game-timestamp))))))
+
+(deftest live-game-timestamp-falls-back-to-room-created-at-test
+  (let [room (-> (room/new-room "LIVE1" 17)
+                 (dissoc :game-started-at)
+                 (assoc :created-at 1234))
+        live-record (audit/room-record :room-live room 2000)
+        archived-record (audit/room-record :room-publish room 2000)]
+    (is (= 1234 (audit/game-timestamp live-record)))
+    (is (= 2000 (audit/game-timestamp archived-record)))))
+
 (deftest latest-record-reads-only-final-record-test
   (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-latest-test"
                                                 (make-array FileAttribute 0)))

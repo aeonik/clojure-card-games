@@ -113,15 +113,17 @@
   ([room-id seed public?]
    (new-room room-id seed public? false))
   ([room-id seed public? fast-mode?]
-   {:id room-id
-    :seed seed
-    :created-at (System/currentTimeMillis)
-    :owner nil
-    :public? (true? public?)
-    :fast-mode? (true? fast-mode?)
-    :game (game/init-game seed)
-    :seats {}
-    :connections {}}))
+   (let [now (System/currentTimeMillis)]
+     {:id room-id
+      :seed seed
+      :created-at now
+      :game-started-at now
+      :owner nil
+      :public? (true? public?)
+      :fast-mode? (true? fast-mode?)
+      :game (game/init-game seed)
+      :seats {}
+      :connections {}})))
 
 (defn seat-player [room player name]
   (assoc-in room [:seats player]
@@ -274,7 +276,8 @@
                 event)]
     (cond-> (assoc room :game (game/apply-event game event))
       (= :new-game (:type event))
-      (assoc :seed (:seed event)))))
+      (assoc :seed (:seed event)
+             :game-started-at (System/currentTimeMillis)))))
 
 (def bot-advance-limit 96)
 

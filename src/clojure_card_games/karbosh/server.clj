@@ -273,10 +273,11 @@
       (let [path (subs uri
                        (count prefix)
                        (- (count uri) (count suffix)))
-            [room-id seed] (str/split path #"/" 2)]
-        (when (and room-id seed)
-          {:room-id (normalize-room-id (decode-query-value room-id))
-           :seed (decode-query-value seed)})))))
+            [room-id seed timestamp & extra] (str/split path #"/")]
+        (when (and room-id seed (nil? extra))
+          (cond-> {:room-id (normalize-room-id (decode-query-value room-id))
+                   :seed (decode-query-value seed)}
+            timestamp (assoc :timestamp (decode-query-value timestamp))))))))
 
 (defn admin-game-snapshot-id [uri]
   (admin-game-snapshot-path uri "/snapshot"))
@@ -304,17 +305,21 @@
 (defn historical-room-record [room-id]
   (audit/latest-room-record (audit-dir) room-id))
 
-(defn live-game-record [room-id seed]
+(defn live-game-record [room-id seed timestamp]
   (when-let [room (get @rooms room-id)]
-    (when (= (str seed) (str (get-in room [:game :initial-seed])))
+    (when (and (= (str seed) (str (get-in room [:game :initial-seed])))
+               (or (nil? timestamp)
+                   (= (str timestamp)
+                      (str (or (:game-started-at room)
+                               (:created-at room))))))
       (audit/room-record :room-live room))))
 
-(defn historical-game-record [room-id seed]
-  (audit/room-game-record (audit-dir) room-id seed))
+(defn historical-game-record [room-id seed timestamp]
+  (audit/room-game-record (audit-dir) room-id seed timestamp))
 
-(defn game-history-record [room-id seed]
-  (or (live-game-record room-id seed)
-      (historical-game-record room-id seed)))
+(defn game-history-record [room-id seed timestamp]
+  (or (live-game-record room-id seed timestamp)
+      (historical-game-record room-id seed timestamp)))
 
 (defn admin-history-response [request]
   (cond
@@ -329,7 +334,7 @@
      (admin/render-history {:rooms @rooms
                             :records (archived-game-records)}))))
 
-(defn admin-game-snapshot-edn-response [request {:keys [room-id seed]}]
+(defn admin-game-snapshot-edn-response [request {:keys [room-id seed timestamp]}]
   (cond
     (not (admin-password))
     (admin-disabled-response)
@@ -338,23 +343,25 @@
     (admin-unauthorized-response)
 
     :else
-    (if-let [record (game-history-record room-id seed)]
+    (if-let [record (game-history-record room-id seed timestamp)]
       (let [room (:room record)]
         (edn-response {:ok true
                        :historical? true
                        :record (dissoc record :room)
                        :room-id room-id
                        :seed (get-in room [:game :initial-seed])
+                       :timestamp (audit/game-timestamp record)
                        :room room
                        :view (game/admin-view (:game room) (:seats room))}))
       (response 404
                 (pr-str {:ok false
                          :room-id room-id
                          :seed seed
+                         :timestamp timestamp
                          :message "Game not found"})
                 "application/edn; charset=utf-8"))))
 
-(defn admin-game-snapshot-response [request {:keys [room-id seed]}]
+(defn admin-game-snapshot-response [request {:keys [room-id seed timestamp]}]
   (cond
     (not (admin-password))
     (admin-disabled-response)
@@ -363,7 +370,7 @@
     (admin-unauthorized-response)
 
     :else
-    (if-let [record (game-history-record room-id seed)]
+    (if-let [record (game-history-record room-id seed timestamp)]
       (html-response (admin/render-room-snapshot (:room record)))
       (response 404 "Game not found"))))
 

@@ -325,8 +325,14 @@
 (defn record-game-seed [record]
   (get-in record [:room :game :initial-seed]))
 
+(defn record-game-timestamp [record]
+  (or (get-in record [:room :game-started-at])
+      (when (= :room-live (:type record))
+        (get-in record [:room :created-at]))
+      (:logged-at record)))
+
 (defn record-game-key [record]
-  [(:room-id record) (record-game-seed record)])
+  [(:room-id record) (record-game-seed record) (record-game-timestamp record)])
 
 (defn completed-game-record? [record]
   (= :game-over (get-in record [:room :game :phase])))
@@ -374,17 +380,19 @@
      {:label "Team 2 wins" :value (get winners 2 0)}
      {:label "Latest record" :value (time-label (:logged-at (first game-records)))}]))
 
-(defn game-history-link [room-id seed suffix]
-  (str "/karbosh/admin/history/" room-id "/" seed "/" suffix))
+(defn game-history-link [room-id seed timestamp suffix]
+  (str "/karbosh/admin/history/" room-id "/" seed "/" timestamp "/" suffix))
 
 (defn game-history-row [record]
   (let [room (:room record)
         state (:game room)
         room-id (:room-id record)
-        seed (record-game-seed record)]
+        seed (record-game-seed record)
+        timestamp (record-game-timestamp record)]
     [:tr
      [:td room-id]
      [:td (or (some-> seed str) "--")]
+     [:td (time-label timestamp)]
      [:td (kw-label (:phase state))]
      [:td (score-label (:scores state))]
      [:td (or (some-> room room-winner team-label) "--")]
@@ -392,9 +400,9 @@
      [:td (kw-label (:type record))]
      [:td (time-label (:logged-at record))]
      [:td
-      [:a {:href (game-history-link room-id seed "snapshot")} "Snapshot"]
+      [:a {:href (game-history-link room-id seed timestamp "snapshot")} "Snapshot"]
       " / "
-      [:a {:href (game-history-link room-id seed "snapshot.edn")} "Raw"]]]))
+      [:a {:href (game-history-link room-id seed timestamp "snapshot.edn")} "Raw"]]]))
 
 (defn game-history-table [records]
   (let [records (game-history-records records)]
@@ -404,6 +412,7 @@
         [:tr
          [:th "Room"]
          [:th "Seed"]
+         [:th "Started"]
          [:th "Phase"]
          [:th "Score"]
          [:th "Winner"]

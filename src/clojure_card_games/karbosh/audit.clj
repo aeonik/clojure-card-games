@@ -130,8 +130,14 @@
 (defn game-seed [record]
   (get-in record [:room :game :initial-seed]))
 
+(defn game-timestamp [record]
+  (or (get-in record [:room :game-started-at])
+      (when (= :room-live (:type record))
+        (get-in record [:room :created-at]))
+      (:logged-at record)))
+
 (defn game-key [record]
-  [(:room-id record) (game-seed record)])
+  [(:room-id record) (game-seed record) (game-timestamp record)])
 
 (defn completed-game-record? [record]
   (= :game-over (get-in record [:room :game :phase])))
@@ -178,11 +184,16 @@
        (mapcat game-candidate-records)
        game-records-from-candidates))
 
-(defn room-game-record [dir room-id seed]
-  (->> (game-candidate-records (room-file dir room-id))
-       (filter #(= (str seed) (str (game-seed %))))
-       game-records-from-candidates
-       first))
+(defn room-game-record
+  ([dir room-id seed]
+   (room-game-record dir room-id seed nil))
+  ([dir room-id seed timestamp]
+   (->> (game-candidate-records (room-file dir room-id))
+        (filter #(and (= (str seed) (str (game-seed %)))
+                      (or (nil? timestamp)
+                          (= (str timestamp) (str (game-timestamp %))))))
+        game-records-from-candidates
+        first)))
 
 (defn start!
   [{:keys [enabled? dir buffer-size]
