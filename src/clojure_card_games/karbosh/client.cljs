@@ -782,6 +782,22 @@
     :karbosh-discard "Discard two cards"
     "Your hand"))
 
+(defn karbosh-callout-html [view active?]
+  (when (= :karbosh-donation (:phase view))
+    (let [bid (:current-bid view)
+          caller (:player bid)
+          trump (:trump view)]
+      [:div {:class (str "hand-phase-callout"
+                         (when active? " is-active-donation"))}
+       [:span {:class "hand-phase-callout-label"}
+        (if active? "Donate one card" "Karbosh donation")]
+       [:strong
+        (if active?
+          (str "Choose one card for " (player-label view caller))
+          (str (player-label view (:current-player view)) " is donating to "
+               (player-label view caller)))]
+       [:em "Trump " (trump-value-html trump)]])))
+
 (defn card-disabled? [view hand card pending-card paused?]
   (let [active? (= (:you view) (:current-player view))]
     (or pending-card
@@ -815,7 +831,9 @@
         dragging-index (:index card-drag)
         sorting? (:dragging? card-drag)
         active? (= (:you view) (:current-player view))]
-    [:section {:class "hand-panel"}
+    [:section {:class (str "hand-panel"
+                           (when (= :karbosh-donation (:phase view))
+                             " is-karbosh-donation"))}
      [:div {:class "hand-heading"}
       [:h2 (hand-title view)]
       [:div {:class "hand-actions"}
@@ -823,9 +841,13 @@
        (sort-hand-button (or pending-card (empty? hand)))
        (fast-mode-button (:fast-mode? @app))
        (hand-primary-action-button view active? paused? pending-auto?)]]
+     (karbosh-callout-html view active?)
      [:div {:class (str "hand-row"
                         (when sorting? " is-sorting")
-                        (when hand-animating? " is-animating"))}
+                        (when hand-animating? " is-animating")
+                        (when (and active?
+                                   (= :karbosh-donation (:phase view)))
+                          " is-donation-pick"))}
       (map-indexed
        (fn [index card]
          (card-button {:card card
