@@ -2427,7 +2427,9 @@ input {
   }
 
   body.has-karbosh-game .auto-play-control {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
+    justify-content: flex-end;
+    justify-self: end;
   }
 
   .auto-play-control {
@@ -2460,6 +2462,11 @@ input {
   .visibility-button,
   .leave-room-button {
     width: 100%;
+  }
+
+  body.has-karbosh-game .auto-play-control .auto-play-button {
+    width: auto;
+    min-width: 5.8rem;
   }
 
   .hand-panel {
@@ -2955,7 +2962,7 @@ input {
   }
 
   body.has-karbosh-game .auto-play-control {
-    grid-column: 1;
+    grid-column: 2 / -1;
   }
 
   body.has-karbosh-game .leave-room-control {
