@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.hiccup :as h])
   (:import [java.lang.management ManagementFactory]))
 
@@ -242,6 +243,182 @@
         [:strong (bid-label bid)]
         [:em (str (hand-summary-label hand) " / " (count completed-tricks) " tricks")]])]
     [:p {:class "empty"} "No completed hands yet."]))
+
+(defn hand-seed [{:keys [deals]}]
+  (some-> deals first :seed))
+
+(defn current-hand [game]
+  {:hand-index (:hand-index game)
+   :bid (game/current-bid game)
+   :trump (:trump game)
+   :initial-hands (:initial-hands game)
+   :final-hands (game/player-hands game)
+   :deals (:hand-deals game)
+   :history (:history game)
+   :completed-tricks (:completed-tricks game)
+   :current-trick (:current-trick game)
+   :tricks (:tricks-this-hand game)
+   :scores-after (:scores game)
+   :phase (:phase game)
+   :current? true})
+
+(defn playable-current-hand? [game]
+  (not (contains? #{:hand-complete :game-over} (:phase game))))
+
+(defn room-hands [room]
+  (let [state (:game room)]
+    (cond-> (vec (:hand-history state))
+      (playable-current-hand? state)
+      (conj (current-hand state)))))
+
+(defn hand-bids [hand]
+  (filter #(= :bid (:type %)) (:history hand)))
+
+(defn trump-event [hand]
+  (first (filter #(= :trump-selection (:type %)) (:history hand))))
+
+(defn trick-winner [trump trick]
+  (some-> (rules/winning-play trick trump) :player))
+
+(defn trick-card-html [view trump winner {:keys [player card]}]
+  [:div {:class (str "trick-card"
+                     (when (= winner player) " winner"))}
+   [:span {:class "play-player"} (player-label view player)]
+   (card-html card)
+   (when (= winner player)
+     [:strong "Won"])])
+
+(defn trick-detail-html [view trump index trick]
+  (let [winner (trick-winner trump trick)]
+    [:article {:class "trick-detail"}
+     [:div {:class "trick-heading"}
+      [:strong (str "Trick " (inc index))]
+      [:span (str "Winner: " (player-label view winner))]]
+     [:div {:class "trick"}
+      (for [play trick]
+        (trick-card-html view trump winner play))]]))
+
+(defn current-trick-detail-html [view trump trick]
+  (when (seq trick)
+    [:article {:class "trick-detail current-trick-detail"}
+     [:div {:class "trick-heading"}
+      [:strong "Current trick"]
+      [:span "In progress"]]
+     [:div {:class "trick"}
+      (for [play trick]
+        (trick-card-html view trump nil play))]]))
+
+(defn bids-detail-html [view hand]
+  (if (seq (hand-bids hand))
+    [:ol {:class "play-list"}
+     (for [bid (hand-bids hand)]
+       [:li
+        [:span {:class "event-kind"} "Bid"]
+        [:strong (player-label view (:player bid))]
+        [:span (bid-label bid)]])]
+    [:p {:class "empty"} "No bids recorded."]))
+
+(defn trump-detail-html [view hand]
+  (if-let [{:keys [player suit]} (trump-event hand)]
+    [:p {:class "play-line"}
+     [:span {:class "event-kind"} "Trump"]
+     [:strong (player-label view player)]
+     [:span (cards/suit->str suit)]]
+    [:p {:class "empty"} "Trump has not been selected."]))
+
+(defn initial-hands-html [view hands]
+  [:details {:class "initial-hands"}
+   [:summary "Initial hands"]
+   (hands-html view hands)])
+
+(defn hand-title [hand]
+  (str "Hand " (inc (:hand-index hand))
+       (when (:current? hand) " (current)")))
+
+(defn hand-stats-html [hand]
+  [:div {:class "stats room-stats"}
+   (stat-card "Bid" (bid-label (:bid hand)))
+   (stat-card "Trump" (or (some-> (:trump hand) cards/suit->str) "--"))
+   (stat-card "Tricks" (score-label (:tricks hand)))
+   (stat-card "Points" (score-label (:points hand)))
+   (stat-card "Score" (score-label (:scores-after hand)))
+   (stat-card "Seed" (or (some-> hand hand-seed str) "--"))])
+
+(defn hand-play-by-play-html [view hand]
+  [:section {:class "panel hand-detail"}
+   [:div {:class "section-heading"}
+    [:div
+     [:p (if (:current? hand) "Live hand" "Completed hand")]
+     [:h2 (hand-title hand)]]]
+   (hand-stats-html hand)
+   [:div {:class "two-col"}
+    [:section
+     [:h3 "Bidding"]
+     (bids-detail-html view hand)]
+    [:section
+     [:h3 "Trump"]
+     (trump-detail-html view hand)]]
+   [:h3 "Play by Play"]
+   (if (or (seq (:completed-tricks hand))
+           (seq (:current-trick hand)))
+     [:div {:class "trick-timeline"}
+      (for [[index trick] (map-indexed vector (:completed-tricks hand))]
+        (trick-detail-html view (:trump hand) index trick))
+      (current-trick-detail-html view (:trump hand) (:current-trick hand))]
+     [:p {:class "empty"} "No cards have been played."])
+   (initial-hands-html view (:initial-hands hand))])
+
+(defn room-snapshot-main [room]
+  (let [state (:game room)
+        view (game/admin-view state (:seats room))
+        hands (room-hands room)]
+    [:main {:id "admin-main"}
+     [:div {:class "top"}
+      [:div
+       [:p "Karbosh admin"]
+       [:h1 (str "Room " (:id room) " History")]]
+      [:div {:class "admin-actions"}
+       [:a {:href (str "/karbosh/admin?room=" (:id room))} "Dashboard"]
+       [:a {:href (str "/karbosh/admin/rooms/" (:id room) "/snapshot.edn")}
+        "Raw EDN"]
+       [:a {:href "/karbosh/"} "Back to game"]]]
+     [:section {:class "panel"}
+      [:div {:class "section-heading"}
+       [:div
+        [:p "Snapshot"]
+        [:h2 "Room state"]]]
+      [:div {:class "stats room-stats"}
+       (stat-card "Phase" (kw-label (:phase state)))
+       (stat-card "Score" (score-label (:scores state)))
+       (stat-card "Current" (player-label view (:current-player state)))
+       (stat-card "Hand" (str (inc (or (:hand-index state) 0))))
+       (stat-card "Initial seed" (or (some-> (:initial-seed state) str) "--"))
+       (stat-card "Room seed" (or (some-> (:seed room) str) "--"))]
+      [:h3 "Seats"]
+      (seats-table view)]
+     (if (seq hands)
+       (for [hand hands]
+         (hand-play-by-play-html view hand))
+       [:section {:class "panel"}
+        [:p {:class "empty"} "No hands recorded."]])]))
+
+(def snapshot-styles
+  ".play-list{margin:0;padding-left:0;list-style:none}.play-list li,.play-line{display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);margin:0;padding:7px 0}.event-kind{min-width:74px;color:rgba(255,255,255,.48);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.hand-detail h3{color:white;margin:18px 0 8px}.trick-timeline{display:grid;gap:10px}.trick-detail{border:1px solid rgba(255,255,255,.11);border-radius:8px;background:rgba(0,0,0,.12);padding:10px}.trick-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:8px}.trick-heading strong{color:white}.trick-heading span{color:rgba(255,255,255,.55);font-size:.78rem;font-weight:700}.trick-card{position:relative}.trick-card.winner{border-color:rgba(245,200,91,.65);background:rgba(245,200,91,.12)}.trick-card .play-player{color:rgba(255,255,255,.58);font-size:.72rem;font-weight:700}.trick-card strong{display:block;color:#f5c85b;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}.initial-hands{margin-top:14px}.initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}}")
+
+(declare styles)
+
+(defn render-room-snapshot [room]
+  (str
+   "<!doctype html>"
+   (h/render
+    [:html {:lang "en"}
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+      [:title (str "Karbosh Room " (:id room) " History")]
+      [:style (str styles snapshot-styles)]]
+     [:body
+      (room-snapshot-main room)]])))
 
 (defn selected-room [rooms selected-room-id]
   (or (live-room rooms selected-room-id)

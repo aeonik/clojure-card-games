@@ -251,6 +251,15 @@
        (decode-query-value
         (subs uri (count prefix) (- (count uri) (count suffix))))))))
 
+(defn admin-room-snapshot-edn-id [uri]
+  (let [prefix "/karbosh/admin/rooms/"
+        suffix "/snapshot.edn"]
+    (when (and (str/starts-with? uri prefix)
+               (str/ends-with? uri suffix))
+      (normalize-room-id
+       (decode-query-value
+        (subs uri (count prefix) (- (count uri) (count suffix))))))))
+
 (declare start-room-sweeper! install-runtime-handlers!)
 
 (defn start-audit! []
@@ -466,7 +475,7 @@
                        :message "Room not found"})
               "application/edn; charset=utf-8")))
 
-(defn admin-room-snapshot-response [request room-id]
+(defn admin-room-snapshot-edn-response [request room-id]
   (cond
     (not (admin-password))
     (admin-disabled-response)
@@ -485,6 +494,19 @@
                          :room-id room-id
                          :message "Room not found"})
                 "application/edn; charset=utf-8"))))
+
+(defn admin-room-snapshot-response [request room-id]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (if-let [room (get @rooms room-id)]
+      (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
+      (response 404 "Room not found"))))
 
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
@@ -899,7 +921,8 @@
 
 (defn handler [{:keys [uri request-method] :as request}]
   (let [room-preview-id (room-preview-id uri)
-        snapshot-room-id (admin-room-snapshot-id uri)]
+        snapshot-room-id (admin-room-snapshot-id uri)
+        snapshot-edn-room-id (admin-room-snapshot-edn-id uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -917,6 +940,9 @@
 
       (and (= request-method :get) snapshot-room-id)
       (admin-room-snapshot-response request snapshot-room-id)
+
+      (and (= request-method :get) snapshot-edn-room-id)
+      (admin-room-snapshot-edn-response request snapshot-edn-room-id)
 
       (and (= request-method :get) (= uri "/karbosh/api/health"))
       (edn-response {:ok true :rooms (count @rooms)})

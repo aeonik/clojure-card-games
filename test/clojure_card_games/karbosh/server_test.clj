@@ -265,6 +265,13 @@
   (let [old-rooms @server/rooms
         room (-> (room/new-room "ABC123" 9)
                  (room/seat-player :player1 "Dave")
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :trump] :♠)
+                 (assoc-in [:game :completed-tricks] [completed-trick])
+                 (assoc-in [:game :history]
+                           (mapv #(assoc % :type :play-card) completed-trick))
+                 (assoc-in [:game :tricks-this-hand] {1 0 2 1})
+                 (assoc-in [:game :current-player] :player2)
                  (assoc :connections {:conn {:player :player1
                                               :out :channel}}))]
     (try
@@ -274,6 +281,31 @@
         (let [response (server/handler
                         {:request-method :get
                          :uri "/karbosh/admin/rooms/ABC123/snapshot"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"text/html" (get-in response [:headers "Content-Type"])))
+          (is (re-find #"Room ABC123 History" (:body response)))
+          (is (re-find #"Play by Play" (:body response)))
+          (is (re-find #"Trick 1" (:body response)))
+          (is (re-find #"Winner: player2" (:body response)))
+          (is (re-find #"Raw EDN" (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-room-snapshot-edn-test
+  (let [old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/seat-player :player1 "Dave")
+                 (assoc :connections {:conn {:player :player1
+                                              :out :channel}}))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/rooms/ABC123/snapshot.edn"
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
                                    "host" "dc3systems.com"}})
               body (edn/read-string (:body response))]

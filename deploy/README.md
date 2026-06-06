@@ -146,12 +146,13 @@ The admin panel is available at `/karbosh/admin` and uses HTTP Basic Auth. The
 default username is `admin`; override it with `KARBOSH_ADMIN_USER` if needed. If
 `KARBOSH_ADMIN_PASSWORD` is unset, admin routes return disabled responses.
 
-Room snapshots are available at `/karbosh/admin/rooms/{ROOM}/snapshot` under the
-same Basic Auth. The server also appends sanitized EDN room snapshots to
-`KARBOSH_AUDIT_DIR` through a core.async writer after room publishes and before
-room deletion. The audit log preserves seeds, deals, hands, bids, tricks, and
-completed hand histories for long-term bot/game analysis, but omits live
-websocket connection objects.
+Rendered room histories are available at `/karbosh/admin/rooms/{ROOM}/snapshot`
+under the same Basic Auth. Raw room snapshots are available at
+`/karbosh/admin/rooms/{ROOM}/snapshot.edn`. The server also appends sanitized EDN
+room snapshots to `KARBOSH_AUDIT_DIR` through a core.async writer after room
+publishes and before room deletion. The audit log preserves seeds, deals, hands,
+bids, tricks, and completed hand histories for long-term bot/game analysis, but
+omits live websocket connection objects.
 
 ## Production REPL
 
