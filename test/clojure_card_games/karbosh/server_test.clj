@@ -396,6 +396,80 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest historical-snapshot-html-is-public-but-admin-remains-protected-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-share-history-test"
+                                                (make-array FileAttribute 0)))
+        historical-room (assoc (completed-room "OLD123" 17)
+                               :game-started-at 111)]
+    (try
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   historical-room
+                                                   1000))
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/audit-dir (constantly (.getPath dir))]
+        (let [dashboard-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin"
+                                   :headers {"host" "dc3systems.com"}})
+              history-response (server/handler
+                                {:request-method :get
+                                 :uri "/karbosh/admin/history"
+                                 :headers {"host" "dc3systems.com"}})
+              room-html-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/rooms/OLD123/snapshot"
+                                   :headers {"host" "dc3systems.com"}})
+              room-edn-response (server/handler
+                                 {:request-method :get
+                                  :uri "/karbosh/admin/rooms/OLD123/snapshot.edn"
+                                  :headers {"host" "dc3systems.com"}})
+              game-html-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/history/OLD123/17/111/snapshot"
+                                   :headers {"host" "dc3systems.com"}})
+              game-edn-response (server/handler
+                                 {:request-method :get
+                                  :uri "/karbosh/admin/history/OLD123/17/111/snapshot.edn"
+                                  :headers {"host" "dc3systems.com"}})]
+          (is (= 401 (:status dashboard-response)))
+          (is (= 401 (:status history-response)))
+          (is (= 200 (:status room-html-response)))
+          (is (re-find #"Room OLD123 History" (:body room-html-response)))
+          (is (= 401 (:status room-edn-response)))
+          (is (= 200 (:status game-html-response)))
+          (is (re-find #"Room OLD123 History" (:body game-html-response)))
+          (is (= 401 (:status game-edn-response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest live-snapshot-html-direct-links-are-public-test
+  (let [old-rooms @server/rooms
+        room (room/new-room "ABC123" 9)
+        timestamp (:game-started-at room)]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [room-response (server/handler
+                             {:request-method :get
+                              :uri "/karbosh/admin/rooms/ABC123/snapshot"
+                              :headers {"host" "dc3systems.com"}})
+              game-response (server/handler
+                             {:request-method :get
+                              :uri (str "/karbosh/admin/history/ABC123/9/"
+                                        timestamp
+                                        "/snapshot")
+                              :headers {"host" "dc3systems.com"}})]
+          (is (= 200 (:status room-response)))
+          (is (re-find #"Room ABC123 History" (:body room-response)))
+          (is (= 200 (:status game-response)))
+          (is (re-find #"Room ABC123 History" (:body game-response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-dashboard-renders-historical-rooms-test
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-history-test"

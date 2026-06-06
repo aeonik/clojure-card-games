@@ -362,17 +362,9 @@
                 "application/edn; charset=utf-8"))))
 
 (defn admin-game-snapshot-response [request {:keys [room-id seed timestamp]}]
-  (cond
-    (not (admin-password))
-    (admin-disabled-response)
-
-    (not (admin-authorized? request))
-    (admin-unauthorized-response)
-
-    :else
-    (if-let [record (game-history-record room-id seed timestamp)]
-      (html-response (admin/render-room-snapshot (:room record)))
-      (response 404 "Game not found"))))
+  (if-let [record (game-history-record room-id seed timestamp)]
+    (html-response (admin/render-room-snapshot (:room record)))
+    (response 404 "Game not found")))
 
 (defn admin-dashboard-response [request]
   (cond
@@ -609,19 +601,11 @@
                   "application/edn; charset=utf-8")))))
 
 (defn admin-room-snapshot-response [request room-id]
-  (cond
-    (not (admin-password))
-    (admin-disabled-response)
-
-    (not (admin-authorized? request))
-    (admin-unauthorized-response)
-
-    :else
-    (if-let [room (get @rooms room-id)]
-      (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
-      (if-let [record (historical-room-record room-id)]
-        (html-response (admin/render-room-snapshot (:room record)))
-        (response 404 "Room not found")))))
+  (if-let [room (get @rooms room-id)]
+    (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
+    (if-let [record (historical-room-record room-id)]
+      (html-response (admin/render-room-snapshot (:room record)))
+      (response 404 "Room not found"))))
 
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
