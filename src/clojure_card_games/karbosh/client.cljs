@@ -837,12 +837,14 @@
 
 (defn render-trump-picker! []
   (when-not (:join-modal @app)
-    (let [{:keys [view trick-popup queued-trick-popup pending-auto?]} @app
+    (let [{:keys [view trick-popup queued-trick-popup bid-popup pending-auto?]} @app
           active? (= (:you view) (:current-player view))
           paused? (or (some? trick-popup)
-                      (some? queued-trick-popup))]
+                      (some? queued-trick-popup))
+          delayed? (some? bid-popup)]
       (html! (el "modal-root")
-             (or (trump-picker-html view active? paused? pending-auto?)
+             (or (when-not delayed?
+                   (trump-picker-html view active? paused? pending-auto?))
                  "")))))
 
 (defn render-game! []
