@@ -703,7 +703,7 @@
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
    "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}}"))
 
-(declare styles admin-card-styles)
+(declare styles admin-layout-styles admin-card-styles)
 
 (defn render-room-snapshot [room]
   (str
@@ -714,7 +714,7 @@
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
       [:title (str "Karbosh Room " (:id room) " History")]
-      [:style (str styles admin-card-styles snapshot-styles)]]
+      [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
      [:body
       (room-snapshot-main room)]])))
 
@@ -820,6 +820,18 @@
 (def styles
   "body{margin:0;background:#111521;color:rgba(255,255,255,.78);font:15px/1.5 Arial,sans-serif}a{color:#6fd0c7;text-decoration:none}main{max-width:1320px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.top h1{margin:.1rem 0 0;color:white}.top p,.section-heading p{margin:0;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.panel{border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:16px;margin-bottom:16px}.section-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:12px}.section-heading h2{margin:0;color:white}.admin-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}.inline-form{display:inline;margin:0}button{min-height:32px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.06);color:white;cursor:pointer;font-size:.68rem;font-weight:700;letter-spacing:.1em;padding:0 10px;text-transform:uppercase}button.danger{border-color:rgba(255,154,168,.55);background:rgba(255,154,168,.12);color:#ffbac3}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);padding:10px}.stat span{display:block;color:rgba(255,255,255,.5);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.stat strong{display:block;color:white;font-size:1.2rem;line-height:1.25}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px;text-align:left}th{color:rgba(255,255,255,.52);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}.selected{background:rgba(111,208,199,.12)}.room-stats{margin-bottom:16px}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hands article{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px}.hands strong{display:block;color:white;margin-bottom:6px}.card{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:46px;margin:0 4px 6px 0;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#f8f5ed;color:#141821;font-weight:800}.card.heart,.card.diamond{color:#c62f43}.trick{display:flex;flex-wrap:wrap;gap:10px}.trick>div{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:8px}.trick span{display:block;color:rgba(255,255,255,.55);font-size:.72rem;font-weight:700}.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.compact-list{margin:0;padding-left:20px}.compact-list li{margin:6px 0}.compact-list span{display:inline-block;min-width:95px;color:rgba(255,255,255,.55)}.compact-list strong{color:white}.compact-list em{color:rgba(255,255,255,.55);font-style:normal}.empty{color:rgba(255,255,255,.45)}")
 
+(def admin-layout-styles
+  (str
+   "*,*::before,*::after{box-sizing:border-box}"
+   "main,.panel,.stats,.stat,.two-col,.two-col>*{min-width:0}"
+   ".panel{max-width:100%;overflow-x:auto}"
+   ".stat strong{font-size:clamp(.95rem,1.4vw,1.2rem);overflow-wrap:anywhere;word-break:break-word}"
+   "table{max-width:100%;table-layout:auto}"
+   "th,td{vertical-align:top;overflow-wrap:anywhere;word-break:break-word}"
+   "td a{overflow-wrap:anywhere;word-break:break-word}"
+   "td:last-child a{display:inline-block;max-width:100%}"
+   "@media(max-width:900px){main{padding:12px}.top,.section-heading{align-items:flex-start;flex-direction:column}.admin-actions{justify-content:flex-start}.two-col{grid-template-columns:1fr}.panel table{min-width:680px}}"))
+
 (def admin-card-styles
   ".card{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:52px;margin:0 4px 6px 0;padding:0;border:1px solid rgba(0,0,0,.24);border-radius:6px;background:#f8f5ed;color:#141821;font-size:.95rem;font-weight:800;line-height:1;letter-spacing:0;vertical-align:middle;white-space:nowrap}.card.heart,.card.diamond{color:#c62f43}.trick .card,.compact-list .card,.hands .card{display:inline-flex;width:38px;min-width:38px;height:52px;color:#141821;font-size:.95rem;font-weight:800;line-height:1}.trick .card.heart,.trick .card.diamond,.compact-list .card.heart,.compact-list .card.diamond,.hands .card.heart,.hands .card.diamond{color:#c62f43}.trick-card{width:92px;min-width:92px}.trick-card .play-player{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trick>div:not(.trick-card) .card{display:inline-flex;width:38px;min-width:38px;height:52px}")
 
@@ -839,7 +851,7 @@
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
       [:title "Karbosh Admin"]
-      [:style (str styles admin-card-styles)]]
+      [:style (str styles admin-layout-styles admin-card-styles)]]
      [:body
       (render-dashboard-main {:rooms rooms
                               :selected-room-id selected-room-id
@@ -860,7 +872,7 @@
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
       [:title "Karbosh Game History"]
-      [:style (str styles admin-card-styles)]]
+      [:style (str styles admin-layout-styles admin-card-styles)]]
      [:body
       (render-history-main {:rooms rooms
                             :records records})]])))
