@@ -318,13 +318,15 @@
         [:span (bid-label bid)]])]
     [:p {:class "empty"} "No bids recorded."]))
 
-(defn trump-detail-html [view hand]
-  (if-let [{:keys [player suit]} (trump-event hand)]
-    [:p {:class "play-line"}
-     [:span {:class "event-kind"} "Trump"]
-     [:strong (player-label view player)]
-     [:span (cards/suit->str suit)]]
-    [:p {:class "empty"} "Trump has not been selected."]))
+(defn compact-starting-hands-html [view hands]
+  (if (seq hands)
+    [:div {:class "starting-hands-strip"}
+     (for [{:keys [id]} (:players view)]
+       [:div {:class "starting-hand-row"}
+        [:strong (player-label view id)]
+        [:div {:class "starting-hand-cards"}
+         (cards-html (get hands id))]])]
+    [:p {:class "empty"} "No starting hands recorded."]))
 
 (defn initial-hands-html [view hands]
   [:details {:class "initial-hands"}
@@ -356,8 +358,8 @@
      [:h3 "Bidding"]
      (bids-detail-html view hand)]
     [:section
-     [:h3 "Trump"]
-     (trump-detail-html view hand)]]
+     [:h3 "Starting Hands"]
+     (compact-starting-hands-html view (:initial-hands hand))]]
    [:h3 "Play by Play"]
    (if (or (seq (:completed-tricks hand))
            (seq (:current-trick hand)))
@@ -403,7 +405,29 @@
         [:p {:class "empty"} "No hands recorded."]])]))
 
 (def snapshot-styles
-  ".play-list{margin:0;padding-left:0;list-style:none}.play-list li,.play-line{display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);margin:0;padding:7px 0}.event-kind{min-width:74px;color:rgba(255,255,255,.48);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.hand-detail h3{color:white;margin:18px 0 8px}.trick-timeline{display:grid;gap:10px}.trick-detail{border:1px solid rgba(255,255,255,.11);border-radius:8px;background:rgba(0,0,0,.12);padding:10px}.trick-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:8px}.trick-heading strong{color:white}.trick-heading span{color:rgba(255,255,255,.55);font-size:.78rem;font-weight:700}.trick-card{position:relative}.trick-card.winner{border-color:rgba(245,200,91,.65);background:rgba(245,200,91,.12)}.trick-card .play-player{color:rgba(255,255,255,.58);font-size:.72rem;font-weight:700}.trick-card strong{display:block;color:#f5c85b;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}.initial-hands{margin-top:14px}.initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}}")
+  (str
+   ".play-list{margin:0;padding-left:0;list-style:none}"
+   ".play-list li,.play-line{display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);margin:0;padding:7px 0}"
+   ".event-kind{min-width:74px;color:rgba(255,255,255,.48);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}"
+   ".hand-detail h3{color:white;margin:18px 0 8px}"
+   ".trick-timeline{display:grid;gap:10px}"
+   ".trick-detail{border:1px solid rgba(255,255,255,.11);border-radius:8px;background:rgba(0,0,0,.12);padding:10px}"
+   ".trick-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:8px}"
+   ".trick-heading strong{color:white}"
+   ".trick-heading span{color:rgba(255,255,255,.55);font-size:.78rem;font-weight:700}"
+   ".trick-card{position:relative}"
+   ".trick-card.winner{border-color:rgba(245,200,91,.65);background:rgba(245,200,91,.12)}"
+   ".trick-card .play-player{color:rgba(255,255,255,.58);font-size:.72rem;font-weight:700}"
+   ".trick-card strong{display:block;color:#f5c85b;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}"
+   ".starting-hands-strip{display:grid;gap:7px}"
+   ".starting-hand-row{display:grid;grid-template-columns:minmax(84px,112px) 1fr;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0}"
+   ".starting-hand-row strong{color:rgba(255,255,255,.72);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".starting-hand-cards{display:flex;flex-wrap:wrap;gap:3px}"
+   ".starting-hands-strip .card{width:24px;min-width:24px;height:32px;margin:0;padding:0;border-radius:4px;font-size:.68rem}"
+   ".starting-hands-strip .empty{font-size:.72rem}"
+   ".initial-hands{margin-top:14px}"
+   ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}}"))
 
 (declare styles admin-card-styles)
 
