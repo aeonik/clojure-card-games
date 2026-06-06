@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.audit
   (:require [clojure.core.async :as async]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]))
 
 (def schema-version :karbosh.audit/v1)
@@ -29,6 +30,44 @@
     (io/make-parents file)
     (spit file (str (pr-str record) "\n") :append true)
     file))
+
+(defn read-records
+  "Read valid EDN records from an audit file, preserving file order."
+  [file]
+  (when (and file (.exists (io/file file)) (.isFile (io/file file)))
+    (with-open [reader (io/reader file)]
+      (->> (line-seq reader)
+           (keep (fn [line]
+                   (try
+                     (edn/read-string line)
+                     (catch Throwable _
+                       nil))))
+           doall))))
+
+(defn latest-record [file]
+  (last (read-records file)))
+
+(defn room-records [dir room-id]
+  (read-records (room-file dir room-id)))
+
+(defn latest-room-record [dir room-id]
+  (latest-record (room-file dir room-id)))
+
+(defn room-files [dir]
+  (let [dir (io/file dir)]
+    (if (and (.exists dir) (.isDirectory dir))
+      (->> (file-seq dir)
+           (filter #(.isFile %))
+           (filter #(.endsWith (.getName %) ".edn"))
+           (sort-by #(.lastModified %))
+           vec)
+      [])))
+
+(defn latest-room-records [dir]
+  (->> (room-files dir)
+       (keep latest-record)
+       (sort-by :logged-at >)
+       vec))
 
 (defn start!
   [{:keys [enabled? dir buffer-size]

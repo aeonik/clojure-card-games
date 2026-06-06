@@ -37,3 +37,18 @@
         (is (not (contains? (:room record) :connections))))
       (finally
         (audit/stop!)))))
+
+(deftest audit-readers-return-latest-room-records-test
+  (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-read-test"
+                                                (make-array FileAttribute 0)))
+        first-room (room/new-room "FIRST" 1)
+        second-room (room/new-room "SECOND" 2)]
+    (audit/append-record! dir (audit/room-record :room-publish first-room 1000))
+    (audit/append-record! dir (audit/room-record :room-delete-idle first-room 3000))
+    (audit/append-record! dir (audit/room-record :room-publish second-room 2000))
+    (let [first-record (audit/latest-room-record dir "FIRST")
+          latest-records (audit/latest-room-records dir)]
+      (is (= :room-delete-idle (:type first-record)))
+      (is (= 3000 (:logged-at first-record)))
+      (is (= ["FIRST" "SECOND"] (mapv :room-id latest-records)))
+      (is (= [3000 2000] (mapv :logged-at latest-records))))))

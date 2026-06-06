@@ -6,7 +6,9 @@
             [clojure-card-games.karbosh.audit :as audit]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.server :as server]
-            [clojure-card-games.karbosh.shared.game :as game]))
+            [clojure-card-games.karbosh.shared.game :as game])
+  (:import [java.nio.file Files]
+           [java.nio.file.attribute FileAttribute]))
 
 (def completed-trick
   [{:player :player1 :card [:K :♥]}
@@ -15,6 +17,28 @@
    {:player :player4 :card [:J :♥]}
    {:player :player5 :card [10 :♥]}
    {:player :player6 :card [9 :♥]}])
+
+(defn completed-room [room-id seed]
+  (-> (room/new-room room-id seed)
+      (room/seat-player :player1 "Dave")
+      (assoc-in [:game :phase] :game-over)
+      (assoc-in [:game :winner] 1)
+      (assoc-in [:game :scores] {1 52 2 10})
+      (assoc-in [:game :hand-history]
+                [{:hand-index 0
+                  :bid {:type :bid
+                        :player :player1
+                        :bid-type :bid
+                        :value 4}
+                  :trump :♠
+                  :tricks {1 4 2 4}
+                  :points {1 4 2 0}
+                  :scores-after {1 4 2 0}
+                  :history [{:type :bid
+                             :player :player1
+                             :bid-type :bid
+                             :value 4}]
+                  :completed-tricks [completed-trick]}])))
 
 (deftest bot-turn-delay-test
   (let [players (zipmap game/players (repeat {:team 1 :hand []}))
@@ -323,6 +347,69 @@
           (is (not (contains? (:room body) :connections)))
           (is (= "Dave" (get-in body [:room :seats :player1 :name])))
           (is (seq (get-in body [:view :debug :deals])))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-dashboard-renders-historical-rooms-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-history-test"
+                                                (make-array FileAttribute 0)))
+        historical-room (completed-room "OLD123" 17)]
+    (try
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   historical-room
+                                                   1000))
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/audit-dir (constantly (.getPath dir))]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"No rooms are currently running" (:body response)))
+          (is (re-find #"Historical rooms" (:body response)))
+          (is (re-find #"OLD123" (:body response)))
+          (is (re-find #"Bid trends" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot\"" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot.edn\"" (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-room-snapshot-falls-back-to-audit-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-snapshot-history-test"
+                                                (make-array FileAttribute 0)))
+        historical-room (completed-room "OLD123" 17)]
+    (try
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   historical-room
+                                                   1000))
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/audit-dir (constantly (.getPath dir))]
+        (let [html-response (server/handler
+                             {:request-method :get
+                              :uri "/karbosh/admin/rooms/OLD123/snapshot"
+                              :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                        "host" "dc3systems.com"}})
+              edn-response (server/handler
+                            {:request-method :get
+                             :uri "/karbosh/admin/rooms/OLD123/snapshot.edn"
+                             :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                       "host" "dc3systems.com"}})
+              body (edn/read-string (:body edn-response))]
+          (is (= 200 (:status html-response)))
+          (is (re-find #"Room OLD123 History" (:body html-response)))
+          (is (re-find #"Starting Hands" (:body html-response)))
+          (is (= 200 (:status edn-response)))
+          (is (:ok body))
+          (is (:historical? body))
+          (is (= "OLD123" (:room-id body)))
+          (is (= :room-delete-idle (get-in body [:record :type])))))
       (finally
         (reset! server/rooms old-rooms)))))
 

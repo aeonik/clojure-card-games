@@ -271,6 +271,12 @@
           :when (map? room)]
     (audit/record-room! event-type room)))
 
+(defn historical-room-records []
+  (audit/latest-room-records (audit-dir)))
+
+(defn historical-room-record [room-id]
+  (audit/latest-room-record (audit-dir) room-id))
+
 (defn admin-dashboard-response [request]
   (cond
     (not (admin-password))
@@ -283,6 +289,7 @@
     (html-response
      (admin/render-dashboard {:rooms @rooms
                               :selected-room-id (selected-admin-room-id request)
+                              :historical-room-records (historical-room-records)
                               :metrics @metrics
                               :pending-bot-count (count @bot-turns)
                               :open-websocket-count (count @open-websockets)
@@ -297,6 +304,7 @@
   (admin/render-dashboard-main-html
    {:rooms @rooms
     :selected-room-id (selected-admin-room-id request)
+    :historical-room-records (historical-room-records)
     :metrics @metrics
     :pending-bot-count (count @bot-turns)
     :open-websocket-count (count @open-websockets)
@@ -489,11 +497,19 @@
                      :room-id room-id
                      :room (audit/sanitize-room room)
                      :view (game/admin-view (:game room) (:seats room))})
-      (response 404
-                (pr-str {:ok false
+      (if-let [record (historical-room-record room-id)]
+        (let [room (:room record)]
+          (edn-response {:ok true
+                         :historical? true
+                         :record (dissoc record :room)
                          :room-id room-id
-                         :message "Room not found"})
-                "application/edn; charset=utf-8"))))
+                         :room room
+                         :view (game/admin-view (:game room) (:seats room))}))
+        (response 404
+                  (pr-str {:ok false
+                           :room-id room-id
+                           :message "Room not found"})
+                  "application/edn; charset=utf-8")))))
 
 (defn admin-room-snapshot-response [request room-id]
   (cond
@@ -506,7 +522,9 @@
     :else
     (if-let [room (get @rooms room-id)]
       (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
-      (response 404 "Room not found"))))
+      (if-let [record (historical-room-record room-id)]
+        (html-response (admin/render-room-snapshot (:room record)))
+        (response 404 "Room not found")))))
 
 (defn send-edn! [out message]
   (metric! :outgoing-messages)

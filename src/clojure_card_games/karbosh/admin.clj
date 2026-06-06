@@ -4,7 +4,8 @@
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.hiccup :as h])
-  (:import [java.lang.management ManagementFactory]))
+  (:import [java.lang.management ManagementFactory]
+           [java.time Instant]))
 
 (defn kw-label [x]
   (if x
@@ -39,6 +40,11 @@
 (defn bytes-label [n]
   (let [mb (/ (double n) 1048576.0)]
     (format "%.1f MB" mb)))
+
+(defn time-label [ms]
+  (if ms
+    (str (Instant/ofEpochMilli ms))
+    "--"))
 
 (defn card-class [[_ suit]]
   (case suit
@@ -168,6 +174,152 @@
                (room-summary-row now selected-id entry))]]
     [:p {:class "empty"} "No rooms are currently running."]))
 
+(defn room-record-room [record]
+  (:room record))
+
+(defn room-hand-count [room]
+  (count (get-in room [:game :hand-history])))
+
+(defn room-winner [room]
+  (get-in room [:game :winner]))
+
+(defn historical-room-records [rooms records]
+  (let [live-ids (set (map first (sorted-room-entries rooms)))]
+    (->> records
+         (remove #(contains? live-ids (:room-id %)))
+         (sort-by :logged-at >)
+         vec)))
+
+(defn historical-stats [records]
+  (let [rooms (map room-record-room records)
+        games (filter #(= :game-over (get-in % [:game :phase])) rooms)
+        hands (reduce + (map room-hand-count rooms))
+        winners (frequencies (keep room-winner games))
+        room-count (count rooms)]
+    [{:label "Archived rooms" :value room-count}
+     {:label "Completed games" :value (count games)}
+     {:label "Total hands" :value hands}
+     {:label "Avg hands" :value (if (pos? room-count)
+                                  (format "%.1f" (/ (double hands) room-count))
+                                  "--")}
+     {:label "Team 1 wins" :value (get winners 1 0)}
+     {:label "Team 2 wins" :value (get winners 2 0)}
+     {:label "Latest record" :value (time-label (:logged-at (first records)))}]))
+
+(defn bid-outcome [room hand]
+  (let [bid (:bid hand)
+        team (get-in room [:game :players (:player bid) :team])
+        target (case (:bid-type bid)
+                 :bid (:value bid)
+                 (:karbosh :double-karbosh) 8
+                 nil)
+        taken (when team (get-in hand [:tricks team] 0))]
+    (when target
+      {:bid (bid-label bid)
+       :target target
+       :taken taken
+       :made? (and taken (>= taken target))
+       :margin (when taken (- taken target))})))
+
+(defn bid-trends [records]
+  (->> records
+       (map room-record-room)
+       (mapcat (fn [room]
+                 (keep #(bid-outcome room %)
+                       (get-in room [:game :hand-history]))))
+       (group-by :bid)
+       (map (fn [[bid outcomes]]
+              (let [attempts (count outcomes)
+                    made (count (filter :made? outcomes))
+                    margins (keep :margin outcomes)]
+                {:bid bid
+                 :attempts attempts
+                 :made made
+                 :make-rate (if (pos? attempts)
+                              (format "%.0f%%" (* 100.0 (/ made attempts)))
+                              "--")
+                 :avg-margin (if (seq margins)
+                               (format "%.1f"
+                                       (/ (double (reduce + margins))
+                                          (count margins)))
+                               "--")})))
+       (sort-by :bid)
+       vec))
+
+(defn bid-trends-table [records]
+  (let [trends (bid-trends records)]
+    (if (seq trends)
+      [:table
+       [:thead
+        [:tr
+         [:th "Bid"]
+         [:th "Attempts"]
+         [:th "Made"]
+         [:th "Make rate"]
+         [:th "Avg margin"]]]
+       [:tbody
+        (for [{:keys [bid attempts made make-rate avg-margin]} trends]
+          [:tr
+           [:td bid]
+           [:td attempts]
+           [:td made]
+           [:td make-rate]
+           [:td avg-margin]])]]
+      [:p {:class "empty"} "No completed bid history yet."])))
+
+(defn historical-room-row [record]
+  (let [room (:room record)
+        state (:game room)
+        room-id (:room-id record)]
+    [:tr
+     [:td [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} room-id]]
+     [:td (kw-label (:phase state))]
+     [:td (score-label (:scores state))]
+     [:td (or (some-> room room-winner team-label) "--")]
+     [:td (room-hand-count room)]
+     [:td (kw-label (:type record))]
+     [:td (time-label (:logged-at record))]
+     [:td
+      [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} "Snapshot"]
+      " / "
+      [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot.edn")} "Raw"]]]))
+
+(defn historical-rooms-table [records]
+  (if (seq records)
+    [:table
+     [:thead
+      [:tr
+       [:th "Room"]
+       [:th "Phase"]
+       [:th "Score"]
+       [:th "Winner"]
+       [:th "Hands"]
+       [:th "Last event"]
+       [:th "Last seen"]
+       [:th "Links"]]]
+     [:tbody
+      (for [record records]
+        (historical-room-row record))]]
+    [:p {:class "empty"} "No historical room records found."]))
+
+(defn historical-panel [rooms records]
+  (let [records (historical-room-records rooms records)]
+    [:section {:id "admin-history-panel" :class "panel"}
+     [:div {:class "section-heading"}
+      [:div
+       [:p "Archive"]
+       [:h2 "Historical rooms"]]]
+     [:div {:class "stats room-stats"}
+      (for [metric (historical-stats records)]
+        (stat-card (:label metric) (:value metric)))]
+     [:div {:class "two-col"}
+      [:section
+       [:h3 "Bid trends"]
+       (bid-trends-table records)]
+      [:section
+       [:h3 "Browse rooms"]
+       (historical-rooms-table records)]]]))
+
 (defn seats-table [view]
   [:table
    [:thead
@@ -273,9 +425,6 @@
 
 (defn hand-bids [hand]
   (filter #(= :bid (:type %)) (:history hand)))
-
-(defn trump-event [hand]
-  (first (filter #(= :trump-selection (:type %)) (:history hand))))
 
 (defn trick-winner [trump trick]
   (some-> (rules/winning-play trick trump) :player))
@@ -494,6 +643,7 @@
 
 (defn render-dashboard-main [{:keys [rooms
                                     selected-room-id
+                                    historical-room-records
                                     metrics
                                     pending-bot-count
                                     open-websocket-count
@@ -533,6 +683,8 @@
         [:h2 "Running rooms"]]]
       (rooms-table rooms selected-id now)]
 
+     (historical-panel rooms historical-room-records)
+
      (or (room-detail room)
          [:section {:id "admin-room-detail" :class "panel detail"}
           [:p {:class "empty"} "No room selected."]])]))
@@ -548,6 +700,7 @@
 
 (defn render-dashboard [{:keys [rooms
                                 selected-room-id
+                                historical-room-records
                                 metrics
                                 pending-bot-count
                                 open-websocket-count
@@ -565,6 +718,7 @@
      [:body
       (render-dashboard-main {:rooms rooms
                               :selected-room-id selected-room-id
+                              :historical-room-records historical-room-records
                               :metrics metrics
                               :pending-bot-count pending-bot-count
                               :open-websocket-count open-websocket-count
