@@ -319,6 +319,15 @@
                  (> (rules/card-value hidden-card trump lead) value)))
           unseen-counts)))
 
+(defn can-be-beaten-in-suit-by? [game unseen-counts card lead]
+  (let [trump (:trump game)
+        value (rules/card-value card trump lead)]
+    (some (fn [[hidden-card n]]
+            (and (pos? n)
+                 (= lead (rules/effective-suit hidden-card trump))
+                 (> (rules/card-value hidden-card trump lead) value)))
+          unseen-counts)))
+
 (defn can-be-beaten? [game player card lead]
   (can-be-beaten-by? game (unseen-card-counts game player) card lead))
 
@@ -358,9 +367,42 @@
       (when-let [low-trumps (seq (filter #(low-trump? (:trump game) %) cards))]
         (lowest-card game low-trumps))))
 
-(defn partner-preserving-card [game player cards]
+(defn remaining-trick-players-after [game player]
+  (let [remaining (- (count (game/trick-players game))
+                     (count (:current-trick game))
+                     1)]
+    (take (max 0 remaining)
+          (rest (iterate #(game/next-trick-player game %) player)))))
+
+(defn pending-opponents-after [game player]
+  (remove #(same-team? game player %)
+          (remaining-trick-players-after game player)))
+
+(defn suit-protecting-card? [game player unseen-counts lead card]
+  (and (= lead (rules/effective-suit card (:trump game)))
+       (wins-trick? game player card)
+       (not (can-be-beaten-in-suit-by? game unseen-counts card lead))))
+
+(defn partner-protecting-card [game player unseen-counts cards]
+  (let [lead (rules/trick-lead (:current-trick game) (:trump game))
+        winner-card (:card (rules/winning-play (:current-trick game)
+                                               (:trump game)))
+        vulnerable? (and lead
+                         (seq (pending-opponents-after game player))
+                         (can-be-beaten-in-suit-by? game
+                                                    unseen-counts
+                                                    winner-card
+                                                    lead))
+        protectors (filter #(suit-protecting-card?
+                              game player unseen-counts lead %)
+                           cards)]
+    (when (and vulnerable? (seq protectors))
+      (lowest-card game protectors))))
+
+(defn partner-preserving-card [game player unseen-counts cards]
   (let [non-overtakers (remove #(wins-trick? game player %) cards)]
-    (lowest-card game (or (seq non-overtakers) cards))))
+    (or (partner-protecting-card game player unseen-counts cards)
+        (lowest-card game (or (seq non-overtakers) cards)))))
 
 (defn lowest-card [game cards]
   (first (sort-by #(card-score game %) cards)))
@@ -390,7 +432,7 @@
                  (highest-card game cards))
 
                (same-team? game player winner)
-               (partner-preserving-card game player cards)
+               (partner-preserving-card game player unseen-counts cards)
 
                (seq secure-winning-cards)
                (lowest-card game secure-winning-cards)
@@ -500,6 +542,7 @@
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
         config (context-play-config *play-config* game player)
+        unseen-counts (unseen-card-counts game player)
         analyses (card-analyses game player cards)
         winning-cards (filter #(wins-trick? game player %) cards)
         card (cond
@@ -512,7 +555,7 @@
                  (lead-card-fn config game player analyses cards))
 
                (same-team? game player winner)
-               (partner-preserving-card game player cards)
+               (partner-preserving-card game player unseen-counts cards)
 
                (seq winning-cards)
                (probability-winning-card config game analyses winning-cards)

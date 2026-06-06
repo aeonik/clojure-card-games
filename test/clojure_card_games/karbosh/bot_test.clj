@@ -366,14 +366,48 @@
       (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
-  (testing "when a partner is winning, a bot dumps low instead of overtaking"
+  (testing "when a partner is safely winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}
                           :player3 {:team 1
-                                    :hand [[:A :♥] [9 :♥] [9 :♣]]}}
+                                    :hand [[:K :♥] [9 :♥] [9 :♣]]}}
                 :trump :♠
-                :current-trick [{:player :player1 :card [:Q :♥]}]}]
+                :completed-tricks [[{:player :player2 :card [:A :♥]}]]
+                :current-trick [{:player :player1 :card [:A :♥]}]}]
       (is (= {:type :play-card :card [9 :♥]}
              (bot/card-action game :player3)))))
+
+  (testing "when a partner's king is vulnerable, a bot protects it with the ace"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♦
+                  :active-players game/players
+                  :players {:player1 {:team 1
+                                      :hand [[:K :♠] [:A :♠]]}
+                            :player5 {:team 1}
+                            :player6 {:team 2}}
+                  :current-trick [{:player :player5 :card [:K :♠]}
+                                  {:player :player6 :card [:J :♣]}]})]
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player1)))
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player1 :card-counting)))))
+
+  (testing "when the higher card has been seen, a bot preserves the partner's king"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♦
+                  :active-players game/players
+                  :players {:player1 {:team 1
+                                      :hand [[:K :♠] [:A :♠]]}
+                            :player5 {:team 1}
+                            :player6 {:team 2}}
+                  :completed-tricks [[{:player :player2 :card [:A :♠]}]]
+                  :current-trick [{:player :player5 :card [:K :♠]}
+                                  {:player :player6 :card [:J :♣]}]})]
+      (is (= {:type :play-card :card [:K :♠]}
+             (bot/card-action game :player1)))
+      (is (= {:type :play-card :card [:K :♠]}
+             (bot/card-action game :player1 :card-counting)))))
 
   (testing "when a partner is winning with trump, a bot avoids overtrumping when possible"
     (let [game {:players {:player1 {:team 1}
