@@ -26,6 +26,12 @@
     (catch :default _
       false)))
 
+(defn persist-fast-mode! [enabled?]
+  (try
+    (.setItem js/localStorage fast-mode-storage-key (if enabled? "true" "false"))
+    (catch :default _
+      nil)))
+
 (defonce app
   (atom {:socket nil
          :connected? false
@@ -1061,6 +1067,7 @@
     (case (:op message)
       :state
       (let [view (:view message)
+            fast-mode? (true? (:fast-mode? view))
             hand-order (reconcile-hand-order (:hand-order @app)
                                              (:hand view)
                                              (:hand-index view))
@@ -1089,7 +1096,9 @@
                :hand-animating? false
                :pending-card nil
                :pending-auto? false
+               :fast-mode? fast-mode?
                :error nil)
+        (persist-fast-mode! fast-mode?)
         (set-room-url! (:room-id message))
         (save-session! (:room-id message) (:player message) (player-name))
         (render-status!)
@@ -1149,7 +1158,8 @@
 (defn create-room! []
   (connect! #(send! {:op :create-room
                      :name (player-name)
-                     :public? (create-public-room?)})))
+                     :public? (create-public-room?)
+                     :fast-mode? (:fast-mode? @app)})))
 
 (defn join-room! [room-id player]
   (connect! #(send! {:op :join-room
@@ -1224,12 +1234,10 @@
       (render-game!))))
 
 (defn set-fast-mode! [enabled?]
-  (try
-    (.setItem js/localStorage fast-mode-storage-key (if enabled? "true" "false"))
-    (catch :default _
-      nil))
+  (persist-fast-mode! enabled?)
   (swap! app assoc :fast-mode? enabled?)
-  (render-game!))
+  (render-game!)
+  (send! {:op :set-fast-mode :fast-mode? enabled?}))
 
 (def drag-threshold-px 8)
 

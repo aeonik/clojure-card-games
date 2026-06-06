@@ -38,6 +38,8 @@
 
 (def bot-action-delay-ms 1300)
 (def trick-complete-delay-ms 4850)
+(def fast-bot-action-delay-ms 220)
+(def fast-trick-complete-delay-ms 950)
 
 (defn parse-port []
   (Long/parseLong (or (System/getenv "KARBOSH_PORT") "8090")))
@@ -624,6 +626,7 @@
      (get-in room [:game :phase])
      (count (get-in room [:game :history]))
      (count (get-in room [:game :current-trick]))
+     (true? (:fast-mode? room))
      event]))
 
 (defn completed-trick-state? [room]
@@ -638,9 +641,10 @@
                trick))))
 
 (defn bot-turn-delay-ms [room]
-  (if (completed-trick-state? room)
-    trick-complete-delay-ms
-    bot-action-delay-ms))
+  (let [fast? (true? (:fast-mode? room))]
+    (if (completed-trick-state? room)
+      (if fast? fast-trick-complete-delay-ms trick-complete-delay-ms)
+      (if fast? fast-bot-action-delay-ms bot-action-delay-ms))))
 
 (defn publish-room! [room-id room]
   (audit/record-room! :room-publish room)
@@ -706,7 +710,7 @@
 (defn websocket-limit-reached? []
   (>= (count @open-websockets) (max-websocket-connections)))
 
-(defn create-room! [conn-id out {:keys [name seed public?]}]
+(defn create-room! [conn-id out {:keys [name seed public? fast-mode?]}]
   (metric! :room-creates)
   (if (room-limit-reached?)
     (do
@@ -715,7 +719,7 @@
       nil)
     (let [room-id (unique-room-id)
           seed (or seed (System/currentTimeMillis))
-          room (-> (room/new-room room-id seed public?)
+          room (-> (room/new-room room-id seed public? fast-mode?)
                    (room/join-room {:conn-id conn-id
                                     :out out
                                     :name name})
@@ -776,6 +780,18 @@
 
     :else
     (update-room! room-id room/set-public public?)))
+
+(defn set-fast-mode! [room-id out fast-mode?]
+  (metric! :room-fast-mode-updates)
+  (cond
+    (not room-id)
+    (send-edn! out {:op :error :message "Join a room first"})
+
+    (not (contains? @rooms room-id))
+    (send-edn! out {:op :error :message "Room not found"})
+
+    :else
+    (update-room! room-id room/set-fast-mode fast-mode?)))
 
 (defn handle-action! [conn-id room-id out {:keys [event]}]
   (metric! :player-actions)
@@ -870,6 +886,9 @@
 
     :set-room-visibility
     (set-room-visibility! (:room-id @session) out (:public? message))
+
+    :set-fast-mode
+    (set-fast-mode! (:room-id @session) out (:fast-mode? message))
 
     :ping
     (send-edn! out {:op :pong})

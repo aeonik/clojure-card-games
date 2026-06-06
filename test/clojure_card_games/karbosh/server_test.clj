@@ -53,9 +53,16 @@
     (is (server/completed-trick-state? room))
     (is (= server/trick-complete-delay-ms
            (server/bot-turn-delay-ms room)))
+    (is (= server/fast-trick-complete-delay-ms
+           (server/bot-turn-delay-ms (assoc room :fast-mode? true))))
     (is (= server/bot-action-delay-ms
            (server/bot-turn-delay-ms (assoc-in room [:game :current-trick]
-                                               [{:player :player1 :card [:K :♥]}]))))))
+                                               [{:player :player1 :card [:K :♥]}]))))
+    (is (= server/fast-bot-action-delay-ms
+           (server/bot-turn-delay-ms (-> room
+                                         (assoc :fast-mode? true)
+                                         (assoc-in [:game :current-trick]
+                                                   [{:player :player1 :card [:K :♥]}])))))))
 
 (deftest reloadable-namespaces-order-test
   (let [namespaces (vec server/reloadable-namespaces)
@@ -236,15 +243,17 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
-(deftest create-room-can-mark-room-public-test
+(deftest create-room-can-set-room-options-test
   (let [out (async/chan 1)
         old-rooms @server/rooms]
     (try
       (reset! server/rooms {})
       (with-redefs [server/unique-room-id (constantly "PUB123")]
         (is (= "PUB123" (server/create-room! :conn out {:name "Human"
-                                                        :public? true})))
-        (is (true? (get-in @server/rooms ["PUB123" :public?]))))
+                                                        :public? true
+                                                        :fast-mode? true})))
+        (is (true? (get-in @server/rooms ["PUB123" :public?])))
+        (is (true? (get-in @server/rooms ["PUB123" :fast-mode?]))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -458,6 +467,23 @@
         (is (true? (get-in @server/rooms ["ABC123" :public?])))
         (is (= :state (:op message)))
         (is (true? (get-in message [:view :public?]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest set-fast-mode-broadcasts-room-speed-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        state (room/join-room (room/new-room "ABC123" 9)
+                              {:conn-id :human
+                               :out out
+                               :name "Human"})]
+    (try
+      (reset! server/rooms {"ABC123" state})
+      (server/set-fast-mode! "ABC123" out true)
+      (let [message (async/<!! out)]
+        (is (true? (get-in @server/rooms ["ABC123" :fast-mode?])))
+        (is (= :state (:op message)))
+        (is (true? (get-in message [:view :fast-mode?]))))
       (finally
         (reset! server/rooms old-rooms)))))
 

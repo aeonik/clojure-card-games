@@ -104,15 +104,21 @@
 (defn set-public [room public?]
   (assoc room :public? (true? public?)))
 
+(defn set-fast-mode [room fast-mode?]
+  (assoc room :fast-mode? (true? fast-mode?)))
+
 (defn new-room
   ([room-id seed]
    (new-room room-id seed false))
   ([room-id seed public?]
+   (new-room room-id seed public? false))
+  ([room-id seed public? fast-mode?]
    {:id room-id
     :seed seed
     :created-at (System/currentTimeMillis)
     :owner nil
     :public? (true? public?)
+    :fast-mode? (true? fast-mode?)
     :game (game/init-game seed)
     :seats {}
     :connections {}}))
@@ -341,4 +347,5 @@
                :view (assoc (game/public-view (:game room) (:seats room) player)
                             :owner (:owner room)
                             :can-kick? (= player (:owner room))
-                            :public? (true? (:public? room)))}}))
+                            :public? (true? (:public? room))
+                            :fast-mode? (true? (:fast-mode? room)))}}))

@@ -47,6 +47,12 @@
   (is (true? (:public? (room/set-public (room/new-room "ABC123" 9) true))))
   (is (false? (:public? (room/set-public (room/new-room "ABC123" 9 true) false)))))
 
+(deftest room-fast-mode-defaults-to-normal-speed
+  (is (false? (:fast-mode? (room/new-room "ABC123" 9))))
+  (is (true? (:fast-mode? (room/new-room "ABC123" 9 false true))))
+  (is (true? (:fast-mode? (room/set-fast-mode (room/new-room "ABC123" 9) true))))
+  (is (false? (:fast-mode? (room/set-fast-mode (room/new-room "ABC123" 9 false true) false)))))
+
 (deftest room-seat-counts-ignore-bots-as-players
   (let [state (-> (room/new-room "ABC123" 9)
                   (room/seat-player :player1 "Human")
