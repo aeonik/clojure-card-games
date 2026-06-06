@@ -118,6 +118,72 @@
        (sort-by :logged-at >)
        vec))
 
+(defn read-record-line [line]
+  (try
+    (edn/read-string line)
+    (catch Throwable _
+      nil)))
+
+(defn game-over-line? [line]
+  (str/includes? line ":phase :game-over"))
+
+(defn game-seed [record]
+  (get-in record [:room :game :initial-seed]))
+
+(defn game-key [record]
+  [(:room-id record) (game-seed record)])
+
+(defn completed-game-record? [record]
+  (= :game-over (get-in record [:room :game :phase])))
+
+(defn newer-record? [a b]
+  (> (or (:logged-at a) 0)
+     (or (:logged-at b) 0)))
+
+(defn preferred-game-record [a b]
+  (cond
+    (nil? a) b
+    (nil? b) a
+    (and (completed-game-record? b)
+         (not (completed-game-record? a))) b
+    (and (completed-game-record? a)
+         (not (completed-game-record? b))) a
+    (newer-record? b a) b
+    :else a))
+
+(defn game-candidate-records [file]
+  (let [file (io/file file)
+        latest (latest-record file)
+        game-over-records (when (and (.exists file) (.isFile file))
+                            (with-open [reader (io/reader file)]
+                              (->> (line-seq reader)
+                                   (filter game-over-line?)
+                                   (keep read-record-line)
+                                   doall)))]
+    (cond-> (vec game-over-records)
+      latest (conj latest))))
+
+(defn game-records-from-candidates [records]
+  (->> records
+       (filter game-seed)
+       (reduce (fn [games record]
+                 (update games (game-key record) preferred-game-record record))
+               {})
+       vals
+       (sort-by :logged-at >)
+       vec))
+
+(defn game-history-records [dir]
+  (->> (room-files dir)
+       (mapcat game-candidate-records)
+       game-records-from-candidates))
+
+(defn room-game-record [dir room-id seed]
+  (->> (game-candidate-records (room-file dir room-id))
+       (filter #(= (str seed) (str (game-seed %))))
+       game-records-from-candidates
+       first))
+
 (defn start!
   [{:keys [enabled? dir buffer-size]
     :or {enabled? true

@@ -298,8 +298,8 @@
 (defn historical-room-records []
   (audit/latest-room-records (audit-dir)))
 
-(defn all-room-records []
-  (audit/all-room-records (audit-dir)))
+(defn archived-game-records []
+  (audit/game-history-records (audit-dir)))
 
 (defn historical-room-record [room-id]
   (audit/latest-room-record (audit-dir) room-id))
@@ -310,9 +310,7 @@
       (audit/room-record :room-live room))))
 
 (defn historical-game-record [room-id seed]
-  (->> (audit/room-records (audit-dir) room-id)
-       (filter #(= (str seed) (str (get-in % [:room :game :initial-seed]))))
-       admin/preferred-game-record))
+  (audit/room-game-record (audit-dir) room-id seed))
 
 (defn game-history-record [room-id seed]
   (or (live-game-record room-id seed)
@@ -329,7 +327,7 @@
     :else
     (html-response
      (admin/render-history {:rooms @rooms
-                            :records (all-room-records)}))))
+                            :records (archived-game-records)}))))
 
 (defn admin-game-snapshot-edn-response [request {:keys [room-id seed]}]
   (cond

@@ -65,6 +65,21 @@
       (is (= ["FIRST" "SECOND" "FIRST"] (mapv :room-id records)))
       (is (= [3000 2000 1000] (mapv :logged-at records))))))
 
+(deftest game-history-records-keep-completed-games-and-latest-test
+  (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-games-test"
+                                                (make-array FileAttribute 0)))
+        old-game (assoc-in (room/new-room "ROOM1" 17)
+                           [:game :phase]
+                           :game-over)
+        current-game (room/new-room "ROOM1" 99)]
+    (audit/append-record! dir (audit/room-record :room-publish old-game 1000))
+    (audit/append-record! dir (audit/room-record :room-publish current-game 2000))
+    (let [records (audit/game-history-records dir)]
+      (is (= [99 17] (mapv audit/game-seed records)))
+      (is (= :game-over (get-in (second records) [:room :game :phase])))
+      (is (= 17 (-> (audit/room-game-record dir "ROOM1" 17)
+                    audit/game-seed))))))
+
 (deftest latest-record-reads-only-final-record-test
   (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-latest-test"
                                                 (make-array FileAttribute 0)))
