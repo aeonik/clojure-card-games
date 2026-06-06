@@ -1,6 +1,7 @@
 (ns clojure-card-games.karbosh.bot-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.fixtures :as fixtures]
             [clojure-card-games.karbosh.shared.game :as game]))
 
 (def team-game
@@ -30,9 +31,6 @@
 
 (def right-only-karbosh-shape
   [[:J :♠] [:A :♠] [:K :♠] [:K :♠] [:Q :♠] [:Q :♠] [10 :♠] [:A :♥]])
-
-(def donation-karbosh-hand
-  [[:K :♥] [:J :♥] [9 :♥] [:J :♣] [10 :♠] [:J :♦] [:A :♥] [:J :♥]])
 
 (def hidden-hand-size (vec (repeat 8 [9 :♣])))
 
@@ -106,20 +104,23 @@
                                              :karbosh-probability)))))))
 
   (testing "probability bidding accounts for karbosh donations"
-    (let [game (-> team-game
+    (let [fixture fixtures/bl32c2
+          game (-> team-game
                    (assoc :scores {1 0 2 0})
-                   (with-hand :player1 donation-karbosh-hand))
+                   (with-hand (:caller fixture)
+                              (fixtures/hand fixture (:caller fixture))))
           evaluation (bot/karbosh-evaluation bot/default-bid-config
                                              game
-                                             :player1
-                                             :♥)]
+                                             (:caller fixture)
+                                             (:trump fixture))]
       (is (= {:type :bid :bid-type :bid :value 6}
              (bot/bid-action game :player1 :karbosh-threshold)))
       (is (= {:type :bid :bid-type :karbosh}
              (bot/bid-action game :player1 :karbosh-probability)))
-      (is (= [[10 :♠] [:J :♣]]
+      (is (= (:expected-discards fixture)
              (get-in evaluation [:donation :discards])))
-      (is (= 11 (get-in evaluation [:donation :wanted-count])))
+      (is (= (:expected-wanted-donation-count fixture)
+             (get-in evaluation [:donation :wanted-count])))
       (is (< 0.75 (get-in evaluation [:donation :prob-all-donors-helpful])))
       (is (<= (:target-prob evaluation) (:make-prob evaluation)))))
 

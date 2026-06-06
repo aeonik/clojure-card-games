@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.shared.game-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure-card-games.karbosh.fixtures :as fixtures]
             [clojure-card-games.karbosh.shared.game :as game]))
 
 (deftest bidding-test
@@ -41,6 +42,14 @@
          clojure.lang.ExceptionInfo
          #"Cannot reshuffle"
          (game/apply-event state {:type :reshuffle-hand :seed 9})))))
+
+(deftest bl32c2-seed-reproduces-regression-hand-test
+  (let [fixture fixtures/bl32c2
+        state (game/init-game (:seed fixture))]
+    (is (= (:initial-hands fixture)
+           (:initial-hands state)))
+    (is (= (:seed fixture)
+           (-> state :hand-deals first :seed)))))
 
 (defn complete-with-passes [state]
   (reduce (fn [state player]

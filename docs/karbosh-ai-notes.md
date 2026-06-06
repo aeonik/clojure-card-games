@@ -1,5 +1,13 @@
 # Karbosh AI Notes
 
+## Regression Hands
+
+- `BL32C2`: production room captured on 2026-06-06.
+  - Seed: `1780766321306`
+  - Fixture: `clojure-card-games.karbosh.fixtures/bl32c2`
+  - Scenario: Dave/player1 has a hearts Karbosh candidate where discard plus
+    partner donations are essential to evaluate the bid correctly.
+
 ## 2026-06-05 Lead Policy
 
 VQS26P showed a recurring lead-policy weakness: when no card met the safe-lead
