@@ -645,10 +645,18 @@
       (lowest-card game cards))))
 
 (defn risk-adjusted-lead-candidates [game player cards]
-  (if (contract-caller? game player)
-    (or (seq (remove #(trump-card? (:trump game) %) cards))
-        cards)
-    cards))
+  (let [trump (:trump game)
+        off-aces (seq (filter #(off-ace? trump %) cards))]
+    (cond
+      (contract-caller? game player)
+      (or (seq (remove #(trump-card? trump %) cards))
+          cards)
+
+      off-aces
+      off-aces
+
+      :else
+      cards)))
 
 (defn probability-lead-card [config game player analyses cards]
   (let [priority (priority-lead-card game player cards)

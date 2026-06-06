@@ -390,6 +390,53 @@
       (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
+  (testing "defenders lead an off-suit ace before an unsafe left bower"
+    (let [game {:phase :trick-playing
+                :trump :♥
+                :active-players game/players
+                :hand-index 19
+                :bids [{:type :bid
+                        :player :player5
+                        :bid-type :bid
+                        :value 4
+                        :hand-index 19}]
+                :players {:player1 {:team 1
+                                    :hand [[:J :♠] [:K :♦] [10 :♠]
+                                           [10 :♦] [:Q :♠] [:K :♣]]}
+                          :player2 {:team 2
+                                    :hand [[:K :♠] [9 :♣] [:A :♣]
+                                           [10 :♠] [10 :♣] [:A :♦]]}
+                          :player3 {:team 1
+                                    :hand [[:A :♠] [:J :♥] [:J :♣]
+                                           [:J :♣] [:A :♠] [9 :♠]]}
+                          :player4 {:team 2
+                                    :hand [[:J :♦] [9 :♣] [:A :♣]
+                                           [:J :♠] [9 :♠] [10 :♣]]}
+                          :player5 {:team 1
+                                    :hand [[:Q :♣] [:Q :♦] [:A :♥]
+                                           [:Q :♣] [:Q :♠] [:Q :♥]]}
+                          :player6 {:team 2
+                                    :hand [[:A :♥] [:K :♣] [:K :♦]
+                                           [:K :♠] [10 :♥] [:Q :♥]]}}
+                :completed-tricks [[{:player :player5 :card [:J :♥]}
+                                    {:player :player6 :card [9 :♥]}
+                                    {:player :player1 :card [9 :♥]}
+                                    {:player :player2 :card [:K :♥]}
+                                    {:player :player3 :card [:J :♦]}
+                                    {:player :player4 :card [10 :♥]}]
+                                   [{:player :player5 :card [:A :♦]}
+                                    {:player :player6 :card [:Q :♦]}
+                                    {:player :player1 :card [9 :♦]}
+                                    {:player :player2 :card [9 :♦]}
+                                    {:player :player3 :card [10 :♦]}
+                                    {:player :player4 :card [:K :♥]}]]
+                :tricks-this-hand {1 1 2 1}
+                :current-trick []}]
+      (is (= {:type :play-card :card [:A :♣]}
+             (bot/card-action game :player4 :probability)))
+      (is (= {:type :play-card :card [:A :♣]}
+             (bot/card-action game :player4 :hybrid)))))
+
   (testing "when a partner is safely winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}
                           :player3 {:team 1
