@@ -57,6 +57,14 @@
            (server/bot-turn-delay-ms (assoc-in room [:game :current-trick]
                                                [{:player :player1 :card [:K :♥]}]))))))
 
+(deftest reloadable-namespaces-order-test
+  (let [namespaces (vec server/reloadable-namespaces)
+        analysis-index (.indexOf namespaces 'clojure-card-games.karbosh.analysis)
+        bot-index (.indexOf namespaces 'clojure-card-games.karbosh.bot)]
+    (is (not= -1 analysis-index))
+    (is (not= -1 bot-index))
+    (is (< analysis-index bot-index))))
+
 (deftest admin-basic-auth-test
   (with-redefs [server/admin-user (constantly "admin")
                 server/admin-password (constantly "secret")]

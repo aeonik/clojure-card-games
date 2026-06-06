@@ -28,6 +28,7 @@
     clojure-card-games.karbosh.shared.rules
     clojure-card-games.karbosh.shared.game
     clojure-card-games.karbosh.audit
+    clojure-card-games.karbosh.analysis
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.bot
     clojure-card-games.karbosh.admin
