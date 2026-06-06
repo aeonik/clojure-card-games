@@ -419,8 +419,73 @@
           (is (re-find #"Historical rooms" (:body response)))
           (is (re-find #"OLD123" (:body response)))
           (is (re-find #"Bid trends" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/history\"" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot\"" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot.edn\"" (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-history-renders-all-games-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-full-history-test"
+                                                (make-array FileAttribute 0)))
+        first-game (completed-room "ROOM1" 17)
+        second-game (completed-room "ROOM1" 99)]
+    (try
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   first-game
+                                                   1000))
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   second-game
+                                                   2000))
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/audit-dir (constantly (.getPath dir))]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/history"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"Game history" (:body response)))
+          (is (re-find #"All games" (:body response)))
+          (is (re-find #"ROOM1" (:body response)))
+          (is (re-find #">17<" (:body response)))
+          (is (re-find #">99<" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/snapshot\"" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/history/ROOM1/99/snapshot.edn\"" (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-history-snapshot-loads-specific-game-seed-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-game-snapshot-test"
+                                                (make-array FileAttribute 0)))
+        first-game (completed-room "ROOM1" 17)
+        second-game (completed-room "ROOM1" 99)]
+    (try
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   first-game
+                                                   1000))
+      (audit/append-record! dir (audit/room-record :room-delete-idle
+                                                   second-game
+                                                   2000))
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")
+                    server/audit-dir (constantly (.getPath dir))]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/history/ROOM1/17/snapshot.edn"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})
+              body (edn/read-string (:body response))]
+          (is (= 200 (:status response)))
+          (is (= 17 (:seed body)))
+          (is (= 17 (get-in body [:room :seed])))
+          (is (= 17 (get-in body [:room :game :initial-seed])))
+          (is (= "ROOM1" (:room-id body)))))
       (finally
         (reset! server/rooms old-rooms)))))
 

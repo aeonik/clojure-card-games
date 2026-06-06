@@ -263,6 +263,27 @@
        (decode-query-value
         (subs uri (count prefix) (- (count uri) (count suffix))))))))
 
+(defn admin-history-path? [uri]
+  (= uri "/karbosh/admin/history"))
+
+(defn admin-game-snapshot-path [uri suffix]
+  (let [prefix "/karbosh/admin/history/"]
+    (when (and (str/starts-with? uri prefix)
+               (str/ends-with? uri suffix))
+      (let [path (subs uri
+                       (count prefix)
+                       (- (count uri) (count suffix)))
+            [room-id seed] (str/split path #"/" 2)]
+        (when (and room-id seed)
+          {:room-id (normalize-room-id (decode-query-value room-id))
+           :seed (decode-query-value seed)})))))
+
+(defn admin-game-snapshot-id [uri]
+  (admin-game-snapshot-path uri "/snapshot"))
+
+(defn admin-game-snapshot-edn-id [uri]
+  (admin-game-snapshot-path uri "/snapshot.edn"))
+
 (declare start-room-sweeper! install-runtime-handlers!)
 
 (defn start-audit! []
@@ -277,8 +298,76 @@
 (defn historical-room-records []
   (audit/latest-room-records (audit-dir)))
 
+(defn all-room-records []
+  (audit/all-room-records (audit-dir)))
+
 (defn historical-room-record [room-id]
   (audit/latest-room-record (audit-dir) room-id))
+
+(defn live-game-record [room-id seed]
+  (when-let [room (get @rooms room-id)]
+    (when (= (str seed) (str (get-in room [:game :initial-seed])))
+      (audit/room-record :room-live room))))
+
+(defn historical-game-record [room-id seed]
+  (->> (audit/room-records (audit-dir) room-id)
+       (filter #(= (str seed) (str (get-in % [:room :game :initial-seed]))))
+       admin/preferred-game-record))
+
+(defn game-history-record [room-id seed]
+  (or (live-game-record room-id seed)
+      (historical-game-record room-id seed)))
+
+(defn admin-history-response [request]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (html-response
+     (admin/render-history {:rooms @rooms
+                            :records (all-room-records)}))))
+
+(defn admin-game-snapshot-edn-response [request {:keys [room-id seed]}]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (if-let [record (game-history-record room-id seed)]
+      (let [room (:room record)]
+        (edn-response {:ok true
+                       :historical? true
+                       :record (dissoc record :room)
+                       :room-id room-id
+                       :seed (get-in room [:game :initial-seed])
+                       :room room
+                       :view (game/admin-view (:game room) (:seats room))}))
+      (response 404
+                (pr-str {:ok false
+                         :room-id room-id
+                         :seed seed
+                         :message "Game not found"})
+                "application/edn; charset=utf-8"))))
+
+(defn admin-game-snapshot-response [request {:keys [room-id seed]}]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (if-let [record (game-history-record room-id seed)]
+      (html-response (admin/render-room-snapshot (:room record)))
+      (response 404 "Game not found"))))
 
 (defn admin-dashboard-response [request]
   (cond
@@ -994,7 +1083,9 @@
 (defn handler [{:keys [uri request-method] :as request}]
   (let [room-preview-id (room-preview-id uri)
         snapshot-room-id (admin-room-snapshot-id uri)
-        snapshot-edn-room-id (admin-room-snapshot-edn-id uri)]
+        snapshot-edn-room-id (admin-room-snapshot-edn-id uri)
+        game-snapshot-id (admin-game-snapshot-id uri)
+        game-snapshot-edn-id (admin-game-snapshot-edn-id uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -1004,11 +1095,20 @@
       (and (= request-method :get) (admin-path? uri))
       (admin-dashboard-response request)
 
+      (and (= request-method :get) (admin-history-path? uri))
+      (admin-history-response request)
+
       (and (= request-method :post) (admin-reload-path? uri))
       (admin-reload-response request)
 
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
+
+      (and (= request-method :get) game-snapshot-id)
+      (admin-game-snapshot-response request game-snapshot-id)
+
+      (and (= request-method :get) game-snapshot-edn-id)
+      (admin-game-snapshot-edn-response request game-snapshot-edn-id)
 
       (and (= request-method :get) snapshot-room-id)
       (admin-room-snapshot-response request snapshot-room-id)

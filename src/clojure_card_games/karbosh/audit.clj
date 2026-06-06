@@ -112,6 +112,12 @@
        (sort-by :logged-at >)
        vec))
 
+(defn all-room-records [dir]
+  (->> (room-files dir)
+       (mapcat read-records)
+       (sort-by :logged-at >)
+       vec))
+
 (defn start!
   [{:keys [enabled? dir buffer-size]
     :or {enabled? true

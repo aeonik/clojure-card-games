@@ -53,6 +53,18 @@
       (is (= ["FIRST" "SECOND"] (mapv :room-id latest-records)))
       (is (= [3000 2000] (mapv :logged-at latest-records))))))
 
+(deftest all-room-records-returns-complete-archive-test
+  (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-all-test"
+                                                (make-array FileAttribute 0)))
+        first-room (room/new-room "FIRST" 1)
+        second-room (room/new-room "SECOND" 2)]
+    (audit/append-record! dir (audit/room-record :room-publish first-room 1000))
+    (audit/append-record! dir (audit/room-record :room-delete-idle first-room 3000))
+    (audit/append-record! dir (audit/room-record :room-publish second-room 2000))
+    (let [records (audit/all-room-records dir)]
+      (is (= ["FIRST" "SECOND" "FIRST"] (mapv :room-id records)))
+      (is (= [3000 2000 1000] (mapv :logged-at records))))))
+
 (deftest latest-record-reads-only-final-record-test
   (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-latest-test"
                                                 (make-array FileAttribute 0)))

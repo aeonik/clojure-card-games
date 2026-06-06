@@ -308,7 +308,9 @@
      [:div {:class "section-heading"}
       [:div
        [:p "Archive"]
-       [:h2 "Historical rooms"]]]
+       [:h2 "Historical rooms"]]
+      [:div {:class "admin-actions"}
+       [:a {:href "/karbosh/admin/history"} "View all history"]]]
      [:div {:class "stats room-stats"}
       (for [metric (historical-stats records)]
         (stat-card (:label metric) (:value metric)))]
@@ -319,6 +321,120 @@
       [:section
        [:h3 "Browse rooms"]
        (historical-rooms-table records)]]]))
+
+(defn record-game-seed [record]
+  (get-in record [:room :game :initial-seed]))
+
+(defn record-game-key [record]
+  [(:room-id record) (record-game-seed record)])
+
+(defn completed-game-record? [record]
+  (= :game-over (get-in record [:room :game :phase])))
+
+(defn latest-record-by [pred records]
+  (first (sort-by :logged-at > (filter pred records))))
+
+(defn preferred-game-record [records]
+  (or (latest-record-by completed-game-record? records)
+      (latest-record-by (constantly true) records)))
+
+(defn live-room-records [rooms now]
+  (->> rooms
+       sorted-room-entries
+       (map (fn [[room-id room]]
+              {:schema :karbosh.audit/v1
+               :type :room-live
+               :logged-at now
+               :room-id room-id
+               :room (-> room
+                         (dissoc :connections)
+                         (update :seats #(into {} %)))}))))
+
+(defn game-history-records
+  ([records]
+   (game-history-records {} records))
+  ([rooms records]
+   (let [now (System/currentTimeMillis)]
+     (->> (concat (live-room-records rooms now) records)
+          (filter record-game-seed)
+          (group-by record-game-key)
+          vals
+          (keep preferred-game-record)
+          (sort-by :logged-at >)
+          vec))))
+
+(defn game-history-stats [records]
+  (let [game-records (game-history-records records)
+        completed (filter completed-game-record? game-records)
+        winners (frequencies (keep room-winner (map room-record-room completed)))]
+    [{:label "Games" :value (count game-records)}
+     {:label "Completed" :value (count completed)}
+     {:label "In progress" :value (- (count game-records) (count completed))}
+     {:label "Team 1 wins" :value (get winners 1 0)}
+     {:label "Team 2 wins" :value (get winners 2 0)}
+     {:label "Latest record" :value (time-label (:logged-at (first game-records)))}]))
+
+(defn game-history-link [room-id seed suffix]
+  (str "/karbosh/admin/history/" room-id "/" seed "/" suffix))
+
+(defn game-history-row [record]
+  (let [room (:room record)
+        state (:game room)
+        room-id (:room-id record)
+        seed (record-game-seed record)]
+    [:tr
+     [:td room-id]
+     [:td (or (some-> seed str) "--")]
+     [:td (kw-label (:phase state))]
+     [:td (score-label (:scores state))]
+     [:td (or (some-> room room-winner team-label) "--")]
+     [:td (room-hand-count room)]
+     [:td (kw-label (:type record))]
+     [:td (time-label (:logged-at record))]
+     [:td
+      [:a {:href (game-history-link room-id seed "snapshot")} "Snapshot"]
+      " / "
+      [:a {:href (game-history-link room-id seed "snapshot.edn")} "Raw"]]]))
+
+(defn game-history-table [records]
+  (let [records (game-history-records records)]
+    (if (seq records)
+      [:table
+       [:thead
+        [:tr
+         [:th "Room"]
+         [:th "Seed"]
+         [:th "Phase"]
+         [:th "Score"]
+         [:th "Winner"]
+         [:th "Hands"]
+         [:th "Last event"]
+         [:th "Last seen"]
+         [:th "Links"]]]
+       [:tbody
+        (for [record records]
+          (game-history-row record))]]
+      [:p {:class "empty"} "No game history found."])))
+
+(defn render-history-main [{:keys [rooms records]}]
+  (let [records (game-history-records rooms records)]
+    [:main {:id "admin-main"}
+     [:div {:class "top"}
+      [:div
+       [:p "Karbosh admin"]
+       [:h1 "Game history"]]
+      [:div {:class "admin-actions"}
+       [:a {:href "/karbosh/admin"} "Dashboard"]
+       [:a {:href "/karbosh/"} "Back to game"]]]
+     [:section {:class "panel"}
+      [:div {:class "section-heading"}
+       [:div
+        [:p "Archive"]
+        [:h2 "All games"]]]
+      [:div {:class "stats room-stats"}
+       (for [metric (game-history-stats records)]
+         (stat-card (:label metric) (:value metric)))]
+      (game-history-table records)]]))
 
 (defn seats-table [view]
   [:table
@@ -725,3 +841,17 @@
                               :limits limits
                               :started-at started-at})
       [:script {:src "/karbosh/assets/js/admin.js?v=20260604-stream"}]]])))
+
+(defn render-history [{:keys [rooms records]}]
+  (str
+   "<!doctype html>"
+   (h/render
+    [:html {:lang "en"}
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+      [:title "Karbosh Game History"]
+      [:style (str styles admin-card-styles)]]
+     [:body
+      (render-history-main {:rooms rooms
+                            :records records})]])))
