@@ -639,9 +639,14 @@
    "--h" h
    "--d" (str d "ms")})
 
+(defn fireworks-bid-label [{:keys [bid-type] :as bid}]
+  (case bid-type
+    :double-karbosh "Double Karbosh"
+    (bid-label bid)))
+
 (defn fireworks-title [view {:keys [kind player team bid-type] :as firework}]
   (case kind
-    :karbosh [(str (bid-label firework) " called")
+    :karbosh [(str (fireworks-bid-label firework) " made")
               (player-label view player)]
     :game-win ["Game over"
                (str (team-label team) " wins")]
@@ -1087,6 +1092,24 @@
 (defn karbosh-bid? [bid]
   (contains? #{:karbosh :double-karbosh} (:bid-type bid)))
 
+(def completed-hand-phases #{:hand-complete :game-over})
+
+(defn completed-hand-event? [old-view new-view]
+  (and old-view
+       (not (contains? completed-hand-phases (:phase old-view)))
+       (contains? completed-hand-phases (:phase new-view))))
+
+(defn player-team [view player]
+  (:team (player-by-id view player)))
+
+(defn successful-karbosh-event [old-view new-view]
+  (let [bid (:current-bid new-view)
+        team (player-team new-view (:player bid))]
+    (when (and (completed-hand-event? old-view new-view)
+               (karbosh-bid? bid)
+               (= 8 (get-in new-view [:tricks-this-hand team] 0)))
+      (assoc bid :team team))))
+
 (defn game-winner-event [old-view new-view]
   (when (and old-view
              (not= :game-over (:phase old-view))
@@ -1102,6 +1125,17 @@
   (when (= fireworks-id (:id (:fireworks @app)))
     (swap! app assoc :fireworks nil)
     (render-game!)))
+
+(defn show-fireworks! [fireworks]
+  (when (and (= (:room-id fireworks) (:room-id @app))
+             (= (:hand-index fireworks) (get-in @app [:view :hand-index])))
+    (swap! app assoc :fireworks fireworks)
+    (render-game!)
+    (js/setTimeout #(clear-fireworks! (:id fireworks)) (timing-ms :fireworks))))
+
+(defn fireworks-delay-ms [animation popup]
+  (+ (if animation (timing-ms :play-animation) 0)
+     (if popup (+ (timing-ms :trick-popup) 120) 0)))
 
 (defn reset-room-state! [message]
   (when-let [socket (:socket @app)]
@@ -1145,6 +1179,7 @@
             animation (played-card-event old-view view)
             trick-winner (won-trick-event old-view view)
             bid (bid-event old-view view)
+            successful-karbosh (successful-karbosh-event old-view view)
             game-winner (game-winner-event old-view view)
             now (.now js/Date)
             animation-id (when animation
@@ -1156,14 +1191,18 @@
             bid-popup-id (when bid
                            (str now "-bid-" (kw-name (:player bid))))
             fireworks (cond
-                        (karbosh-bid? bid)
-                        (assoc bid
-                               :id (str now "-karbosh-" (kw-name (:player bid)))
+                        successful-karbosh
+                        (assoc successful-karbosh
+                               :id (str now "-karbosh-made-" (kw-name (:player successful-karbosh)))
+                               :room-id (:room-id message)
+                               :hand-index (:hand-index view)
                                :kind :karbosh)
 
                         game-winner
                         (assoc game-winner
                                :id (str now "-game-win")
+                               :room-id (:room-id message)
+                               :hand-index (:hand-index view)
                                :kind :game-win))]
         (swap! app assoc
                :room-id (:room-id message)
@@ -1173,7 +1212,7 @@
                :trick-popup (when-not queue-popup? popup)
                :queued-trick-popup (when queue-popup? popup)
                :bid-popup (some-> bid (assoc :id bid-popup-id))
-               :fireworks (or fireworks (:fireworks @app))
+               :fireworks (:fireworks @app)
                :hand-order hand-order
                :card-drag nil
                :hand-animating? false
@@ -1192,8 +1231,9 @@
           (js/setTimeout #(clear-trick-popup! popup-id) (timing-ms :trick-popup)))
         (when bid-popup-id
           (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup)))
-        (when-let [fireworks-id (:id fireworks)]
-          (js/setTimeout #(clear-fireworks! fireworks-id) (timing-ms :fireworks))))
+        (when fireworks
+          (js/setTimeout #(show-fireworks! fireworks)
+                         (fireworks-delay-ms animation popup))))
 
       :error
       (do
