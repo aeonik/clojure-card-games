@@ -52,3 +52,15 @@
       (is (= 3000 (:logged-at first-record)))
       (is (= ["FIRST" "SECOND"] (mapv :room-id latest-records)))
       (is (= [3000 2000] (mapv :logged-at latest-records))))))
+
+(deftest latest-record-reads-only-final-record-test
+  (let [dir (.toFile (Files/createTempDirectory "karbosh-audit-latest-test"
+                                                (make-array FileAttribute 0)))
+        room (room/new-room "LATEST" 7)]
+    (audit/append-record! dir (audit/room-record :room-publish room 1000))
+    (audit/append-record! dir (audit/room-record :room-close room 2000))
+    (let [file (io/file dir "LATEST.edn")
+          latest (audit/latest-record file)]
+      (is (= :room-close (:type latest)))
+      (is (= 2000 (:logged-at latest)))
+      (is (= "LATEST" (:room-id latest))))))

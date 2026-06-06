@@ -1,7 +1,10 @@
 (ns clojure-card-games.karbosh.audit
   (:require [clojure.core.async :as async]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [clojure.string :as str])
+  (:import [java.io RandomAccessFile]
+           [java.nio.charset StandardCharsets]))
 
 (def schema-version :karbosh.audit/v1)
 
@@ -44,8 +47,48 @@
                        nil))))
            doall))))
 
+(defn last-line-bounds [^RandomAccessFile raf]
+  (let [length (.length raf)]
+    (when (pos? length)
+      (loop [pos (dec length)
+             end length
+             skipping-trailing? true]
+        (if (neg? pos)
+          [0 end]
+          (do
+            (.seek raf pos)
+            (let [b (.read raf)
+                  newline? (or (= b 10) (= b 13))]
+              (cond
+                (and newline? skipping-trailing?)
+                (recur (dec pos) pos true)
+
+                newline?
+                [(inc pos) end]
+
+                :else
+                (recur (dec pos) end false)))))))))
+
+(defn last-line [file]
+  (let [file (io/file file)]
+    (when (and (.exists file) (.isFile file))
+      (with-open [raf (RandomAccessFile. file "r")]
+        (when-let [[start end] (last-line-bounds raf)]
+          (let [size (- end start)]
+            (when (pos? size)
+              (let [bytes (byte-array size)]
+                (.seek raf start)
+                (.readFully raf bytes)
+                (not-empty
+                 (str/trim
+                  (String. bytes StandardCharsets/UTF_8)))))))))))
+
 (defn latest-record [file]
-  (last (read-records file)))
+  (when-let [line (last-line file)]
+    (try
+      (edn/read-string line)
+      (catch Throwable _
+        nil))))
 
 (defn room-records [dir room-id]
   (read-records (room-file dir room-id)))
