@@ -15,6 +15,10 @@
   --team-1: #6fd0c7;
   --team-2: #e6bd5a;
   --shadow: 0 1.25rem 2.75rem rgba(8, 12, 26, 0.28);
+  --play-card-animation-ms: 1050ms;
+  --trick-popup-animation-ms: 3400ms;
+  --bid-popup-animation-ms: 1600ms;
+  --hand-card-settle-ms: 220ms;
 }
 
 * {
@@ -28,6 +32,13 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 16px;
   line-height: 1.6;
+}
+
+body.karbosh-fast-mode {
+  --play-card-animation-ms: 240ms;
+  --trick-popup-animation-ms: 700ms;
+  --bid-popup-animation-ms: 420ms;
+  --hand-card-settle-ms: 90ms;
 }
 
 button,
@@ -609,7 +620,7 @@ body:not(.has-karbosh-game) .meta-grid,
 .trick-card.is-animating {
   z-index: 9;
   pointer-events: none;
-  animation: deal-to-trick-slot 1050ms cubic-bezier(0.18, 0.82, 0.24, 1) both;
+  animation: deal-to-trick-slot var(--play-card-animation-ms) cubic-bezier(0.18, 0.82, 0.24, 1) both;
 }
 
 .player-seat {
@@ -1045,7 +1056,7 @@ body:not(.has-karbosh-game) .meta-grid,
   box-shadow: 0 1rem 2rem rgba(8, 12, 26, 0.36);
   padding: 0.75rem 1rem;
   text-align: center;
-  animation: trick-popup 3400ms ease both;
+  animation: trick-popup var(--trick-popup-animation-ms) ease both;
 }
 
 .bid-popup {
@@ -1060,7 +1071,7 @@ body:not(.has-karbosh-game) .meta-grid,
   box-shadow: 0 1rem 2rem rgba(8, 12, 26, 0.34);
   padding: 0.65rem 0.9rem;
   text-align: center;
-  animation: bid-popup 1600ms ease both;
+  animation: bid-popup var(--bid-popup-animation-ms) ease both;
 }
 
 .bid-popup > span {
@@ -1251,7 +1262,7 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .hand-row.is-animating .card-button {
-  animation: hand-card-settle 220ms ease both;
+  animation: hand-card-settle var(--hand-card-settle-ms) ease both;
 }
 
 .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
@@ -1409,13 +1420,20 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   text-transform: uppercase;
 }
 
-.sort-hand-button {
+.sort-hand-button,
+.fast-mode-button {
   min-height: 2rem;
   border-color: rgba(111, 208, 199, 0.45);
   background: rgba(111, 208, 199, 0.07);
   padding: 0 0.75rem;
   font-size: 0.62rem;
   letter-spacing: 0.1em;
+}
+
+.fast-mode-button.is-active {
+  border-color: rgba(230, 189, 90, 0.8);
+  background: rgba(230, 189, 90, 0.16);
+  color: #ffe3a2;
 }
 
 button,
@@ -2545,7 +2563,8 @@ input {
   }
 
   body.has-karbosh-game .hand-auto-play .auto-play-button,
-  body.has-karbosh-game .sort-hand-button {
+  body.has-karbosh-game .sort-hand-button,
+  body.has-karbosh-game .fast-mode-button {
     min-height: 1.55rem;
     padding: 0 0.52rem;
     font-size: 0.47rem;
@@ -2857,7 +2876,8 @@ input {
     display: none;
   }
 
-  body.has-karbosh-game .sort-hand-button {
+  body.has-karbosh-game .sort-hand-button,
+  body.has-karbosh-game .fast-mode-button {
     min-height: 1.3rem;
     padding: 0 0.52rem;
     font-size: 0.45rem;

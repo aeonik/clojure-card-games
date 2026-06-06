@@ -6,6 +6,26 @@
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.hiccup :as h]))
 
+(def fast-mode-storage-key "karbosh-fast-mode")
+
+(def normal-timings
+  {:play-animation 1150
+   :trick-popup 3400
+   :bid-popup 1600
+   :hand-animation 220})
+
+(def fast-timings
+  {:play-animation 260
+   :trick-popup 700
+   :bid-popup 420
+   :hand-animation 90})
+
+(defn stored-fast-mode? []
+  (try
+    (= "true" (.getItem js/localStorage fast-mode-storage-key))
+    (catch :default _
+      false)))
+
 (defonce app
   (atom {:socket nil
          :connected? false
@@ -27,13 +47,10 @@
          :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
+         :fast-mode? (stored-fast-mode?)
          :last-reconnect-at 0
          :error nil}))
 
-(def play-animation-ms 1150)
-(def trick-popup-ms 3400)
-(def bid-popup-ms 1600)
-(def hand-animation-ms 220)
 (def reconnect-throttle-ms 1200)
 
 (defn el [id]
@@ -58,7 +75,12 @@
   (set! (.-textContent node) content))
 
 (defn active-game-layout! [active?]
-  (.toggle (.-classList (.-body js/document)) "has-karbosh-game" active?))
+  (let [classes (.-classList (.-body js/document))]
+    (.toggle classes "has-karbosh-game" active?)
+    (.toggle classes "karbosh-fast-mode" (:fast-mode? @app))))
+
+(defn timing-ms [k]
+  (get (if (:fast-mode? @app) fast-timings normal-timings) k))
 
 (defn kw-name [x]
   (when x (name x)))
@@ -779,6 +801,13 @@
             :disabled disabled?}
    "Sort"])
 
+(defn fast-mode-button [enabled?]
+  [:button {:class (str "fast-mode-button" (when enabled? " is-active"))
+            :type "button"
+            :data-fast-mode (if enabled? "false" "true")
+            :aria-pressed (if enabled? "true" "false")}
+   "Fast"])
+
 (defn hand-panel-html [view pending-card paused? hand-order card-drag hand-animating? pending-auto?]
   (let [hand (displayed-hand view pending-card hand-order)
         dragging-index (:index card-drag)
@@ -790,6 +819,7 @@
       [:div {:class "hand-actions"}
        [:span (count hand) " cards"]
        (sort-hand-button (or pending-card (empty? hand)))
+       (fast-mode-button (:fast-mode? @app))
        (hand-auto-play-control view active? paused? pending-auto?)]]
      [:div {:class (str "hand-row"
                         (when sorting? " is-sorting")
@@ -976,7 +1006,7 @@
          :queued-trick-popup nil
          :trick-popup popup)
   (render-game!)
-  (js/setTimeout #(clear-trick-popup! (:id popup)) trick-popup-ms))
+  (js/setTimeout #(clear-trick-popup! (:id popup)) (timing-ms :trick-popup)))
 
 (defn clear-play-animation! [animation-id]
   (when (= animation-id (:id (:play-animation @app)))
@@ -1065,11 +1095,11 @@
         (render-status!)
         (render-game!)
         (when animation-id
-          (js/setTimeout #(clear-play-animation! animation-id) play-animation-ms))
+          (js/setTimeout #(clear-play-animation! animation-id) (timing-ms :play-animation)))
         (when (and popup (not queue-popup?))
-          (js/setTimeout #(clear-trick-popup! popup-id) trick-popup-ms))
+          (js/setTimeout #(clear-trick-popup! popup-id) (timing-ms :trick-popup)))
         (when bid-popup-id
-          (js/setTimeout #(clear-bid-popup! bid-popup-id) bid-popup-ms)))
+          (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup))))
 
       :error
       (do
@@ -1182,7 +1212,7 @@
 
 (defn pulse-hand-animation! []
   (swap! app assoc :hand-animating? true)
-  (js/setTimeout clear-hand-animation! hand-animation-ms))
+  (js/setTimeout clear-hand-animation! (timing-ms :hand-animation)))
 
 (defn sort-hand! []
   (when-let [view (:view @app)]
@@ -1192,6 +1222,14 @@
                           :cards sorted-hand})
       (pulse-hand-animation!)
       (render-game!))))
+
+(defn set-fast-mode! [enabled?]
+  (try
+    (.setItem js/localStorage fast-mode-storage-key (if enabled? "true" "false"))
+    (catch :default _
+      nil))
+  (swap! app assoc :fast-mode? enabled?)
+  (render-game!))
 
 (def drag-threshold-px 8)
 
@@ -1345,6 +1383,7 @@
                              seat-target (closest target "[data-seat-player]")
                              close-seat-target (closest target "[data-close-seat-popover]")
                              kick-target (closest target "[data-kick-player]")
+                             fast-target (closest target "[data-fast-mode]")
                              popover-target (closest target "[data-seat-popover]")]
                          (cond
                            close-seat-target
@@ -1390,6 +1429,10 @@
 
                            (.hasAttribute target "data-sort-hand")
                            (sort-hand!)
+
+                           fast-target
+                           (set-fast-mode!
+                            (= "true" (.getAttribute fast-target "data-fast-mode")))
 
                            (.hasAttribute target "data-fill-bots")
                            (fill-bots!)
