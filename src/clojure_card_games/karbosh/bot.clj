@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.bot
   (:require [clojure-card-games.karbosh.analysis :as analysis]
+            [clojure-card-games.probability.hypergeom :as hypergeom]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]))
@@ -111,6 +112,47 @@
               (if (pos? n) n default-size)))
           (game/partner-players game player))))
 
+(defn donation-successful-hand-count-distribution
+  [successes failures hand-sizes]
+  (cond
+    (or (neg? successes)
+        (neg? failures)
+        (some neg? hand-sizes))
+    {}
+
+    (empty? hand-sizes)
+    {0 1}
+
+    (< (+ successes failures) (reduce + hand-sizes))
+    {}
+
+    :else
+    (let [hand-size (first hand-sizes)]
+      (apply merge-with +
+             (for [k (range 0 (inc (min hand-size successes)))
+                   :let [failure-count (- hand-size k)]
+                   :when (<= 0 failure-count failures)
+                   :let [p (hypergeom/prob-hg successes failures hand-size k)
+                         child (donation-successful-hand-count-distribution
+                                 (- successes k)
+                                 (- failures failure-count)
+                                 (rest hand-sizes))
+                         successful? (pos? k)]]
+               (into {}
+                     (map (fn [[n child-p]]
+                            [(+ n (if successful? 1 0)) (* p child-p)]))
+                     child))))))
+
+(defn donation-probability-at-least-successful-hands
+  [successes failures hand-sizes min-hands]
+  (reduce +
+          (for [[successful-hands p]
+                (donation-successful-hand-count-distribution successes
+                                                             failures
+                                                             hand-sizes)
+                :when (>= successful-hands min-hands)]
+            p)))
+
 (defn karbosh-donation-analysis [config game player trump]
   (let [hand (vec (get-in game [:players player :hand]))
         discards (karbosh-discard-cards hand trump)
@@ -120,19 +162,18 @@
         successes (count wanted)
         failures (- (count hidden) successes)
         hand-sizes (donation-hand-sizes config game player)
-        distribution (analysis/successful-hand-count-distribution successes
+        distribution (donation-successful-hand-count-distribution successes
                                                                   failures
-                                                                  hand-sizes
-                                                                  1)
+                                                                  hand-sizes)
         expected-helpful (double (reduce + (map (fn [[n p]] (* n p))
                                                 distribution)))
-        prob-any (double (analysis/probability-at-least-successful-hands
+        prob-any (double (donation-probability-at-least-successful-hands
                           successes
                           failures
                           hand-sizes
                           1))
         prob-all (if (seq hand-sizes)
-                   (double (analysis/probability-at-least-successful-hands
+                   (double (donation-probability-at-least-successful-hands
                             successes
                             failures
                             hand-sizes
