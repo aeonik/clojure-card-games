@@ -251,9 +251,38 @@
       (with-redefs [server/unique-room-id (constantly "PUB123")]
         (is (= "PUB123" (server/create-room! :conn out {:name "Human"
                                                         :public? true
-                                                        :fast-mode? true})))
+                                                        :fast-mode? true
+                                                        :seed -42})))
         (is (true? (get-in @server/rooms ["PUB123" :public?])))
-        (is (true? (get-in @server/rooms ["PUB123" :fast-mode?]))))
+        (is (true? (get-in @server/rooms ["PUB123" :fast-mode?])))
+        (is (= -42 (get-in @server/rooms ["PUB123" :seed])))
+        (is (= -42 (get-in @server/rooms ["PUB123" :game :initial-seed]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest create-room-can-parse-string-seed-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (with-redefs [server/unique-room-id (constantly "SEED42")]
+        (is (= "SEED42" (server/create-room! :conn out {:name "Human"
+                                                        :seed "42"})))
+        (is (= 42 (get-in @server/rooms ["SEED42" :seed])))
+        (is (= 42 (get-in @server/rooms ["SEED42" :game :initial-seed]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest create-room-rejects-invalid-seed-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (is (nil? (server/create-room! :conn out {:name "Human"
+                                                :seed "not-a-seed"})))
+      (is (= {:op :error :message "Seed must be an integer"}
+             (async/<!! out)))
+      (is (empty? @server/rooms))
       (finally
         (reset! server/rooms old-rooms)))))
 

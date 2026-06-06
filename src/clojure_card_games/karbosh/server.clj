@@ -710,15 +710,49 @@
 (defn websocket-limit-reached? []
   (>= (count @open-websockets) (max-websocket-connections)))
 
+(defn long-range? [n]
+  (<= Long/MIN_VALUE n Long/MAX_VALUE))
+
+(defn parse-room-seed [seed]
+  (cond
+    (nil? seed) nil
+
+    (integer? seed)
+    (when (long-range? seed)
+      (long seed))
+
+    (string? seed)
+    (let [seed (str/trim seed)]
+      (when (re-matches #"[+-]?\d+" seed)
+        (try
+          (Long/parseLong seed)
+          (catch NumberFormatException _
+            nil))))
+
+    :else nil))
+
+(defn invalid-room-seed? [seed]
+  (and (some? seed)
+       (nil? (parse-room-seed seed))))
+
 (defn create-room! [conn-id out {:keys [name seed public? fast-mode?]}]
   (metric! :room-creates)
-  (if (room-limit-reached?)
+  (cond
+    (room-limit-reached?)
     (do
       (record-error!)
       (send-edn! out {:op :error :message "Room limit reached"})
       nil)
+
+    (invalid-room-seed? seed)
+    (do
+      (record-error!)
+      (send-edn! out {:op :error :message "Seed must be an integer"})
+      nil)
+
+    :else
     (let [room-id (unique-room-id)
-          seed (or seed (System/currentTimeMillis))
+          seed (or (parse-room-seed seed) (System/currentTimeMillis))
           room (-> (room/new-room room-id seed public? fast-mode?)
                    (room/join-room {:conn-id conn-id
                                     :out out

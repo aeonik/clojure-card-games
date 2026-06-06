@@ -304,6 +304,22 @@
     (text! (el "room-code") (or room-id "--"))
     (text! (el "seat-code") (or (some-> player name) "--"))))
 
+(def invalid-seed ::invalid-seed)
+
+(defn set-error! [message]
+  (swap! app assoc :error message)
+  (render-status!))
+
+(defn create-room-seed []
+  (let [raw (some-> (el "create-room-seed") .-value str/trim)]
+    (cond
+      (str/blank? raw) nil
+      (not (re-matches #"[+-]?\d+" raw)) invalid-seed
+      :else (let [seed (js/Number raw)]
+              (if (js/Number.isSafeInteger seed)
+                seed
+                invalid-seed)))))
+
 (defn room-preview-url [room-id]
   (str "/karbosh/api/room/" (js/encodeURIComponent room-id)))
 
@@ -1281,10 +1297,14 @@
               (handle-server-message! (.-data event)))))))
 
 (defn create-room! []
-  (connect! #(send! {:op :create-room
-                     :name (player-name)
-                     :public? (create-public-room?)
-                     :fast-mode? (:fast-mode? @app)})))
+  (let [seed (create-room-seed)]
+    (if (= invalid-seed seed)
+      (set-error! "Seed must be an integer")
+      (connect! #(send! (cond-> {:op :create-room
+                                 :name (player-name)
+                                 :public? (create-public-room?)
+                                 :fast-mode? (:fast-mode? @app)}
+                          (some? seed) (assoc :seed seed)))))))
 
 (defn join-room! [room-id player]
   (connect! #(send! {:op :join-room
