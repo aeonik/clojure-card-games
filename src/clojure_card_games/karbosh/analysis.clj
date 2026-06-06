@@ -120,6 +120,63 @@
                      (rest hand-sizes)
                      min-success)))))))
 
+(defn successful-hand-count-distribution
+  "Probability distribution for how many labeled hands have at least
+  `min-success` successes.
+
+  The result maps successful-hand-count to exact probability. This is useful for
+  donation questions where each partner may donate at most one useful card."
+  [successes failures hand-sizes min-success]
+  (cond
+    (or (neg? successes)
+        (neg? failures)
+        (some neg? hand-sizes)
+        (neg? min-success))
+    {}
+
+    (empty? hand-sizes)
+    {0 1}
+
+    (< (+ successes failures) (reduce + hand-sizes))
+    {}
+
+    :else
+    (let [hand-size (first hand-sizes)]
+      (apply merge-with +
+             (for [k (range 0 (inc (min hand-size successes)))
+                   :let [failure-count (- hand-size k)]
+                   :when (<= 0 failure-count failures)
+                   :let [p (hypergeom/prob-hg successes failures hand-size k)
+                         child (successful-hand-count-distribution
+                                 (- successes k)
+                                 (- failures failure-count)
+                                 (rest hand-sizes)
+                                 min-success)
+                         successful? (>= k min-success)]]
+               (into {}
+                     (map (fn [[n child-p]]
+                            [(+ n (if successful? 1 0)) (* p child-p)]))
+                     child))))))
+
+(defn probability-at-least-successful-hands
+  "Probability that at least `min-hands` labeled hands each contain at least
+  `min-success` successes."
+  ([successes failures hand-sizes min-hands]
+   (probability-at-least-successful-hands successes
+                                          failures
+                                          hand-sizes
+                                          min-hands
+                                          1))
+  ([successes failures hand-sizes min-hands min-success]
+   (reduce +
+           (for [[successful-hands p]
+                 (successful-hand-count-distribution successes
+                                                     failures
+                                                     hand-sizes
+                                                     min-success)
+                 :when (>= successful-hands min-hands)]
+             p))))
+
 (defn probability-all-follow [suit-left population-size hand-sizes]
   (let [failures (- population-size suit-left)]
     (if (neg? failures)

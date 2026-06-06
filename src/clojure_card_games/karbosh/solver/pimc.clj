@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.solver.pimc
-  (:require [clojure-card-games.karbosh.shared.game :as game]
+  (:require [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.solver.play :as play]
             [clojure-card-games.karbosh.solver.sample :as sample]))
 
@@ -122,4 +123,86 @@
                         (seeds-for options))]
      (assoc (summarize-make-outcomes outcomes)
             :contract contract
+            :outcomes outcomes))))
+
+(defn remove-card-from-player [state player card]
+  (update-in state [:players player :hand] #(game/remove-first card %)))
+
+(defn add-card-to-player [state player card]
+  (update-in state [:players player :hand] (fnil conj []) card))
+
+(defn donate-card [state caller trump donor]
+  (if-let [card (bot/strongest-card-for-trump
+                  trump
+                  (get-in state [:players donor :hand]))]
+    (-> state
+        (remove-card-from-player donor card)
+        (add-card-to-player caller card)
+        (update :donations (fnil conj [])
+                {:type :donate-card
+                 :player donor
+                 :to caller
+                 :card card}))
+    state))
+
+(defn prepare-karbosh-world
+  "Apply the Karbosh setup phase to a perfect-information world.
+
+  The caller discards its two weakest cards under trump, then each partner
+  donates the strongest card it can see under that same trump. The resulting
+  state starts trick play with the caller going alone against the opponents."
+  [state contract trump]
+  (let [caller (:player contract)
+        discards (bot/karbosh-discard-cards
+                   (get-in state [:players caller :hand])
+                   trump)
+        state (reduce #(remove-card-from-player %1 caller %2)
+                      (assoc state
+                             :trump trump
+                             :current-trick []
+                             :tricks-this-hand {1 0 2 0}
+                             :donations []
+                             :discards (mapv (fn [card]
+                                               {:type :discard-card
+                                                :player caller
+                                                :card card})
+                                             discards))
+                      discards)
+        state (reduce #(donate-card %1 caller trump %2)
+                      state
+                      (game/partner-players state caller))]
+    (assoc state
+           :phase :trick-playing
+           :active-players (game/lone-hand-players state caller)
+           :trick-leader caller
+           :current-player caller)))
+
+(defn evaluate-karbosh-donation-make
+  "Evaluate Karbosh make probability from the pre-trump/pre-donation view.
+
+  Each sample fills hidden hands, applies discard plus partner donation, then
+  solves whether the caller can force every trick."
+  ([state contract] (evaluate-karbosh-donation-make state contract {}))
+  ([state contract options]
+   (let [caller (:player contract)
+         trump (or (:trump options)
+                   (:trump state)
+                   (bot/best-trump (get-in state [:players caller :hand])))
+         outcomes (mapv (fn [seed]
+                          (let [world (sample-state state
+                                                    (assoc options :seed seed))
+                                setup (prepare-karbosh-world world
+                                                             contract
+                                                             trump)]
+                            {:seed seed
+                             :trump trump
+                             :discards (:discards setup)
+                             :donations (:donations setup)
+                             :made? (play/solve-karbosh-make?
+                                      setup
+                                      (assoc contract :bid-type :karbosh))}))
+                        (seeds-for options))]
+     (assoc (summarize-make-outcomes outcomes)
+            :contract (assoc contract :bid-type :karbosh)
+            :trump trump
             :outcomes outcomes))))

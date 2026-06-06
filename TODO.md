@@ -5,7 +5,9 @@
 - Improve perfect-information solver performance for full six-player, eight-card
   hand audits. Current exact solving can time out on complete deals; investigate
   stronger transposition keys, suit symmetry, better move ordering, and
-  endgame tablebases before relying on it as a routine admin oracle.
+  endgame tablebases before relying on it as a routine admin oracle. As a
+  concrete benchmark, BL32C2 donation-aware Karbosh PIMC took about 220 seconds
+  for 20 samples.
 - Compare bot policy changes with seeded Monte Carlo runs and record the
   aggregate results alongside the change. Keep old policies pluggable so
   suspected improvements can be validated against the same deal set.

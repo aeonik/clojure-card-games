@@ -21,6 +21,17 @@
     (is (= 0 (analysis/probability-of-any-success 1 1 [2])))
     (is (= 1 (analysis/probability-of-any-success 1 1 [1])))))
 
+(deftest successful-hand-count-distribution-test
+  (testing "counts how many labeled hands contain a success"
+    (is (= {2 1}
+           (analysis/successful-hand-count-distribution 2 0 [1 1] 1)))
+    (is (= {1 1}
+           (analysis/successful-hand-count-distribution 1 1 [1 1] 1)))
+    (is (= 1
+           (analysis/probability-at-least-successful-hands 2 0 [1 1] 2)))
+    (is (= 0
+           (analysis/probability-at-least-successful-hands 1 1 [1 1] 2)))))
+
 (deftest player-analysis-test
   (testing "bidding analysis reports every candidate trump"
     (let [state (game/init-game 1)

@@ -37,6 +37,36 @@
       (is (= [] (get-in world [:players :player1 :hand])))
       (is (= [[:K :♥]] (get-in world [:players :player2 :hand]))))))
 
+(deftest prepare-karbosh-world-test
+  (testing "discards from the caller and donates from partners before play"
+    (let [s (state {:hands {:player1 [[10 :♠] [:J :♣] [:J :♥]]
+                            :player2 [[:Q :♥]]
+                            :player3 [[:A :♠]]
+                            :player4 [[:K :♥]]
+                            :player5 [[:K :♠]]
+                            :player6 [[:A :♣]]}
+                    :teams {:player1 1
+                            :player2 2
+                            :player3 1
+                            :player4 2
+                            :player5 1
+                            :player6 2}
+                    :active-players [:player1 :player2 :player3
+                                     :player4 :player5 :player6]
+                    :current-player :player1
+                    :trump :♥})
+          world (pimc/prepare-karbosh-world
+                  s
+                  {:type :bid :player :player1 :bid-type :karbosh}
+                  :♥)]
+      (is (= [[:J :♥] [:A :♠] [:K :♠]]
+             (get-in world [:players :player1 :hand])))
+      (is (= [] (get-in world [:players :player3 :hand])))
+      (is (= [] (get-in world [:players :player5 :hand])))
+      (is (= [:player1 :player2 :player4 :player6]
+             (:active-players world)))
+      (is (= :player1 (:current-player world))))))
+
 (deftest evaluate-contract-test
   (testing "forced making bid has make rate one and positive EV"
     (let [s (state {:hands {:player1 [[:A :♥]]

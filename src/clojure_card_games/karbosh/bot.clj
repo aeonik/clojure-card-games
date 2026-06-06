@@ -33,7 +33,11 @@
    :karbosh-prob-off-ace-weight 0.18
    :karbosh-prob-low-trump-weight -0.20
    :karbosh-prob-off-junk-weight -0.35
-   :karbosh-prob-missing-bower-weight -0.18})
+   :karbosh-prob-missing-bower-weight -0.18
+   :karbosh-prob-donation-help-weight 0.70
+   :karbosh-prob-donation-pair-weight 0.40
+   :karbosh-donation-qualification-prob 0.50
+   :karbosh-donor-hand-size 8})
 
 (def ^:dynamic *bid-config* default-bid-config)
 
@@ -73,6 +77,77 @@
 (defn bower? [trump card]
   (or (rules/right-bower? card trump)
       (rules/left-bower? card trump)))
+
+(defn trump-card-value [trump card]
+  (rules/card-value card trump (rules/effective-suit card trump)))
+
+(defn weakest-cards [trump n hand]
+  (->> hand
+       (sort-by #(trump-card-value trump %))
+       (take n)
+       vec))
+
+(defn strongest-card-for-trump [trump hand]
+  (first (sort-by #(trump-card-value trump %) > hand)))
+
+(defn remove-first-card [hand card]
+  (game/remove-first card hand))
+
+(defn remove-cards [hand cards]
+  (reduce remove-first-card (vec hand) cards))
+
+(defn karbosh-discard-cards [hand trump]
+  (weakest-cards trump 2 hand))
+
+(defn helpful-donation-card? [config trump card]
+  (or (bower? trump card)
+      (high-trump? config trump card)
+      (off-ace? trump card)))
+
+(defn donation-hand-sizes [config game player]
+  (let [default-size (:karbosh-donor-hand-size config)]
+    (mapv (fn [partner]
+            (let [n (count (get-in game [:players partner :hand]))]
+              (if (pos? n) n default-size)))
+          (game/partner-players game player))))
+
+(defn karbosh-donation-analysis [config game player trump]
+  (let [hand (vec (get-in game [:players player :hand]))
+        discards (karbosh-discard-cards hand trump)
+        kept-hand (remove-cards hand discards)
+        hidden (vec (analysis/remove-seen (cards/deck) hand))
+        wanted (vec (filter #(helpful-donation-card? config trump %) hidden))
+        successes (count wanted)
+        failures (- (count hidden) successes)
+        hand-sizes (donation-hand-sizes config game player)
+        distribution (analysis/successful-hand-count-distribution successes
+                                                                  failures
+                                                                  hand-sizes
+                                                                  1)
+        expected-helpful (double (reduce + (map (fn [[n p]] (* n p))
+                                                distribution)))
+        prob-any (double (analysis/probability-at-least-successful-hands
+                          successes
+                          failures
+                          hand-sizes
+                          1))
+        prob-all (if (seq hand-sizes)
+                   (double (analysis/probability-at-least-successful-hands
+                            successes
+                            failures
+                            hand-sizes
+                            (count hand-sizes)))
+                   0.0)]
+    {:discards discards
+     :kept-hand kept-hand
+     :hidden-count (count hidden)
+     :wanted-count successes
+     :wanted-counts (frequencies wanted)
+     :donor-hand-sizes hand-sizes
+     :successful-donor-distribution distribution
+     :expected-helpful-donations expected-helpful
+     :prob-any-helpful-donation prob-any
+     :prob-all-donors-helpful prob-all}))
 
 (defn karbosh-hand? [config hand trump]
   (let [trumps (filter #(trump-card? trump %) hand)
@@ -129,6 +204,24 @@
      :off-junk (count off-junk)
      :threshold-qualified? (karbosh-hand? config hand trump)}))
 
+(defn donation-setup-qualified? [config features donation]
+  (and (some? (:trump features))
+       (pos? (:right-bowers features))
+       (>= (:trumps features) (dec (:karbosh-min-trumps config)))
+       (>= (:high-trumps features) (dec (:karbosh-min-high-trumps config)))
+       (>= (:bowers features) (:karbosh-min-bowers config))
+       (>= (:prob-any-helpful-donation donation)
+           (:karbosh-donation-qualification-prob config))))
+
+(defn karbosh-setup-analysis [config game player trump]
+  (let [hand (vec (get-in game [:players player :hand]))
+        features (karbosh-features config hand trump)
+        donation (karbosh-donation-analysis config game player trump)]
+    {:features features
+     :donation donation
+     :qualified? (or (:threshold-qualified? features)
+                     (donation-setup-qualified? config features donation))}))
+
 (defn weighted-karbosh-score [config features]
   (+ (:karbosh-prob-intercept config)
      (* (:karbosh-prob-trump-weight config) (:trumps features))
@@ -140,6 +233,12 @@
      (* (:karbosh-prob-low-trump-weight config) (:low-trumps features))
      (* (:karbosh-prob-off-junk-weight config) (:off-junk features))
      (* (:karbosh-prob-missing-bower-weight config) (:missing-bowers features))))
+
+(defn donation-karbosh-score [config donation]
+  (+ (* (:karbosh-prob-donation-help-weight config)
+        (:expected-helpful-donations donation))
+     (* (:karbosh-prob-donation-pair-weight config)
+        (:prob-all-donors-helpful donation))))
 
 (defn team-score [game player]
   (get (:scores game) (game/player-team game player) 0))
@@ -177,17 +276,20 @@
                          (+ rules/special-bid-points fail-diff-loss))}))
 
 (defn karbosh-evaluation [config game player trump]
-  (let [hand (get-in game [:players player :hand])
-        features (karbosh-features config hand trump)
-        make-prob (sigmoid (weighted-karbosh-score config features))
+  (let [{:keys [features donation qualified?] :as setup}
+        (karbosh-setup-analysis config game player trump)
+        make-prob (sigmoid (+ (weighted-karbosh-score config features)
+                              (donation-karbosh-score config donation)))
         target-prob (karbosh-target-prob config game player)
         ev (karbosh-ev config make-prob)]
     (assoc ev
            :trump trump
            :features features
+           :donation donation
+           :setup setup
            :make-prob make-prob
            :target-prob target-prob
-           :call? (and (:threshold-qualified? features)
+           :call? (and qualified?
                        (>= make-prob target-prob)
                        (pos? (:diff-ev ev))))))
 

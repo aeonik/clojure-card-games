@@ -31,6 +31,9 @@
 (def right-only-karbosh-shape
   [[:J :♠] [:A :♠] [:K :♠] [:K :♠] [:Q :♠] [:Q :♠] [10 :♠] [:A :♥]])
 
+(def donation-karbosh-hand
+  [[:K :♥] [:J :♥] [9 :♥] [:J :♣] [10 :♠] [:J :♦] [:A :♥] [:J :♥]])
+
 (def hidden-hand-size (vec (repeat 8 [9 :♣])))
 
 (defn with-hand [game player hand]
@@ -102,6 +105,24 @@
                                              :player1
                                              :karbosh-probability)))))))
 
+  (testing "probability bidding accounts for karbosh donations"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 donation-karbosh-hand))
+          evaluation (bot/karbosh-evaluation bot/default-bid-config
+                                             game
+                                             :player1
+                                             :♥)]
+      (is (= {:type :bid :bid-type :bid :value 6}
+             (bot/bid-action game :player1 :karbosh-threshold)))
+      (is (= {:type :bid :bid-type :karbosh}
+             (bot/bid-action game :player1 :karbosh-probability)))
+      (is (= [[10 :♠] [:J :♣]]
+             (get-in evaluation [:donation :discards])))
+      (is (= 11 (get-in evaluation [:donation :wanted-count])))
+      (is (< 0.75 (get-in evaluation [:donation :prob-all-donors-helpful])))
+      (is (<= (:target-prob evaluation) (:make-prob evaluation)))))
+
   (testing "a bot may overcall a partner's weak bid with a materially stronger hand"
     (let [game (-> team-game
                    (with-hand :player3 bid-5-hand)
@@ -122,7 +143,9 @@
                                   :value 6
                                   :hand-index 0}]))]
       (is (= {:type :bid :bid-type :pass}
-             (bot/bid-action game :player3)))))
+             (bot/bid-action game :player3 :karbosh-threshold)))
+      (is (= {:type :bid :bid-type :karbosh}
+             (bot/bid-action game :player3 :karbosh-probability)))))
 
   (testing "a bot can overcall a partner's six only by going karbosh"
     (let [game (-> team-game
