@@ -12,12 +12,14 @@
   {:play-animation 1150
    :trick-popup 3400
    :bid-popup 1600
+   :fireworks 2300
    :hand-animation 220})
 
 (def fast-timings
   {:play-animation 260
    :trick-popup 700
    :bid-popup 420
+   :fireworks 1050
    :hand-animation 90})
 
 (defn stored-fast-mode? []
@@ -42,6 +44,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
+         :fireworks nil
          :seat-popover-player nil
          :join-modal nil
          :public-rooms {:loading? false
@@ -598,6 +601,65 @@
      [:span (player-label view player)]
      [:strong (bid-label bid)] ]))
 
+(def firework-particles
+  [{:x 18 :y 28 :dx -4.2 :dy -4.8 :h 43 :d 0}
+   {:x 18 :y 28 :dx -2.0 :dy -5.8 :h 51 :d 20}
+   {:x 18 :y 28 :dx 0.7 :dy -5.1 :h 32 :d 40}
+   {:x 18 :y 28 :dx 3.8 :dy -4.2 :h 9 :d 60}
+   {:x 18 :y 28 :dx -5.0 :dy -1.3 :h 198 :d 80}
+   {:x 18 :y 28 :dx 4.9 :dy -0.7 :h 284 :d 100}
+   {:x 18 :y 28 :dx -3.0 :dy 3.7 :h 339 :d 120}
+   {:x 18 :y 28 :dx 2.7 :dy 3.9 :h 159 :d 140}
+   {:x 50 :y 22 :dx -5.4 :dy -3.5 :h 198 :d 210}
+   {:x 50 :y 22 :dx -2.6 :dy -5.7 :h 43 :d 230}
+   {:x 50 :y 22 :dx 1.8 :dy -5.4 :h 284 :d 250}
+   {:x 50 :y 22 :dx 5.1 :dy -2.5 :h 51 :d 270}
+   {:x 50 :y 22 :dx -5.8 :dy 1.7 :h 159 :d 290}
+   {:x 50 :y 22 :dx 5.6 :dy 1.9 :h 9 :d 310}
+   {:x 50 :y 22 :dx -1.6 :dy 5.1 :h 339 :d 330}
+   {:x 50 :y 22 :dx 2.1 :dy 4.8 :h 32 :d 350}
+   {:x 77 :y 31 :dx -4.7 :dy -4.6 :h 339 :d 420}
+   {:x 77 :y 31 :dx -1.0 :dy -5.8 :h 9 :d 440}
+   {:x 77 :y 31 :dx 2.5 :dy -4.9 :h 43 :d 460}
+   {:x 77 :y 31 :dx 5.2 :dy -1.4 :h 198 :d 480}
+   {:x 77 :y 31 :dx -5.4 :dy 1.2 :h 51 :d 500}
+   {:x 77 :y 31 :dx 4.0 :dy 3.8 :h 284 :d 520}
+   {:x 77 :y 31 :dx -2.7 :dy 4.3 :h 159 :d 540}
+   {:x 77 :y 31 :dx 1.4 :dy 5.2 :h 32 :d 560}
+   {:x 35 :y 43 :dx -3.5 :dy -3.5 :h 51 :d 650}
+   {:x 35 :y 43 :dx 3.9 :dy -3.3 :h 198 :d 675}
+   {:x 65 :y 45 :dx -4.0 :dy -3.0 :h 284 :d 700}
+   {:x 65 :y 45 :dx 3.2 :dy -3.8 :h 43 :d 725}])
+
+(defn particle-style [{:keys [x y dx dy h d]}]
+  {"--x" (str x "%")
+   "--y" (str y "%")
+   "--dx" (str dx "rem")
+   "--dy" (str dy "rem")
+   "--h" h
+   "--d" (str d "ms")})
+
+(defn fireworks-title [view {:keys [kind player team bid-type] :as firework}]
+  (case kind
+    :karbosh [(str (bid-label firework) " called")
+              (player-label view player)]
+    :game-win ["Game over"
+               (str (team-label team) " wins")]
+    [nil (some-> bid-type name)]))
+
+(defn fireworks-html [view {:keys [kind] :as firework}]
+  (when kind
+    (let [[label title] (fireworks-title view firework)]
+      (into [:div {:class (str "fireworks-overlay is-" (kw-name kind))
+                   :aria-hidden true}
+             [:div {:class "fireworks-message"}
+              [:span label]
+              [:strong title]]]
+            (map (fn [particle]
+                   [:i {:class "firework-spark"
+                        :style (particle-style particle)}])
+                 firework-particles)))))
+
 (defn bid-log-html [view]
   (when (seq (:bids-this-hand view))
     [:ol {:class "bid-log"}
@@ -639,7 +701,7 @@
       [:ol {:class "bid-log is-empty"} [:li [:strong "--"]]])]
    (when bid-popup (bid-popup-html view bid-popup))])
 
-(defn table-surface-html [view animation trick-popup queued-trick-popup]
+(defn table-surface-html [view animation trick-popup queued-trick-popup fireworks]
   (let [trick (if-let [completed-trick (:trick trick-popup)]
                 completed-trick
                 (if-let [queued-trick (:trick queued-trick-popup)]
@@ -653,7 +715,8 @@
            [[:div {:class "table-center"}
              (into [:ul {:class "trick-pile"}]
                    (trick-html view trick animation))]
-            (or (trick-popup-html view trick-popup) "")]))))
+            (or (trick-popup-html view trick-popup) "")
+            (or (fireworks-html view fireworks) "")]))))
 
 (defn seat-popover-html [view player]
   (when-let [{:keys [team bot? connected?] :as seat} (player-by-id view player)]
@@ -906,7 +969,7 @@
 
 (defn render-game! []
   (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
-                hand-order card-drag hand-animating? pending-card pending-auto?]} @app]
+                fireworks hand-order card-drag hand-animating? pending-card pending-auto?]} @app]
     (active-game-layout! (some? view))
     (if-not view
       (html! (el "game-root") "")
@@ -928,7 +991,7 @@
                    [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
                    [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
                  (or (game-over-html view) "")
-                 (table-surface-html view play-animation trick-popup queued-trick-popup)
+                 (table-surface-html view play-animation trick-popup queued-trick-popup fireworks)
                  [:div {:class "play-controls-panel"}
                   (hand-panel-html view pending-card (or (some? trick-popup)
                                                         (some? queued-trick-popup))
@@ -1021,9 +1084,23 @@
       (when (> (count new-bids) old-count)
         (nth new-bids old-count)))))
 
+(defn karbosh-bid? [bid]
+  (contains? #{:karbosh :double-karbosh} (:bid-type bid)))
+
+(defn game-winner-event [old-view new-view]
+  (when (and old-view
+             (not= :game-over (:phase old-view))
+             (= :game-over (:phase new-view)))
+    {:team (:winner new-view)}))
+
 (defn clear-bid-popup! [popup-id]
   (when (= popup-id (:id (:bid-popup @app)))
     (swap! app assoc :bid-popup nil)
+    (render-game!)))
+
+(defn clear-fireworks! [fireworks-id]
+  (when (= fireworks-id (:id (:fireworks @app)))
+    (swap! app assoc :fireworks nil)
     (render-game!)))
 
 (defn reset-room-state! [message]
@@ -1041,6 +1118,7 @@
          :trick-popup nil
          :queued-trick-popup nil
          :bid-popup nil
+         :fireworks nil
          :seat-popover-player nil
          :join-modal nil
          :hand-order nil
@@ -1058,14 +1136,16 @@
   (let [message (reader/read-string raw)]
     (case (:op message)
       :state
-      (let [view (:view message)
+      (let [old-view (:view @app)
+            view (:view message)
             fast-mode? (true? (:fast-mode? view))
             hand-order (reconcile-hand-order (:hand-order @app)
                                              (:hand view)
                                              (:hand-index view))
-            animation (played-card-event (:view @app) view)
-            trick-winner (won-trick-event (:view @app) view)
-            bid (bid-event (:view @app) view)
+            animation (played-card-event old-view view)
+            trick-winner (won-trick-event old-view view)
+            bid (bid-event old-view view)
+            game-winner (game-winner-event old-view view)
             now (.now js/Date)
             animation-id (when animation
                            (str now "-" (kw-name (:player animation))))
@@ -1074,7 +1154,17 @@
             popup (some-> trick-winner (assoc :id popup-id))
             queue-popup? (and animation popup)
             bid-popup-id (when bid
-                           (str now "-bid-" (kw-name (:player bid))))]
+                           (str now "-bid-" (kw-name (:player bid))))
+            fireworks (cond
+                        (karbosh-bid? bid)
+                        (assoc bid
+                               :id (str now "-karbosh-" (kw-name (:player bid)))
+                               :kind :karbosh)
+
+                        game-winner
+                        (assoc game-winner
+                               :id (str now "-game-win")
+                               :kind :game-win))]
         (swap! app assoc
                :room-id (:room-id message)
                :player (:player message)
@@ -1083,6 +1173,7 @@
                :trick-popup (when-not queue-popup? popup)
                :queued-trick-popup (when queue-popup? popup)
                :bid-popup (some-> bid (assoc :id bid-popup-id))
+               :fireworks (or fireworks (:fireworks @app))
                :hand-order hand-order
                :card-drag nil
                :hand-animating? false
@@ -1100,7 +1191,9 @@
         (when (and popup (not queue-popup?))
           (js/setTimeout #(clear-trick-popup! popup-id) (timing-ms :trick-popup)))
         (when bid-popup-id
-          (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup))))
+          (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup)))
+        (when-let [fireworks-id (:id fireworks)]
+          (js/setTimeout #(clear-fireworks! fireworks-id) (timing-ms :fireworks))))
 
       :error
       (do
