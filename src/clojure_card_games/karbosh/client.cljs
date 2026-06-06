@@ -717,11 +717,24 @@
             :disabled (or (not active?) paused? pending?)}
    "Auto Play"])
 
-(defn auto-play-button-for-phase [view active? paused? pending?]
-  (when (auto-play-phases (:phase view))
-    (auto-play-button active? paused? pending?)))
+(defn hand-primary-action-button [view active? paused? pending?]
+  (case (:phase view)
+    :hand-complete
+    [:button {:type "button"
+              :class "auto-play-button"
+              :data-new-hand true}
+     "New Hand"]
 
-(defn bid-controls [view active? paused? pending?]
+    :game-over
+    [:button {:type "button"
+              :class "auto-play-button"
+              :data-new-game true}
+     "New Game"]
+
+    (when (auto-play-phases (:phase view))
+      (auto-play-button active? paused? pending?))))
+
+(defn bid-controls [view active?]
   (when (= :bidding (:phase view))
     (let [disabled (not active?)]
       [:div {:class "control-group"}
@@ -741,13 +754,9 @@
        [:button {:type "button"
                  :data-bid "double-karbosh"
                  :disabled disabled}
-        "Double"]
-       (auto-play-button-for-phase view active? paused? pending?)])))
+        "Double"]])))
 
-(defn trump-controls [view active? paused? pending?]
-  nil)
-
-(defn trump-picker-html [view active? paused? pending?]
+(defn trump-picker-html [view active?]
   (when (= :trump-selection (:phase view))
     [:div {:class "modal-backdrop trump-picker-backdrop"}
      [:section {:class "trump-picker-modal"
@@ -765,20 +774,7 @@
                    :class (str "trump-button" (suit-class suit))
                    :data-trump (pr-str suit)
                    :disabled (not active?)}
-          (cards/suit->str suit)])]
-      (auto-play-button-for-phase view active? paused? pending?)]]))
-
-(defn auto-play-controls [view active? paused? pending?]
-  (when (and (auto-play-phases (:phase view))
-             (not (#{:bidding :trump-selection} (:phase view))))
-    [:div {:class "control-group auto-play-control"}
-     (auto-play-button active? paused? pending?)]))
-
-(defn hand-auto-play-control [view active? paused? pending?]
-  (when (and (auto-play-phases (:phase view))
-             (not (#{:bidding :trump-selection} (:phase view))))
-    [:div {:class "hand-auto-play"}
-     (auto-play-button active? paused? pending?)]))
+          (cards/suit->str suit)])]]]))
 
 (defn hand-title [view]
   (case (:phase view)
@@ -826,7 +822,7 @@
        [:span (count hand) " cards"]
        (sort-hand-button (or pending-card (empty? hand)))
        (fast-mode-button (:fast-mode? @app))
-       (hand-auto-play-control view active? paused? pending-auto?)]]
+       (hand-primary-action-button view active? paused? pending-auto?)]]
      [:div {:class (str "hand-row"
                         (when sorting? " is-sorting")
                         (when hand-animating? " is-animating"))}
@@ -844,17 +840,6 @@
      [:span "Game over"]
      [:strong (team-label (:winner view)) " wins"]
      [:em "Final score " (get-in view [:scores 1] 0) " / " (get-in view [:scores 2] 0)]]))
-
-(defn next-hand-controls [view]
-  (case (:phase view)
-    :hand-complete
-    [:div {:class "control-group"}
-     [:button {:type "button" :data-new-hand true} "New hand"]]
-    :game-over
-    [:div {:class "control-group"}
-     [:button {:type "button" :data-new-game true} "New game"]]
-
-    nil))
 
 (defn fill-bots-button []
   [:button {:class "table-fill-bots-button"
@@ -875,14 +860,6 @@
               :data-room-public (if public? "false" "true")}
      (if public? "Make Private" "Make Public")]))
 
-(defn leave-room-controls []
-  [:div {:class "control-group leave-room-control"}
-   (leave-room-button)])
-
-(defn room-visibility-controls [view]
-  [:div {:class "control-group room-visibility-control"}
-   (room-visibility-button view)])
-
 (defn table-top-actions [view]
   [:div {:class "table-top-actions"}
    (fill-bots-button)
@@ -890,24 +867,19 @@
     (room-visibility-button view)
     (leave-room-button)]])
 
-(defn render-controls [view paused? pending-auto?]
+(defn render-controls [view]
   (let [active? (= (:you view) (:current-player view))]
     (filter identity
-            [(bid-controls view active? paused? pending-auto?)
-             (trump-controls view active? paused? pending-auto?)
-             (auto-play-controls view active? paused? pending-auto?)
-             (next-hand-controls view)])))
+            [(bid-controls view active?)])))
 
 (defn render-trump-picker! []
   (when-not (:join-modal @app)
-    (let [{:keys [view trick-popup queued-trick-popup bid-popup pending-auto?]} @app
+    (let [{:keys [view bid-popup]} @app
           active? (= (:you view) (:current-player view))
-          paused? (or (some? trick-popup)
-                      (some? queued-trick-popup))
           delayed? (some? bid-popup)]
       (html! (el "modal-root")
              (or (when-not delayed?
-                   (trump-picker-html view active? paused? pending-auto?))
+                   (trump-picker-html view active?))
                  "")))))
 
 (defn render-game! []
@@ -941,11 +913,9 @@
                                    hand-order
                                    card-drag
                                    hand-animating?
-                                   pending-auto?)
+                  pending-auto?)
                   [:div {:class "controls"}
-                   (render-controls view (or (some? trick-popup)
-                                            (some? queued-trick-popup))
-                                    pending-auto?)]]
+                   (render-controls view)]]
                  [:div {:id "seat-popover-root"}]
                  (mobile-seat-roster-html view)]])))
     (render-seat-popover!)

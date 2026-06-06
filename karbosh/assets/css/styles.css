@@ -1404,10 +1404,6 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   justify-content: flex-end;
 }
 
-.hand-auto-play {
-  display: none;
-}
-
 .hand-heading h2 {
   margin-bottom: 0;
 }
@@ -1421,13 +1417,18 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
 }
 
 .sort-hand-button,
-.fast-mode-button {
+.fast-mode-button,
+.hand-actions .auto-play-button {
   min-height: 2rem;
   border-color: rgba(111, 208, 199, 0.45);
   background: rgba(111, 208, 199, 0.07);
   padding: 0 0.75rem;
   font-size: 0.62rem;
   letter-spacing: 0.1em;
+}
+
+.hand-actions .auto-play-button {
+  min-width: 6.2rem;
 }
 
 .fast-mode-button.is-active {
@@ -2558,11 +2559,7 @@ input {
     letter-spacing: 0.08em;
   }
 
-  body.has-karbosh-game .hand-auto-play {
-    display: inline-flex;
-  }
-
-  body.has-karbosh-game .hand-auto-play .auto-play-button,
+  body.has-karbosh-game .hand-actions .auto-play-button,
   body.has-karbosh-game .sort-hand-button,
   body.has-karbosh-game .fast-mode-button {
     min-height: 1.55rem;
@@ -2572,8 +2569,9 @@ input {
     white-space: nowrap;
   }
 
-  body.has-karbosh-game .hand-auto-play .auto-play-button {
+  body.has-karbosh-game .hand-actions .auto-play-button {
     min-width: 5rem;
+    width: auto;
   }
 
   body.has-karbosh-game .hand-row {
@@ -2877,7 +2875,8 @@ input {
   }
 
   body.has-karbosh-game .sort-hand-button,
-  body.has-karbosh-game .fast-mode-button {
+  body.has-karbosh-game .fast-mode-button,
+  body.has-karbosh-game .hand-actions .auto-play-button {
     min-height: 1.3rem;
     padding: 0 0.52rem;
     font-size: 0.45rem;
@@ -3087,6 +3086,7 @@ input {
   place-items: center;
   background: rgba(8, 12, 26, 0.58);
   padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+  pointer-events: none;
 }
 
 .trump-picker-modal {
@@ -3098,6 +3098,7 @@ input {
   background: rgba(18, 22, 34, 0.96);
   box-shadow: 0 1.1rem 2.4rem rgba(8, 12, 26, 0.42);
   padding: 1rem;
+  pointer-events: auto;
 }
 
 .trump-picker-label {
@@ -3123,14 +3124,6 @@ input {
   height: auto;
   font-size: clamp(2.4rem, 5vw, 3.5rem);
   line-height: 1;
-}
-
-.trump-picker-modal .auto-play-button {
-  justify-self: center;
-  min-height: 2.2rem;
-  width: min(12rem, 100%);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
 }
 
 @media screen and (max-width: 980px) {
@@ -3175,8 +3168,4 @@ input {
     font-size: clamp(2rem, 8vh, 2.85rem);
   }
 
-  .trump-picker-modal .auto-play-button {
-    min-height: 1.85rem;
-    font-size: 0.52rem;
-  }
 }
