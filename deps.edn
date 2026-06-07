@@ -11,7 +11,8 @@
                           :main-opts ["-m" "cljs.main"
                                       "-co" "build/karbosh.cljs.edn"
                                       "-c" "clojure-card-games.karbosh.client"]}
-           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.10"}}
+           :build {:extra-paths ["src"]
+                   :deps {io.github.clojure/tools.build {:mvn/version "0.10.10"}}
                    :ns-default build}
            :test {:extra-paths ["test"]
                   :extra-deps {io.github.cognitect-labs/test-runner

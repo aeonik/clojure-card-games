@@ -115,6 +115,21 @@
 (defn smoke [_]
   (sh! "curl" "-fsS" (health-url)))
 
+(defn compact-archive [opts]
+  (let [compact! (requiring-resolve
+                  'clojure-card-games.karbosh.archive/compact-archive!)]
+    (compact! opts)))
+
+(defn compact-prod-archive [{:keys [confirm]}]
+  (when-not (= confirm "COMPACT_ARCHIVE")
+    (throw (ex-info "Production archive compaction moves the legacy audit directory; pass :confirm \"COMPACT_ARCHIVE\""
+                    {:required-confirm "COMPACT_ARCHIVE"})))
+  (ssh! (str "cd "
+             (env "KARBOSH_APP_DIR" "~/apps/clojure-card-games/")
+             " && /usr/local/bin/clojure -M -m "
+             "clojure-card-games.karbosh.archive "
+             "--confirm COMPACT_ARCHIVE")))
+
 (defn deploy-compatible [_]
   (rsync! "deps.edn" "build.clj" "src" "build" "deploy" "karbosh" (app-dst))
   (rsync! "karbosh/" (static-dst))
