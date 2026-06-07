@@ -1,12 +1,13 @@
 (ns clojure-card-games.karbosh.server-test
   (:require [clojure.core.async :as async]
             [clojure.edn :as edn]
-            [clojure.test :refer [deftest is]]
+            [clojure.test :refer [deftest is use-fixtures]]
             [clojure-card-games.karbosh.admin :as admin]
             [clojure-card-games.karbosh.audit :as audit]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.server :as server]
-            [clojure-card-games.karbosh.shared.game :as game])
+            [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.storage :as storage])
   (:import [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]))
 
@@ -51,6 +52,17 @@
 
 (defn played-room [room]
   (assoc-in room [:game :hand-history] [{:hand-index 0}]))
+
+(use-fixtures
+  :each
+  (fn [test]
+    (let [room-dir (.toFile (Files/createTempDirectory "karbosh-rooms-test"
+                                                       (make-array FileAttribute 0)))
+          audit-dir (.toFile (Files/createTempDirectory "karbosh-audit-server-test"
+                                                        (make-array FileAttribute 0)))]
+      (with-redefs [server/room-dir (constantly (.getPath room-dir))
+                    server/audit-dir (constantly (.getPath audit-dir))]
+        (test)))))
 
 (deftest bot-turn-delay-test
   (let [players (zipmap game/players (repeat {:team 1 :hand []}))
@@ -731,7 +743,7 @@
                          :game {}}}
                  1500))))))
 
-(deftest publish-room-skips-zero-hand-archive-test
+(deftest publish-room-persists-without-audit-append-test
   (let [published (atom [])
         room (room/new-room "ABC123" 9)]
     (with-redefs [audit/record-room! (fn [event-type room]
@@ -739,8 +751,20 @@
                                        true)]
       (server/publish-room! "ABC123" room)
       (is (= [] @published))
+      (is (storage/room-exists? (server/room-dir) "ABC123"))
       (server/publish-room! "ABC123" (played-room room))
-      (is (= [[:room-publish "ABC123"]] @published)))))
+      (is (= [] @published)))))
+
+(deftest save-current-rooms-persists-loaded-rooms-test
+  (let [old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {"ABC123" (room/new-room "ABC123" 9)
+                            "STALE" nil})
+      (server/save-current-rooms!)
+      (is (storage/room-exists? (server/room-dir) "ABC123"))
+      (is (not (storage/room-exists? (server/room-dir) "STALE")))
+      (finally
+        (reset! server/rooms old-rooms)))))
 
 (deftest idle-delete-prunes-zero-hand-archive-test
   (let [old-rooms @server/rooms
@@ -752,11 +776,63 @@
         file (java.io.File. dir "EMPTY1.edn")]
     (try
       (audit/append-record! dir (audit/room-record :room-publish room 1000))
+      (storage/write-room! (server/room-dir) room)
       (reset! server/rooms {"EMPTY1" room})
       (with-redefs [server/audit-dir (constantly (.getPath dir))]
-        (is (= room (server/delete-room! "EMPTY1" :idle)))
+        (is (= room (server/unload-room! "EMPTY1" :idle)))
         (is (not (contains? @server/rooms "EMPTY1")))
-        (is (not (.exists file))))
+        (is (not (.exists file)))
+        (is (not (storage/room-exists? (server/room-dir) "EMPTY1"))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest idle-sweep-unloads-played-room-without-closing-it-test
+  (let [old-rooms @server/rooms
+        room (-> (played-room (room/new-room "PLAYED" 9))
+                 (assoc :empty-since 0
+                        :connections {}))]
+    (try
+      (reset! server/rooms {"PLAYED" room})
+      (with-redefs [server/idle-room-ms (constantly 1000)]
+        (is (= ["PLAYED"] (server/close-idle-rooms!)))
+        (is (not (contains? @server/rooms "PLAYED")))
+        (is (storage/room-exists? (server/room-dir) "PLAYED"))
+        (is (= "PLAYED" (:id (storage/read-room (server/room-dir) "PLAYED")))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest join-room-loads-durable-room-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        durable (-> (played-room (room/new-room "SAVED1" 9))
+                    (room/seat-player :player1 "Dave"))]
+    (try
+      (storage/write-room! (server/room-dir) durable)
+      (reset! server/rooms {})
+      (is (true? (server/join-room! :conn out {:room-id "SAVED1"
+                                               :name "Dave"
+                                               :player "player1"})))
+      (is (contains? @server/rooms "SAVED1"))
+      (is (= :state (:op (async/<!! out))))
+      (is (= :player1 (get-in @server/rooms ["SAVED1" :connections :conn :player])))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest join-room-loads-legacy-audit-room-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        legacy (-> (played-room (room/new-room "OLD123" 9))
+                   (room/seat-player :player1 "Dave"))]
+    (try
+      (audit/append-record! (server/audit-dir)
+                            (audit/room-record :room-delete-idle legacy 1000))
+      (reset! server/rooms {})
+      (is (true? (server/join-room! :conn out {:room-id "OLD123"
+                                               :name "Dave"
+                                               :player "player1"})))
+      (is (contains? @server/rooms "OLD123"))
+      (is (= :state (:op (async/<!! out))))
+      (is (storage/room-exists? (server/room-dir) "OLD123"))
       (finally
         (reset! server/rooms old-rooms)))))
 

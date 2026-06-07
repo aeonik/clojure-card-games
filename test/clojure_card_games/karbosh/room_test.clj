@@ -236,6 +236,26 @@
     (is (= :bid (:type event)))
     (is (= :player1 (:player event)))))
 
+(deftest new-game-preserves-completed-game-history
+  (let [completed (-> (room/new-room "ABC123" 9)
+                      (assoc :game-started-at 1000)
+                      (assoc-in [:game :phase] :game-over)
+                      (assoc-in [:game :winner] 1)
+                      (assoc-in [:game :scores] {1 52 2 10}))
+        next-room (room/apply-player-event completed nil {:type :new-game
+                                                          :seed 42})
+        entry (first (:games next-room))]
+    (is (= 1 (count (:games next-room))))
+    (is (= 0 (:game-index entry)))
+    (is (= 9 (:seed entry)))
+    (is (= 1000 (:started-at entry)))
+    (is (= :game-over (get-in entry [:game :phase])))
+    (is (= 1 (get-in entry [:game :winner])))
+    (is (= 1 (:game-index next-room)))
+    (is (= 42 (:seed next-room)))
+    (is (= 42 (get-in next-room [:game :initial-seed])))
+    (is (= :bidding (get-in next-room [:game :phase])))))
+
 (deftest auto-play-requires-current-player
   (let [state (-> (room/new-room "ABC123" 9)
                   (room/seat-player :player2 "Human")

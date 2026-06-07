@@ -191,7 +191,9 @@
   (:room record))
 
 (defn room-hand-count [room]
-  (count (get-in room [:game :hand-history])))
+  (+ (count (get-in room [:game :hand-history]))
+     (reduce + (map #(count (get-in % [:game :hand-history]))
+                    (:games room)))))
 
 (defn room-played? [room]
   (pos? (room-hand-count room)))

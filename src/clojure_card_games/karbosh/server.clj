@@ -9,6 +9,7 @@
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.storage :as storage]
             [org.httpkit.server :as http])
   (:import [java.net URI URLDecoder]
            [java.nio.charset StandardCharsets]
@@ -28,6 +29,7 @@
     clojure-card-games.karbosh.shared.rules
     clojure-card-games.karbosh.shared.game
     clojure-card-games.karbosh.audit
+    clojure-card-games.karbosh.storage
     clojure-card-games.karbosh.analysis
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.bot
@@ -71,6 +73,9 @@
 
 (defn audit-dir []
   (or (System/getenv "KARBOSH_AUDIT_DIR") "data/karbosh-audit"))
+
+(defn room-dir []
+  (or (System/getenv "KARBOSH_ROOM_DIR") "data/karbosh-rooms"))
 
 (defn static-root []
   (io/file (or (System/getenv "KARBOSH_STATIC_ROOT") "karbosh")))
@@ -297,14 +302,111 @@
                      (audit/played-room? room))]
     (audit/record-room! event-type room)))
 
+(defn save-room! [room]
+  (when (map? room)
+    (storage/write-room! (room-dir) room)))
+
+(defn save-current-rooms! []
+  (doseq [room (vals @rooms)
+          :when (map? room)]
+    (save-room! room)))
+
+(defn load-room [room-id]
+  (some-> (or (storage/read-room (room-dir) room-id)
+              (:room (audit/latest-room-record (audit-dir) room-id)))
+          room/ensure-room-metadata))
+
+(defn durable-room-exists? [room-id]
+  (or (storage/room-exists? (room-dir) room-id)
+      (some? (audit/latest-room-record (audit-dir) room-id))))
+
+(defn delete-durable-room! [room-id]
+  (storage/delete-room! (room-dir) room-id))
+
+(defn ensure-room-loaded! [room-id]
+  (when room-id
+    (or (get @rooms room-id)
+        (when-let [room (load-room room-id)]
+          (get (swap! rooms #(if (contains? % room-id)
+                               %
+                               (assoc % room-id room)))
+               room-id)))))
+
+(defn room-by-id [room-id]
+  (when room-id
+    (or (get @rooms room-id)
+        (load-room room-id))))
+
+(defn stored-room [room-id]
+  (when room-id
+    (storage/read-room (room-dir) room-id)))
+
+(defn durable-rooms []
+  (->> (storage/room-files (room-dir))
+       (keep #(load-room (storage/room-id-from-file %)))
+       vec))
+
+(defn durable-room-record [room]
+  (audit/room-record :room-durable
+                     room
+                     (or (:updated-at room) (:created-at room))))
+
+(defn durable-room-records []
+  (mapv durable-room-record (durable-rooms)))
+
+(defn latest-records-by-room [records]
+  (->> records
+       (reduce (fn [by-room record]
+                 (let [room-id (:room-id record)
+                       existing (get by-room room-id)]
+                   (if (or (nil? existing)
+                           (> (or (:logged-at record) 0)
+                              (or (:logged-at existing) 0)))
+                     (assoc by-room room-id record)
+                     by-room)))
+               {})
+       vals
+       (sort-by :logged-at >)
+       vec))
+
+(defn durable-entry-room [room entry]
+  (-> room
+      (dissoc :games :connections)
+      (assoc :game (:game entry)
+             :seed (:seed entry)
+             :game-index (:game-index entry)
+             :game-started-at (:started-at entry))))
+
+(defn durable-game-records-for-room [room]
+  (let [completed (mapv #(audit/room-record :room-game
+                                            (durable-entry-room room %)
+                                            (or (:completed-at %)
+                                                (:updated-at room)
+                                                (:created-at room)))
+                        (:games room))
+        current (when (audit/played-room? room)
+                  [(durable-room-record (dissoc room :games))])]
+    (into completed current)))
+
+(defn durable-game-records []
+  (->> (durable-rooms)
+       (mapcat durable-game-records-for-room)
+       audit/game-records-from-candidates))
+
 (defn historical-room-records []
-  (audit/latest-room-records (audit-dir)))
+  (latest-records-by-room
+   (concat (audit/latest-room-records (audit-dir))
+           (durable-room-records))))
 
 (defn archived-game-records []
-  (audit/game-history-records (audit-dir)))
+  (audit/game-records-from-candidates
+   (concat (audit/game-history-records (audit-dir))
+           (durable-game-records))))
 
 (defn historical-room-record [room-id]
-  (audit/latest-room-record (audit-dir) room-id))
+  (or (some #(when (= room-id (:room-id %)) %)
+            (durable-room-records))
+      (audit/latest-room-record (audit-dir) room-id)))
 
 (defn live-game-record [room-id seed timestamp]
   (when-let [room (get @rooms room-id)]
@@ -316,7 +418,18 @@
       (audit/room-record :room-live room))))
 
 (defn historical-game-record [room-id seed timestamp]
-  (audit/room-game-record (audit-dir) room-id seed timestamp))
+  (or (some (fn [record]
+              (when (and (= room-id (:room-id record))
+                         (= (str seed)
+                            (str (get-in record [:room :game :initial-seed])))
+                         (or (nil? timestamp)
+                             (= (str timestamp)
+                                (str (or (get-in record [:room :game-started-at])
+                                         (get-in record [:room :created-at])
+                                         (:logged-at record))))))
+                record))
+            (durable-game-records))
+      (audit/room-game-record (audit-dir) room-id seed timestamp)))
 
 (defn game-history-record [room-id seed timestamp]
   (or (live-game-record room-id seed timestamp)
@@ -462,6 +575,7 @@
     (install-runtime-handlers!)
     (start-nrepl-if-enabled!)
     (refresh-room-view-state!)
+    (save-current-rooms!)
     (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
           result {:ok true
                   :reloaded reloadable-namespaces
@@ -567,7 +681,7 @@
      (decode-query-value (subs uri (count "/karbosh/api/room/"))))))
 
 (defn room-preview-response [room-id]
-  (if-let [room (get @rooms room-id)]
+  (if-let [room (room-by-id room-id)]
     (edn-response (assoc (room-preview room) :ok true))
     (response 404
               (pr-str {:ok false
@@ -576,8 +690,10 @@
               "application/edn; charset=utf-8")))
 
 (defn admin-room-snapshot-edn-response [_request room-id]
-  (if-let [room (get @rooms room-id)]
+  (if-let [room (or (get @rooms room-id)
+                    (stored-room room-id))]
     (edn-response {:ok true
+                   :durable? (not (contains? @rooms room-id))
                    :room-id room-id
                    :room (audit/sanitize-room room)
                    :view (game/admin-view (:game room) (:seats room))})
@@ -596,7 +712,8 @@
                 "application/edn; charset=utf-8"))))
 
 (defn admin-room-snapshot-response [request room-id]
-  (if-let [room (get @rooms room-id)]
+  (if-let [room (or (get @rooms room-id)
+                    (stored-room room-id))]
     (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
     (if-let [record (historical-room-record room-id)]
       (html-response (admin/render-room-snapshot (:room record)))
@@ -617,6 +734,7 @@
       (if (audit/played-room? room)
         (audit/record-room! (keyword "room-delete" (name reason)) room)
         (audit/prune-room-records! (audit-dir) room-id))
+      (delete-durable-room! room-id)
       (notify-room! room {:op :room-closed
                           :room-id room-id
                           :reason reason
@@ -627,6 +745,26 @@
                  :idle :idle-room-deletes
                  :admin :admin-room-deletes
                  :room-deletes))
+      room)))
+
+(defn unload-room! [room-id reason]
+  (let [room-id (normalize-room-id room-id)
+        room (get @rooms room-id)]
+    (when room
+      (if (audit/played-room? room)
+        (do
+          (save-room! room)
+          (metric! (case reason
+                     :idle :idle-room-unloads
+                     :room-unloads)))
+        (do
+          (delete-durable-room! room-id)
+          (audit/prune-room-records! (audit-dir) room-id)
+          (metric! (case reason
+                     :idle :idle-room-prunes
+                     :room-prunes))))
+      (swap! rooms dissoc room-id)
+      (swap! bot-turns dissoc room-id)
       room)))
 
 (defn room-empty? [room]
@@ -649,7 +787,7 @@
   (let [now (System/currentTimeMillis)
         room-ids (vec (idle-room-ids @rooms now))]
     (doseq [room-id room-ids]
-      (delete-room! room-id :idle))
+      (unload-room! room-id :idle))
     room-ids))
 
 (defn start-room-sweeper! []
@@ -722,8 +860,7 @@
       (if fast? fast-bot-action-delay-ms bot-action-delay-ms))))
 
 (defn publish-room! [room-id room]
-  (when (audit/played-room? room)
-    (audit/record-room! :room-publish room))
+  (save-room! room)
   (broadcast-room! room)
   (schedule-bot-turn! room-id room)
   room)
@@ -772,7 +909,8 @@
 
 (defn unique-room-id []
   (loop [id (room/random-room-id)]
-    (if (contains? @rooms id)
+    (if (or (contains? @rooms id)
+            (durable-room-exists? id))
       (recur (room/random-room-id))
       id)))
 
@@ -841,14 +979,15 @@
 (defn join-room! [conn-id out {:keys [room-id name player]}]
   (metric! :room-joins)
   (let [room-id (some-> room-id str/upper-case str/trim)
-        player (when player (keyword player))]
+        player (when player (keyword player))
+        room (ensure-room-loaded! room-id)]
     (cond
-      (not (contains? @rooms room-id))
+      (nil? room)
       (do
         (send-edn! out {:op :error :message "Room not found"})
         false)
 
-      (room-connection-limit-reached? (get @rooms room-id) conn-id)
+      (room-connection-limit-reached? room conn-id)
       (do
         (record-error!)
         (send-edn! out {:op :error :message "Room connection limit reached"})

@@ -156,6 +156,8 @@
       :owner nil
       :public? (true? public?)
       :fast-mode? (true? fast-mode?)
+      :game-index 0
+      :games []
       :game (game/init-game seed)
       :seats {}
       :connections {}})))
@@ -222,6 +224,8 @@
 
 (defn ensure-room-metadata [room]
   (-> room
+      (update :games #(vec (or % [])))
+      (update :game-index #(or % (count (:games room))))
       (ensure-bot-personas)
       (ensure-owner)))
 
@@ -317,6 +321,24 @@
          :new-game
          (System/nanoTime)]))
 
+(defn completed-game-entry [room now]
+  {:game-index (or (:game-index room) (count (:games room)))
+   :seed (get-in room [:game :initial-seed])
+   :started-at (:game-started-at room)
+   :completed-at now
+   :game (:game room)})
+
+(defn start-new-game [room event]
+  (let [now (System/currentTimeMillis)
+        seed (or (:seed event) (new-game-seed room))]
+    (-> room
+        (update :games (fnil conj []) (completed-game-entry room now))
+        (assoc :seed seed
+               :game-started-at now
+               :game-index (inc (or (:game-index room) (count (:games room))))
+               :game (game/apply-event (:game room)
+                                       (assoc event :seed seed))))))
+
 (defn apply-player-event [room conn-id event]
   (let [player (connection-player room conn-id)
         game (:game room)
@@ -327,15 +349,13 @@
                 :discard-card (assoc event :player player)
                 :play-card (assoc event :player player)
                 :new-hand event
-                :new-game (assoc event :seed (or (:seed event)
-                                                 (new-game-seed room)))
+                :new-game event
                 :reshuffle-hand (assoc event :seed (or (:seed event)
                                                        (reshuffle-seed room)))
                 event)]
-    (cond-> (assoc room :game (game/apply-event game event))
-      (= :new-game (:type event))
-      (assoc :seed (:seed event)
-             :game-started-at (System/currentTimeMillis)))))
+    (if (= :new-game (:type event))
+      (start-new-game room event)
+      (assoc room :game (game/apply-event game event)))))
 
 (def bot-advance-limit 96)
 
