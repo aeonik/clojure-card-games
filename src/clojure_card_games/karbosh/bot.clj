@@ -52,6 +52,7 @@
    :win-risk-tolerance 0.22
    :lead-risk-penalty 900
    :win-risk-penalty 700
+   :defender-high-trump-preservation-penalty 2000
    :karbosh-lead-risk-tolerance 0.03
    :karbosh-win-risk-tolerance 0.01
    :karbosh-lead-risk-penalty 6500
@@ -537,6 +538,20 @@
            :win-risk-penalty (:karbosh-win-risk-penalty config))
     config))
 
+(defn maker-team? [game player]
+  (when-let [bid (game/current-bid game)]
+    (= (game/player-team game player)
+       (game/player-team game (:player bid)))))
+
+(defn lead-context [game player]
+  (let [bid (game/current-bid game)
+        maker? (boolean (and bid (maker-team? game player)))]
+    {:bid bid
+     :trump (:trump game)
+     :caller? (= player (:player bid))
+     :maker-team? maker?
+     :defender? (boolean (and bid (not maker?)))}))
+
 (defn wins-trick? [game player card]
   (= player (rules/resolve-trick (conj (:current-trick game)
                                        {:player player :card card})
@@ -700,9 +715,41 @@
 (defn card-risk [analyses card]
   (probability (get-in analyses [card :prob-pending-opponent-can-beat-card])))
 
+(defn high-preservation-trump? [game card]
+  (and (trump-card? (:trump game) card)
+       (>= (card-score game card)
+           (rules/card-value [:K (:trump game)] (:trump game) (:trump game)))))
+
+(defn lead-card-features [game analyses card]
+  (let [risk (card-risk analyses card)]
+    {:card card
+     :score (card-score game card)
+     :risk risk
+     :trump? (trump-card? (:trump game) card)
+     :high-trump? (high-preservation-trump? game card)
+     :good? (zero? risk)}))
+
 (defn risk-adjusted-lead-value [config game analyses card]
   (- (card-score game card)
      (* (:lead-risk-penalty config) (card-risk analyses card))))
+
+(defn defender-preservation-penalty [config context features]
+  (if (and (:defender? context)
+           (:trump? features)
+           (:high-trump? features)
+           (not (:good? features)))
+    (* (or (:defender-high-trump-preservation-penalty config) 0)
+       (:risk features))
+    0.0))
+
+(defn preservation-lead-value [config game context analyses card]
+  (let [{:keys [score risk] :as features} (lead-card-features game analyses card)]
+    (- score
+       (* (:lead-risk-penalty config) risk)
+       (defender-preservation-penalty config context features))))
+
+(defn best-lead-by-value [value-fn cards]
+  (first (sort-by value-fn > cards)))
 
 (defn risk-adjusted-win-cost [config game analyses card]
   (+ (card-score game card)
@@ -776,9 +823,11 @@
       (lowest-card game safe)
 
       :else
-      (first (sort-by #(risk-adjusted-lead-value config game analyses %)
-                      >
-                      fallback-cards)))))
+      (best-lead-by-value #(risk-adjusted-lead-value config
+                                                    game
+                                                    analyses
+                                                    %)
+                          fallback-cards))))
 
 (defn probability-lead-card [config game player analyses cards]
   (probability-lead-card-with-candidates risk-adjusted-lead-candidates
@@ -795,6 +844,26 @@
                                          player
                                          analyses
                                          cards))
+
+(defn preservation-probability-lead-card [config game player analyses cards]
+  (let [priority (priority-lead-card game player cards)
+        safe (safe-cards config analyses :lead-risk-tolerance cards)
+        fallback-cards (risk-adjusted-lead-candidates game player cards)
+        context (lead-context game player)]
+    (cond
+      priority
+      priority
+
+      (seq safe)
+      (lowest-card game safe)
+
+      :else
+      (best-lead-by-value #(preservation-lead-value config
+                                                    game
+                                                    context
+                                                    analyses
+                                                    %)
+                          fallback-cards))))
 
 (defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
@@ -850,6 +919,11 @@
                                      game
                                      player))
 
+(defn preservation-probability-card-action [game player]
+  (probability-card-action-with-lead preservation-probability-lead-card
+                                     game
+                                     player))
+
 (defn hybrid-threshold-card-action [game player]
   (if (special-contract? (game/current-bid game))
     (card-counting-card-action game player)
@@ -865,14 +939,21 @@
     (card-counting-card-action game player)
     (defender-exit-probability-card-action game player)))
 
+(defn preservation-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (preservation-probability-card-action game player)))
+
 (def play-strategies
   {:card-counting card-counting-card-action
    :probability-threshold threshold-probability-card-action
    :probability probability-card-action
    :probability-defender-exit defender-exit-probability-card-action
+   :probability-preservation preservation-probability-card-action
    :hybrid-threshold hybrid-threshold-card-action
    :hybrid hybrid-card-action
-   :hybrid-defender-exit defender-exit-hybrid-card-action})
+   :hybrid-defender-exit defender-exit-hybrid-card-action
+   :hybrid-preservation preservation-hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond

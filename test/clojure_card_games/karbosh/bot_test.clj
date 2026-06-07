@@ -540,10 +540,16 @@
                 :tricks-this-hand {1 1 2 1}
                 :current-trick []}]
       (is (false? (bot/good-card? game :player4 [:A :♦])))
+      (is (= {:type :play-card :card [:A :♦]}
+             (bot/card-action game :player4 :hybrid)))
       (is (= {:type :play-card :card [:K :♥]}
              (bot/card-action game :player4 :probability-defender-exit)))
       (is (= {:type :play-card :card [:K :♥]}
-             (bot/card-action game :player4 :hybrid-defender-exit)))))
+             (bot/card-action game :player4 :hybrid-defender-exit)))
+      (is (= {:type :play-card :card [:K :♥]}
+             (bot/card-action game :player4 :probability-preservation)))
+      (is (= {:type :play-card :card [:K :♥]}
+             (bot/card-action game :player4 :hybrid-preservation)))))
 
   (testing "when a partner is safely winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}
