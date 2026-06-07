@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.room-test
   (:require [clojure.test :refer [deftest is]]
+            [clojure-card-games.karbosh.bot :as bot]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.shared.game :as game]))
 
@@ -16,10 +17,13 @@
   (let [persona {:name "Deal-E"
                  :icon "DE"
                  :catchphrase "The adorable card-dealing bot."}
+        normalized (assoc persona
+                          :style :preservation
+                          :play-strategy :hybrid-preservation)
         state (room/seat-bot (room/new-room "ABC123" 9) :player1 persona)]
-    (is (= persona (get-in state [:seats :player1 :persona])))
+    (is (= normalized (get-in state [:seats :player1 :persona])))
     (is (= "Deal-E" (get-in state [:seats :player1 :name])))
-    (is (= persona
+    (is (= normalized
            (-> (game/public-view (:game state) (:seats state) :player2)
                :players
                first
@@ -31,10 +35,61 @@
                      room/bot-personas)]
     (is (= {:name "Bidney Gears"
             :icon "BG"
-            :catchphrase "Oops! I Bid It Again"}
+            :catchphrase "Oops! I Bid It Again"
+            :style :preservation
+            :play-strategy :hybrid-preservation}
            bidney))
     (is (not (contains? names "Bidney Spears")))
     (is (not (contains? names "Bitney Queers")))))
+
+(deftest bot-persona-strategy-test
+  (let [deal-e (some #(when (= "Deal-E" (:name %)) %)
+                     room/bot-personas)
+        trumpelstiltskin (some #(when (= "Trumpelstiltskin" (:name %)) %)
+                               room/bot-personas)
+        tuned (room/normalize-bot-persona
+               {:name "Deal-E"
+                :icon "DE"
+                :catchphrase "Tuned bot."
+                :style :aggressive
+                :play-strategy :hybrid})]
+    (is (= :hybrid-preservation bot/default-play-strategy))
+    (is (= :preservation (:style deal-e)))
+    (is (= :hybrid-preservation (:play-strategy deal-e)))
+    (is (= :aggressive (:style trumpelstiltskin)))
+    (is (= :hybrid (:play-strategy trumpelstiltskin)))
+    (is (= :aggressive (:style tuned)))
+    (is (= :hybrid (:play-strategy tuned)))))
+
+(deftest bot-seats-carry-play-strategy-test
+  (let [aggressive (some #(when (= "Trumpelstiltskin" (:name %)) %)
+                         room/bot-personas)
+        preservation (some #(when (= "Deal-E" (:name %)) %)
+                           room/bot-personas)
+        state (-> (room/new-room "ABC123" 9)
+                  (room/seat-bot :player2 aggressive)
+                  (room/seat-bot :player3 preservation))]
+    (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
+    (is (= :aggressive (get-in state [:seats :player2 :style])))
+    (is (= :hybrid-preservation (get-in state [:seats :player3 :play-strategy])))
+    (is (= :preservation (get-in state [:seats :player3 :style])))
+    (is (= :hybrid (room/bot-play-strategy state :player2)))
+    (is (= :hybrid-preservation (room/bot-play-strategy state :player3)))))
+
+(deftest bot-turn-binds-seat-play-strategy
+  (let [aggressive (some #(when (= "Trumpelstiltskin" (:name %)) %)
+                         room/bot-personas)
+        state (-> (room/new-room "ABC123" 9)
+                  (room/seat-bot :player2 aggressive)
+                  (assoc-in [:game :phase] :bidding)
+                  (assoc-in [:game :current-player] :player2))]
+    (with-redefs [bot/action (fn [_ _]
+                               {:type :observed
+                                :play-strategy bot/*play-strategy*})]
+      (is (= {:player :player2
+              :event {:type :observed
+                      :play-strategy :hybrid}}
+             (room/bot-turn state))))))
 
 (deftest fill-bots-samples-distinct-personas
   (let [state (room/fill-bots (room/new-room "ABC123" 9))
@@ -50,7 +105,23 @@
                              :bot? true})
                   (room/ensure-bot-personas))]
     (is (some? (get-in state [:seats :player2 :persona])))
+    (is (some? (get-in state [:seats :player2 :play-strategy])))
+    (is (some? (get-in state [:seats :player2 :style])))
     (is (not= "Bot 2" (get-in state [:seats :player2 :name])))))
+
+(deftest legacy-bot-personas-get-strategy-metadata
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (assoc-in [:seats :player2]
+                            {:name "Trumpelstiltskin"
+                             :connected? true
+                             :bot? true
+                             :persona {:name "Trumpelstiltskin"
+                                       :icon "TS"
+                                       :catchphrase "Names trump, demands your firstborn."}})
+                  (room/ensure-bot-personas))]
+    (is (= :aggressive (get-in state [:seats :player2 :style])))
+    (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
+    (is (= :hybrid (room/bot-play-strategy state :player2)))))
 
 (deftest room-visibility-defaults-to-private
   (is (false? (:public? (room/new-room "ABC123" 9))))

@@ -40,6 +40,15 @@
                              :value 4}]
                   :completed-tricks [completed-trick]}])))
 
+(defn bot-persona [name]
+  (some #(when (= name (:name %)) %)
+        room/bot-personas))
+
+(defn completed-room-with-bots [room-id seed]
+  (-> (completed-room room-id seed)
+      (room/seat-bot :player2 (bot-persona "Trumpelstiltskin"))
+      (room/seat-bot :player3 (bot-persona "Deal-E"))))
+
 (deftest bot-turn-delay-test
   (let [players (zipmap game/players (repeat {:team 1 :hand []}))
         room (-> (room/new-room "ABC123" 3)
@@ -510,9 +519,12 @@
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-full-history-test"
                                                 (make-array FileAttribute 0)))
-        first-game (assoc (completed-room "ROOM1" 17) :game-started-at 111)
-        replayed-game (assoc (completed-room "ROOM1" 17) :game-started-at 222)
-        second-game (assoc (completed-room "ROOM1" 99) :game-started-at 333)]
+        first-game (assoc (completed-room-with-bots "ROOM1" 17)
+                          :game-started-at 111)
+        replayed-game (assoc (completed-room-with-bots "ROOM1" 17)
+                             :game-started-at 222)
+        second-game (assoc (completed-room-with-bots "ROOM1" 99)
+                           :game-started-at 333)]
     (try
       (audit/append-record! dir (audit/room-record :room-delete-idle
                                                    first-game
@@ -538,6 +550,12 @@
           (is (re-find #"ROOM1" (:body response)))
           (is (re-find #">17<" (:body response)))
           (is (re-find #">99<" (:body response)))
+          (is (re-find #"Bot strategies" (:body response)))
+          (is (re-find #"Hybrid preservation" (:body response)))
+          (is (re-find #"Hybrid" (:body response)))
+          (is (re-find #"Bot personas" (:body response)))
+          (is (re-find #"Trumpelstiltskin" (:body response)))
+          (is (re-find #"Deal-E" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/111/snapshot\"" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/history/ROOM1/17/222/snapshot.edn\"" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/history/ROOM1/99/333/snapshot.edn\"" (:body response)))))

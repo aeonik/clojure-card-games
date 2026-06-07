@@ -5,57 +5,93 @@
 
 (def room-id-chars "ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
 
+(def default-bot-play-strategy :hybrid-preservation)
+(def aggressive-bot-play-strategy :hybrid)
+
+(def aggressive-bot-names
+  #{"Cardi-Bot"
+    "Optimus Prime Suit"
+    "Bender the Rules"
+    "Trumpelstiltskin"
+    "Karbosh Kardashian"
+    "Bid Zeppelin"
+    "Clubs Bunny"
+    "Spade Invader"
+    "Heart Vader"
+    "Sir Bids-a-Lot"
+    "The Notorious R.O.B."
+    "Botzilla"
+    "Shufflin' Around and Find Out"})
+
+(defn persona-style [persona]
+  (or (:style persona)
+      (if (contains? aggressive-bot-names (:name persona))
+        :aggressive
+        :preservation)))
+
+(defn persona-play-strategy [persona]
+  (or (:play-strategy persona)
+      (case (persona-style persona)
+        :aggressive aggressive-bot-play-strategy
+        default-bot-play-strategy)))
+
+(defn normalize-bot-persona [persona]
+  (let [persona (assoc persona :style (persona-style persona))]
+    (assoc persona :play-strategy (persona-play-strategy persona))))
+
 (def bot-personas
-  [{:name "Deal-E" :icon "DE" :catchphrase "The adorable card-dealing bot."}
-   {:name "Shuffleupagus" :icon "SH" :catchphrase "Ancient, chaotic shuffle beast."}
-   {:name "Ace Ventura 3000" :icon "A3" :catchphrase "Pet detective, but for aces."}
-   {:name "Sir Shufflesworth" :icon "SS" :catchphrase "Fancy-ass British card bot."}
-   {:name "Cardi-Bot" :icon "CB" :catchphrase "Loud, flashy, probably wins."}
-   {:name "Bot Flushmore" :icon "BF" :catchphrase "Presidential-level flush hunter."}
-   {:name "Robo-Cop-a-Card" :icon "RC" :catchphrase "Enforces table rules poorly."}
-   {:name "Trick-182" :icon "182" :catchphrase "Always takes one more trick than expected."}
-   {:name "Bender the Rules" :icon "BR" :catchphrase "Absolutely cheats, somehow legally."}
-   {:name "Clank Sinatra" :icon "CS" :catchphrase "Sings while bidding."}
-   {:name "Optimus Prime Suit" :icon "OP" :catchphrase "Always calls trump."}
-   {:name "The Termin-Dealer" :icon "TD" :catchphrase "I'll be back... after the redeal."}
-   {:name "C-3P-Oh No" :icon "C3" :catchphrase "Catastrophic misplays only."}
-   {:name "R2-Dealt-You" :icon "R2" :catchphrase "Cheerful little bastard."}
-   {:name "HAL 52" :icon "52" :catchphrase "Calm voice, murders your strategy."}
-   {:name "Bidney Gears" :icon "BG" :catchphrase "Oops! I Bid It Again"}
-   {:name "Queen Latifah-Bot" :icon "QB" :catchphrase "Royal suit energy."}
-   {:name "JackGPT" :icon "JG" :catchphrase "Confidently explains why its terrible play was optimal."}
-   {:name "Trumpelstiltskin" :icon "TS" :catchphrase "Names trump, demands your firstborn."}
-   {:name "Bot Damon" :icon "BD" :catchphrase "How do you like them apples?"}
-   {:name "Mecha Streisand" :icon "MS" :catchphrase "Makes every hand dramatic."}
-   {:name "Suit R2" :icon "SR" :catchphrase "Tiny robot obsessed with suits."}
-   {:name "Deckard Cain't" :icon "DC" :catchphrase "Identifies cards, cannot win."}
-   {:name "The Great Cardini" :icon "GC" :catchphrase "Magician bot who accidentally palms cards."}
-   {:name "Karbosh Kardashian" :icon "KK" :catchphrase "Famous for going alone and causing drama."}
-   {:name "Bid Zeppelin" :icon "BZ" :catchphrase "Heavy bids, louder losses."}
-   {:name "Clubs Bunny" :icon "CL" :catchphrase "Cartoon menace in clubs."}
-   {:name "Spade Invader" :icon "SI" :catchphrase "Retro arcade card killer."}
-   {:name "Heart Vader" :icon "HV" :catchphrase "I find your lack of trump disturbing."}
-   {:name "Diamond Dallas Page Fault" :icon "DD" :catchphrase "Wrestler/programmer/card pun abomination."}
-   {:name "Rusty Shacklebot" :icon "RS" :catchphrase "Paranoid, overbuilt, probably running Arch."}
-   {:name "Null Pointer Jackception" :icon "NP" :catchphrase "Crashes when dealt two jacks."}
-   {:name "Stack Overflower" :icon "SO" :catchphrase "Asks the table how to play mid-hand."}
-   {:name "Heap Trick" :icon "HT" :catchphrase "Memory-safe? Absolutely not."}
-   {:name "Kenny Loggins' Danger Zone of No Trump" :icon "DZ" :catchphrase "Cursed long name, worth it."}
-   {:name "The Bid Lebowski" :icon "BL" :catchphrase "The Dude abides... and passes."}
-   {:name "Tony Starkboard" :icon "TSB" :catchphrase "Genius robot with a terrible poker face."}
-   {:name "Johnny Five-Card Draw" :icon "J5" :catchphrase "Alive, but bad at trick-taking."}
-   {:name "Megabyte Me" :icon "MM" :catchphrase "Bites off more bid than it can chew."}
-   {:name "Cache Money" :icon "CM" :catchphrase "Wins now, forgets later."}
-   {:name "Sudo Shuffle" :icon "SU" :catchphrase "Demands admin rights to deal."}
-   {:name "Kernel Panic Jack" :icon "KP" :catchphrase "Folds under pressure."}
-   {:name "Regex Rex" :icon "RX" :catchphrase "Matches every suit except the one you need."}
-   {:name "Sir Bids-a-Lot" :icon "SB" :catchphrase "Cannot lie, loves big contracts."}
-   {:name "The Notorious R.O.B." :icon "ROB" :catchphrase "Steals tricks."}
-   {:name "Cardashian Westworld" :icon "CW" :catchphrase "Too expensive, overly dramatic."}
-   {:name "Trick Astley" :icon "TA" :catchphrase "Never gonna give you up, never gonna let you trump."}
-   {:name "Decks Machina" :icon "DM" :catchphrase "Divine intervention, but with cards."}
-   {:name "Botzilla" :icon "BZL" :catchphrase "Stomps the table when euchred."}
-   {:name "Shufflin' Around and Find Out" :icon "FA" :catchphrase "Self-explanatory."}])
+  (mapv
+   normalize-bot-persona
+   [{:name "Deal-E" :icon "DE" :catchphrase "The adorable card-dealing bot."}
+    {:name "Shuffleupagus" :icon "SH" :catchphrase "Ancient, chaotic shuffle beast."}
+    {:name "Ace Ventura 3000" :icon "A3" :catchphrase "Pet detective, but for aces."}
+    {:name "Sir Shufflesworth" :icon "SS" :catchphrase "Fancy-ass British card bot."}
+    {:name "Cardi-Bot" :icon "CB" :catchphrase "Loud, flashy, probably wins."}
+    {:name "Bot Flushmore" :icon "BF" :catchphrase "Presidential-level flush hunter."}
+    {:name "Robo-Cop-a-Card" :icon "RC" :catchphrase "Enforces table rules poorly."}
+    {:name "Trick-182" :icon "182" :catchphrase "Always takes one more trick than expected."}
+    {:name "Bender the Rules" :icon "BR" :catchphrase "Absolutely cheats, somehow legally."}
+    {:name "Clank Sinatra" :icon "CS" :catchphrase "Sings while bidding."}
+    {:name "Optimus Prime Suit" :icon "OP" :catchphrase "Always calls trump."}
+    {:name "The Termin-Dealer" :icon "TD" :catchphrase "I'll be back... after the redeal."}
+    {:name "C-3P-Oh No" :icon "C3" :catchphrase "Catastrophic misplays only."}
+    {:name "R2-Dealt-You" :icon "R2" :catchphrase "Cheerful little bastard."}
+    {:name "HAL 52" :icon "52" :catchphrase "Calm voice, murders your strategy."}
+    {:name "Bidney Gears" :icon "BG" :catchphrase "Oops! I Bid It Again"}
+    {:name "Queen Latifah-Bot" :icon "QB" :catchphrase "Royal suit energy."}
+    {:name "JackGPT" :icon "JG" :catchphrase "Confidently explains why its terrible play was optimal."}
+    {:name "Trumpelstiltskin" :icon "TS" :catchphrase "Names trump, demands your firstborn."}
+    {:name "Bot Damon" :icon "BD" :catchphrase "How do you like them apples?"}
+    {:name "Mecha Streisand" :icon "MS" :catchphrase "Makes every hand dramatic."}
+    {:name "Suit R2" :icon "SR" :catchphrase "Tiny robot obsessed with suits."}
+    {:name "Deckard Cain't" :icon "DC" :catchphrase "Identifies cards, cannot win."}
+    {:name "The Great Cardini" :icon "GC" :catchphrase "Magician bot who accidentally palms cards."}
+    {:name "Karbosh Kardashian" :icon "KK" :catchphrase "Famous for going alone and causing drama."}
+    {:name "Bid Zeppelin" :icon "BZ" :catchphrase "Heavy bids, louder losses."}
+    {:name "Clubs Bunny" :icon "CL" :catchphrase "Cartoon menace in clubs."}
+    {:name "Spade Invader" :icon "SI" :catchphrase "Retro arcade card killer."}
+    {:name "Heart Vader" :icon "HV" :catchphrase "I find your lack of trump disturbing."}
+    {:name "Diamond Dallas Page Fault" :icon "DD" :catchphrase "Wrestler/programmer/card pun abomination."}
+    {:name "Rusty Shacklebot" :icon "RS" :catchphrase "Paranoid, overbuilt, probably running Arch."}
+    {:name "Null Pointer Jackception" :icon "NP" :catchphrase "Crashes when dealt two jacks."}
+    {:name "Stack Overflower" :icon "SO" :catchphrase "Asks the table how to play mid-hand."}
+    {:name "Heap Trick" :icon "HT" :catchphrase "Memory-safe? Absolutely not."}
+    {:name "Kenny Loggins' Danger Zone of No Trump" :icon "DZ" :catchphrase "Cursed long name, worth it."}
+    {:name "The Bid Lebowski" :icon "BL" :catchphrase "The Dude abides... and passes."}
+    {:name "Tony Starkboard" :icon "TSB" :catchphrase "Genius robot with a terrible poker face."}
+    {:name "Johnny Five-Card Draw" :icon "J5" :catchphrase "Alive, but bad at trick-taking."}
+    {:name "Megabyte Me" :icon "MM" :catchphrase "Bites off more bid than it can chew."}
+    {:name "Cache Money" :icon "CM" :catchphrase "Wins now, forgets later."}
+    {:name "Sudo Shuffle" :icon "SU" :catchphrase "Demands admin rights to deal."}
+    {:name "Kernel Panic Jack" :icon "KP" :catchphrase "Folds under pressure."}
+    {:name "Regex Rex" :icon "RX" :catchphrase "Matches every suit except the one you need."}
+    {:name "Sir Bids-a-Lot" :icon "SB" :catchphrase "Cannot lie, loves big contracts."}
+    {:name "The Notorious R.O.B." :icon "ROB" :catchphrase "Steals tricks."}
+    {:name "Cardashian Westworld" :icon "CW" :catchphrase "Too expensive, overly dramatic."}
+    {:name "Trick Astley" :icon "TA" :catchphrase "Never gonna give you up, never gonna let you trump."}
+    {:name "Decks Machina" :icon "DM" :catchphrase "Divine intervention, but with cards."}
+    {:name "Botzilla" :icon "BZL" :catchphrase "Stomps the table when euchred."}
+    {:name "Shufflin' Around and Find Out" :icon "FA" :catchphrase "Self-explanatory."}]))
 
 (defn random-room-id []
   (apply str (repeatedly 6 #(rand-nth room-id-chars))))
@@ -133,21 +169,44 @@
   ([room player]
    (seat-bot room player (random-bot-persona room)))
   ([room player persona]
-   (assoc-in room [:seats player]
-             {:name (:name persona)
-              :connected? true
-              :bot? true
-              :persona persona})))
+   (let [persona (normalize-bot-persona persona)]
+     (assoc-in room [:seats player]
+               {:name (:name persona)
+                :connected? true
+                :bot? true
+                :persona persona
+                :play-strategy (:play-strategy persona)
+                :style (:style persona)}))))
 
 (defn bot-player? [room player]
   (true? (get-in room [:seats player :bot?])))
 
+(defn bot-play-strategy [room player]
+  (or (get-in room [:seats player :play-strategy])
+      (some-> (get-in room [:seats player :persona])
+              persona-play-strategy)
+      bot/default-play-strategy))
+
 (defn ensure-bot-personas [room]
   (reduce (fn [room player]
-            (if (and (bot-player? room player)
-                     (nil? (get-in room [:seats player :persona])))
+            (cond
+              (not (bot-player? room player))
+              room
+
+              (nil? (get-in room [:seats player :persona]))
               (seat-bot room player)
-              room))
+
+              :else
+              (let [persona (normalize-bot-persona
+                             (get-in room [:seats player :persona]))]
+                (update-in room [:seats player]
+                           (fn [seat]
+                             (cond-> (assoc seat :persona persona)
+                               (nil? (:style seat))
+                               (assoc :style (:style persona))
+
+                               (nil? (:play-strategy seat))
+                               (assoc :play-strategy (:play-strategy persona))))))))
           room
           game/players))
 
@@ -294,6 +353,10 @@
                (actionable-phases (get-in room [:game :phase])))
       player)))
 
+(defn bot-action [room player]
+  (binding [bot/*play-strategy* (bot-play-strategy room player)]
+    (bot/action (:game room) player)))
+
 (defn apply-bot-event [room player event]
   (assoc room :game (game/apply-event (:game room) (assoc event :player player))))
 
@@ -317,7 +380,7 @@
 
 (defn bot-turn [room]
   (when-let [player (active-bot room)]
-    (when-let [event (bot/action (:game room) player)]
+    (when-let [event (bot-action room player)]
       {:player player
        :event event})))
 

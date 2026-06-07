@@ -3,6 +3,7 @@
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
+            [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.hiccup :as h])
   (:import [java.lang.management ManagementFactory]
            [java.time Instant]))
@@ -393,6 +394,106 @@
      {:label "Team 2 wins" :value (get winners 2 0)}
      {:label "Latest record" :value (time-label (:logged-at (first game-records)))}]))
 
+(defn bot-seat-style [seat]
+  (or (:style seat)
+      (some-> (:persona seat) room/persona-style)
+      (room/persona-style {:name (:name seat)})))
+
+(defn bot-seat-play-strategy [seat]
+  (or (:play-strategy seat)
+      (some-> (:persona seat) room/persona-play-strategy)
+      (room/persona-play-strategy {:name (:name seat)})))
+
+(defn bot-seat-name [player seat]
+  (or (get-in seat [:persona :name])
+      (:name seat)
+      (some-> player name)
+      "--"))
+
+(defn bot-outcomes [records]
+  (vec
+   (for [record records
+         :let [room (:room record)
+               state (:game room)
+               winner (:winner state)]
+         :when (and (= :game-over (:phase state)) winner)
+         [player seat] (:seats room)
+         :let [team (get-in state [:players player :team])]
+         :when (and (:bot? seat) team)]
+     {:player player
+      :name (bot-seat-name player seat)
+      :style (bot-seat-style seat)
+      :play-strategy (bot-seat-play-strategy seat)
+      :team team
+      :won? (= team winner)})))
+
+(defn percent-label [n total]
+  (if (pos? total)
+    (format "%.0f%%" (* 100.0 (/ n total)))
+    "--"))
+
+(defn summarize-bot-outcomes [outcomes]
+  (let [appearances (count outcomes)
+        wins (count (filter :won? outcomes))]
+    {:appearances appearances
+     :wins wins
+     :win-rate (percent-label wins appearances)}))
+
+(defn bot-outcome-groups [group-f outcomes]
+  (->> outcomes
+       (group-by group-f)
+       (map (fn [[k outcomes]]
+              (assoc (summarize-bot-outcomes outcomes) :key k)))
+       (sort-by (juxt (comp - :wins)
+                      (comp - :appearances)
+                      (comp str :key)))
+       vec))
+
+(defn bot-strategy-table [records]
+  (let [groups (bot-outcome-groups :play-strategy (bot-outcomes records))]
+    (if (seq groups)
+      [:table {:class "admin-table"}
+       [:thead
+        [:tr
+         [:th "Strategy"]
+         [:th "Seats"]
+         [:th "Wins"]
+         [:th "Win rate"]]]
+       [:tbody
+        (for [{:keys [key appearances wins win-rate]} groups]
+          [:tr
+           (table-cell "Strategy" (kw-label key))
+           (table-cell "Seats" appearances)
+           (table-cell "Wins" wins)
+           (table-cell "Win rate" win-rate)])]]
+      [:p {:class "empty"} "No completed bot outcomes yet."])))
+
+(defn bot-persona-table [records]
+  (let [groups (bot-outcome-groups
+                (juxt :name :style :play-strategy)
+                (bot-outcomes records))]
+    (if (seq groups)
+      [:table {:class "admin-table"}
+       [:thead
+        [:tr
+         [:th "Bot"]
+         [:th "Style"]
+         [:th "Strategy"]
+         [:th "Seats"]
+         [:th "Wins"]
+         [:th "Win rate"]]]
+       [:tbody
+        (for [{:keys [key appearances wins win-rate]} groups
+              :let [[name style play-strategy] key]]
+          [:tr
+           (table-cell "Bot" name)
+           (table-cell "Style" (kw-label style))
+           (table-cell "Strategy" (kw-label play-strategy))
+           (table-cell "Seats" appearances)
+           (table-cell "Wins" wins)
+           (table-cell "Win rate" win-rate)])]]
+      [:p {:class "empty"} "No completed bot outcomes yet."])))
+
 (defn game-history-link [room-id seed timestamp suffix]
   (str "/karbosh/admin/history/" room-id "/" seed "/" timestamp "/" suffix))
 
@@ -456,6 +557,13 @@
       [:div {:class "stats room-stats"}
        (for [metric (game-history-stats records)]
          (stat-card (:label metric) (:value metric)))]
+      [:div {:class "two-col"}
+       [:section
+        [:h3 "Bot strategies"]
+        (bot-strategy-table records)]
+       [:section
+        [:h3 "Bot personas"]
+        (bot-persona-table records)]]
       (game-history-table records)]]))
 
 (defn seats-table [view]

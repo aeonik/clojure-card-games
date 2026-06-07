@@ -61,7 +61,7 @@
 (def default-play-config
   (assoc classic-play-config :lead-risk-tolerance 0.05))
 
-(def default-play-strategy :hybrid)
+(def default-play-strategy :hybrid-preservation)
 
 (def ^:dynamic *play-config* default-play-config)
 (def ^:dynamic *play-strategy* default-play-strategy)
