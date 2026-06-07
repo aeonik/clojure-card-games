@@ -29,6 +29,12 @@
 (def karbosh-hand
   [[:A :♦] [:K :♠] [:J :♣] [:A :♠] [:J :♠] [:K :♠] [10 :♠] [:Q :♠]])
 
+(def straight-double-karbosh-hand
+  [[:J :♠] [:J :♠] [:J :♣] [:J :♣] [:A :♠] [:A :♠] [:K :♠] [:K :♠]])
+
+(def forced-double-karbosh-hand
+  [[:J :♠] [:J :♠] [:J :♣] [:J :♣] [:A :♠] [:A :♠] [9 :♠] [9 :♠]])
+
 (def right-only-karbosh-shape
   [[:J :♠] [:A :♠] [:K :♠] [:K :♠] [:Q :♠] [:Q :♠] [10 :♠] [:A :♥]])
 
@@ -62,6 +68,60 @@
   (testing "bots use karbosh for credible sweep hands instead of numeric 7 or 8"
     (is (= {:type :bid :bid-type :karbosh}
            (bot/target-bid karbosh-hand))))
+
+  (testing "bots do not turn ordinary karbosh hands into double karbosh"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 karbosh-hand))]
+      (is (= {:type :bid :bid-type :karbosh}
+             (bot/bid-action game :player1)))))
+
+  (testing "bots may call a straight double karbosh hand"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 straight-double-karbosh-hand))]
+      (is (true? (:straight?
+                  (bot/double-karbosh-evaluation bot/default-bid-config
+                                                 game
+                                                 :player1
+                                                 :♠))))
+      (is (= {:type :bid :bid-type :double-karbosh}
+             (bot/bid-action game :player1)))))
+
+  (testing "bots only use forced non-straight double as a desperate enemy-karbosh overcall"
+    (let [base (-> team-game
+                   (with-hand :player1 forced-double-karbosh-hand)
+                   (assoc :bids [{:type :bid
+                                  :player :player2
+                                  :bid-type :karbosh
+                                  :hand-index 0}]))
+          neutral (assoc base :scores {1 25 2 25})
+          desperate (assoc base :scores {1 25 2 45})]
+      (is (false? (:straight?
+                   (bot/double-karbosh-evaluation bot/default-bid-config
+                                                  desperate
+                                                  :player1
+                                                  :♠))))
+      (is (true? (get-in (bot/double-karbosh-evaluation bot/default-bid-config
+                                                        desperate
+                                                        :player1
+                                                        :♠)
+                         [:features :forced?])))
+      (is (= {:type :bid :bid-type :pass}
+             (bot/bid-action neutral :player1)))
+      (is (= {:type :bid :bid-type :double-karbosh}
+             (bot/bid-action desperate :player1)))))
+
+  (testing "bots do not overcall partner karbosh with non-straight double shapes"
+    (let [game (-> team-game
+                   (assoc :scores {1 25 2 45}
+                          :bids [{:type :bid
+                                  :player :player3
+                                  :bid-type :karbosh
+                                  :hand-index 0}])
+                   (with-hand :player1 forced-double-karbosh-hand))]
+      (is (= {:type :bid :bid-type :pass}
+             (bot/bid-action game :player1)))))
 
   (testing "bots need multiple bowers before calling karbosh"
     (is (not= :karbosh (:bid-type (bot/target-bid right-only-karbosh-shape)))))

@@ -38,7 +38,8 @@
    :karbosh-prob-donation-help-weight 0.70
    :karbosh-prob-donation-pair-weight 0.40
    :karbosh-donation-qualification-prob 0.50
-   :karbosh-donor-hand-size 8})
+   :karbosh-donor-hand-size 8
+   :double-karbosh-score-context-band 12})
 
 (def ^:dynamic *bid-config* default-bid-config)
 
@@ -202,6 +203,51 @@
          (>= (count bowers) (:karbosh-min-bowers config))
          (>= winners (:karbosh-min-winners config)))))
 
+(def top-trump-ranks
+  [1 1 2 2 3 3 4 4 5 5 6 6 7 7])
+
+(defn trump-control-rank [trump card]
+  (let [[rank _] card]
+    (cond
+      (rules/right-bower? card trump) 1
+      (rules/left-bower? card trump) 2
+      (and (trump-card? trump card) (= :A rank)) 3
+      (and (trump-card? trump card) (= :K rank)) 4
+      (and (trump-card? trump card) (= :Q rank)) 5
+      (and (trump-card? trump card) (= 10 rank)) 6
+      (and (trump-card? trump card) (= 9 rank)) 7
+      :else 99)))
+
+(defn top-trump-prefix-count [hand trump]
+  (loop [needed top-trump-ranks
+         actual (sort (map #(trump-control-rank trump %)
+                           (filter #(trump-card? trump %) hand)))
+         prefix 0]
+    (if (and (seq needed)
+             (seq actual)
+             (<= (first actual) (first needed)))
+      (recur (rest needed) (rest actual) (inc prefix))
+      prefix)))
+
+(defn double-karbosh-features [hand trump]
+  (let [hand (vec hand)
+        trumps (filter #(trump-card? trump %) hand)
+        prefix (top-trump-prefix-count hand trump)
+        off-aces (filter #(off-ace? trump %) hand)
+        straight? (>= prefix 8)
+        forced? (or straight?
+                    (and (= 8 (count trumps))
+                         (>= prefix 6))
+                    (and (= 7 (count trumps))
+                         (>= prefix 7)
+                         (seq off-aces)))]
+    {:trump trump
+     :trumps (count trumps)
+     :top-trump-prefix prefix
+     :off-aces (count off-aces)
+     :straight? straight?
+     :forced? (boolean forced?)}))
+
 (defn numeric-target-bid [config hand]
   (let [trump (best-trump hand)
         strength (suit-strength hand trump)]
@@ -305,6 +351,38 @@
       :else
       (:karbosh-target-prob config))))
 
+(defn desperate-score-context? [config game player]
+  (let [own (team-score game player)
+        opp (opponent-score game player)
+        band (:double-karbosh-score-context-band config)]
+    (or (>= opp (- game/target-score band))
+        (>= (- opp own) band))))
+
+(defn enemy-current-bid? [game player]
+  (let [bid (game/current-bid game)]
+    (and (:player bid)
+         (not= (game/player-team game player)
+               (game/player-team game (:player bid))))))
+
+(defn enemy-karbosh-bid? [game player]
+  (let [bid (game/current-bid game)]
+    (and (= :karbosh (:bid-type bid))
+         (enemy-current-bid? game player))))
+
+(defn double-karbosh-evaluation [config game player trump]
+  (let [features (double-karbosh-features
+                  (get-in game [:players player :hand])
+                  trump)
+        straight? (:straight? features)
+        desperate-overcall? (and (:forced? features)
+                                 (enemy-karbosh-bid? game player)
+                                 (desperate-score-context? config game player))]
+    {:trump trump
+     :features features
+     :straight? straight?
+     :desperate-overcall? (boolean desperate-overcall?)
+     :call? (or straight? desperate-overcall?)}))
+
 (defn karbosh-ev [config make-prob]
   (let [fail-prob (- 1.0 make-prob)
         fail-diff-loss (+ rules/special-bid-points
@@ -344,9 +422,19 @@
 (defn probability-bid-action [game player]
   (let [hand (get-in game [:players player :hand])
         trump (best-trump hand)
+        double-karbosh (double-karbosh-evaluation *bid-config*
+                                                  game
+                                                  player
+                                                  trump)
         karbosh (karbosh-evaluation *bid-config* game player trump)
-        candidate (if (:call? karbosh)
+        candidate (cond
+                    (:call? double-karbosh)
+                    {:type :bid :bid-type :double-karbosh}
+
+                    (:call? karbosh)
                     {:type :bid :bid-type :karbosh}
+
+                    :else
                     (numeric-target-bid *bid-config* hand))
         current-rank (rules/bid-rank (game/current-bid game))]
     (if (> (rules/bid-rank candidate) current-rank)

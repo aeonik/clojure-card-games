@@ -628,6 +628,14 @@
    {:x 18 :y 67 :radius 6.0 :delay 1480 :spokes 14 :hue-offset 5 :angle 0.18}
    {:x 84 :y 66 :radius 6.3 :delay 1710 :spokes 14 :hue-offset 10 :angle 0.29}])
 
+(def double-karbosh-bursts
+  [{:x 50 :y 40 :radius 12.4 :delay 1700 :spokes 30 :hue-offset 0 :angle 0.07}
+   {:x 24 :y 36 :radius 9.6 :delay 2180 :spokes 24 :hue-offset 4 :angle 0.29}
+   {:x 76 :y 36 :radius 9.6 :delay 2360 :spokes 24 :hue-offset 8 :angle 0.11}
+   {:x 50 :y 68 :radius 10.8 :delay 2840 :spokes 28 :hue-offset 2 :angle 0.2}
+   {:x 14 :y 78 :radius 7.8 :delay 3460 :spokes 18 :hue-offset 6 :angle 0.36}
+   {:x 86 :y 78 :radius 7.8 :delay 3460 :spokes 18 :hue-offset 10 :angle 0.0}])
+
 (defn round-tenth [n]
   (/ (js/Math.round (* n 10)) 10))
 
@@ -670,6 +678,15 @@
   (vec (concat (mapcat burst-particles firework-bursts)
                firework-fountain-particles)))
 
+(def double-karbosh-particles
+  (vec (concat firework-particles
+               (mapcat burst-particles double-karbosh-bursts))))
+
+(defn fireworks-particles-for [kind]
+  (if (= :double-karbosh kind)
+    double-karbosh-particles
+    firework-particles))
+
 (defn particle-style [{:keys [x y dx dy h d s]}]
   {"--x" (str x "%")
    "--y" (str y "%")
@@ -692,6 +709,8 @@
   (case kind
     :karbosh [(str (fireworks-bid-label firework) " made")
               (player-label view player)]
+    :double-karbosh ["Double Karbosh made"
+                     (str (player-label view player) " did the impossible")]
     :game-win ["Game over"
                (str (team-label team) " wins")]
     [nil (some-> bid-type name)]))
@@ -707,10 +726,10 @@
             (map (fn [particle]
                    [:i {:class "firework-spark"
                         :style (particle-style particle)}])
-                 firework-particles)))))
+                 (fireworks-particles-for kind))))))
 
 (defn panel-fireworks? [fireworks]
-  (= :game-win (:kind fireworks)))
+  (contains? #{:game-win :double-karbosh} (:kind fireworks)))
 
 (defn bid-log-html [view]
   (when (seq (:bids-this-hand view))
@@ -1180,12 +1199,19 @@
     (swap! app assoc :fireworks nil)
     (render-game!)))
 
+(defn fireworks-duration-ms [fireworks]
+  (let [base (timing-ms :fireworks)]
+    (if (= :double-karbosh (:kind fireworks))
+      (js/Math.round (* 1.7 base))
+      base)))
+
 (defn show-fireworks! [fireworks]
   (when (and (= (:room-id fireworks) (:room-id @app))
              (= (:hand-index fireworks) (get-in @app [:view :hand-index])))
     (swap! app assoc :fireworks fireworks)
     (render-game!)
-    (js/setTimeout #(clear-fireworks! (:id fireworks)) (timing-ms :fireworks))))
+    (js/setTimeout #(clear-fireworks! (:id fireworks))
+                   (fireworks-duration-ms fireworks))))
 
 (defn fireworks-delay-ms [fireworks animation popup]
   (+ (if animation (timing-ms :play-animation) 0)
@@ -1246,7 +1272,18 @@
             queue-popup? (and animation popup)
             bid-popup-id (when bid
                            (str now "-bid-" (kw-name (:player bid))))
+            double-karbosh (when (= :double-karbosh
+                                    (:bid-type successful-karbosh))
+                              successful-karbosh)
             fireworks (cond
+                        double-karbosh
+                        (assoc double-karbosh
+                               :id (str now "-double-karbosh-made-"
+                                        (kw-name (:player double-karbosh)))
+                               :room-id (:room-id message)
+                               :hand-index (:hand-index view)
+                               :kind :double-karbosh)
+
                         game-winner
                         (assoc game-winner
                                :id (str now "-game-win")
