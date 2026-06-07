@@ -21,7 +21,7 @@
    {:name "C-3P-Oh No" :icon "C3" :catchphrase "Catastrophic misplays only."}
    {:name "R2-Dealt-You" :icon "R2" :catchphrase "Cheerful little bastard."}
    {:name "HAL 52" :icon "52" :catchphrase "Calm voice, murders your strategy."}
-   {:name "Bidney Spears" :icon "BS" :catchphrase "Oops, I bid it again."}
+   {:name "Bidney Gears" :icon "BG" :catchphrase "Oops! I Bid It Again"}
    {:name "Queen Latifah-Bot" :icon "QB" :catchphrase "Royal suit energy."}
    {:name "JackGPT" :icon "JG" :catchphrase "Confidently explains why its terrible play was optimal."}
    {:name "Trumpelstiltskin" :icon "TS" :catchphrase "Names trump, demands your firstborn."}
@@ -49,7 +49,6 @@
    {:name "Sudo Shuffle" :icon "SU" :catchphrase "Demands admin rights to deal."}
    {:name "Kernel Panic Jack" :icon "KP" :catchphrase "Folds under pressure."}
    {:name "Regex Rex" :icon "RX" :catchphrase "Matches every suit except the one you need."}
-   {:name "Bitney Queers" :icon "BQ" :catchphrase "It's trick, bitch."}
    {:name "Sir Bids-a-Lot" :icon "SB" :catchphrase "Cannot lie, loves big contracts."}
    {:name "The Notorious R.O.B." :icon "ROB" :catchphrase "Steals tricks."}
    {:name "Cardashian Westworld" :icon "CW" :catchphrase "Too expensive, overly dramatic."}

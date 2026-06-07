@@ -25,6 +25,17 @@
                first
                :persona)))))
 
+(deftest bidney-gears-persona-test
+  (let [names (set (map :name room/bot-personas))
+        bidney (some #(when (= "Bidney Gears" (:name %)) %)
+                     room/bot-personas)]
+    (is (= {:name "Bidney Gears"
+            :icon "BG"
+            :catchphrase "Oops! I Bid It Again"}
+           bidney))
+    (is (not (contains? names "Bidney Spears")))
+    (is (not (contains? names "Bitney Queers")))))
+
 (deftest fill-bots-samples-distinct-personas
   (let [state (room/fill-bots (room/new-room "ABC123" 9))
         personas (keep #(get-in % [1 :persona]) (:seats state))]
