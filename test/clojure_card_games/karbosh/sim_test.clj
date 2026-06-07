@@ -28,11 +28,13 @@
 
 (deftest bid-strategy-comparison-test
   (let [results (sim/evaluate-bid-strategies [[:threshold :karbosh-threshold]
-                                              [:probability :karbosh-probability]]
+                                              [:probability :karbosh-probability]
+                                              [:conservative
+                                               :karbosh-probability-conservative]]
                                              [1]
                                              {:max-hands 1})]
-    (is (= [:threshold :probability] (mapv :label results)))
-    (is (= [1 1] (mapv :games results)))))
+    (is (= [:threshold :probability :conservative] (mapv :label results)))
+    (is (= [1 1 1] (mapv :games results)))))
 
 (deftest analysis-collection-test
   (let [state (sim/run-game 1 {:max-hands 1
@@ -72,6 +74,26 @@
     (is (= 2 (:games result)))
     (is (= 1 (:seeds result)))
     (is (contains? result :win-rates))))
+
+(deftest bid-strategy-matchup-test
+  (let [result (sim/bid-strategy-matchup
+                [:default :karbosh-probability]
+                [:conservative :karbosh-probability-conservative]
+                [1]
+                {:max-hands 1})
+        steps (doall
+               (sim/bid-strategy-matchup-steps
+                [:default :karbosh-probability]
+                [:conservative :karbosh-probability-conservative]
+                [1]
+                {:max-hands 1}
+                {:batch-size 2}))]
+    (is (= [:default :conservative] (:labels result)))
+    (is (= 2 (:games result)))
+    (is (= 1 (:seeds result)))
+    (is (= [2] (mapv :games steps)))
+    (is (= [:default :conservative] (:labels (first steps))))
+    (is (contains? (first steps) :win-rates))))
 
 (deftest lazy-policy-convergence-test
   (is (= [{:seed 1 :orientation :forward}

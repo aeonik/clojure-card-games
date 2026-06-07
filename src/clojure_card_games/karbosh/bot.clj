@@ -39,7 +39,10 @@
    :karbosh-prob-donation-pair-weight 0.40
    :karbosh-donation-qualification-prob 0.50
    :karbosh-donor-hand-size 8
-   :double-karbosh-score-context-band 12})
+   :double-karbosh-score-context-band 12
+   :conservative-bid-min-controls {4 3
+                                    5 4
+                                    6 6}})
 
 (def ^:dynamic *bid-config* default-bid-config)
 
@@ -258,6 +261,38 @@
       (>= strength (:bid-4-strength config)) {:type :bid :bid-type :bid :value 4}
       :else {:type :bid :bid-type :pass})))
 
+(defn numeric-bid-features [config hand trump]
+  (let [hand (vec hand)
+        trumps (filter #(trump-card? trump %) hand)
+        high-trumps (filter #(high-trump? config trump %) trumps)
+        bowers (filter #(bower? trump %) trumps)
+        off-aces (filter #(off-ace? trump %) hand)
+        bower-bonus (max 0 (dec (count bowers)))]
+    {:trump trump
+     :strength (suit-strength hand trump)
+     :trumps (count trumps)
+     :high-trumps (count high-trumps)
+     :bowers (count bowers)
+     :off-aces (count off-aces)
+     :controls (+ (count high-trumps)
+                  (count off-aces)
+                  bower-bonus)}))
+
+(defn conservative-numeric-bid? [config hand bid]
+  (let [trump (best-trump hand)
+        features (numeric-bid-features config hand trump)
+        min-controls (get (:conservative-bid-min-controls config)
+                          (:value bid)
+                          0)]
+    (>= (:controls features) min-controls)))
+
+(defn conservative-numeric-target-bid [config hand]
+  (let [candidate (numeric-target-bid config hand)]
+    (if (and (= :bid (:bid-type candidate))
+             (not (conservative-numeric-bid? config hand candidate)))
+      {:type :bid :bid-type :pass}
+      candidate)))
+
 (defn target-bid
   ([hand] (target-bid *bid-config* hand))
   ([config hand]
@@ -420,31 +455,44 @@
       candidate
       {:type :bid :bid-type :pass})))
 
-(defn probability-bid-action [game player]
+(defn playable-bid [game candidate]
+  (let [current-rank (rules/bid-rank (game/current-bid game))]
+    (if (> (rules/bid-rank candidate) current-rank)
+      candidate
+      {:type :bid :bid-type :pass})))
+
+(defn probability-bid-candidate [numeric-target-fn game player]
   (let [hand (get-in game [:players player :hand])
         trump (best-trump hand)
         double-karbosh (double-karbosh-evaluation *bid-config*
                                                   game
                                                   player
                                                   trump)
-        karbosh (karbosh-evaluation *bid-config* game player trump)
-        candidate (cond
-                    (:call? double-karbosh)
-                    {:type :bid :bid-type :double-karbosh}
+        karbosh (karbosh-evaluation *bid-config* game player trump)]
+    (cond
+      (:call? double-karbosh)
+      {:type :bid :bid-type :double-karbosh}
 
-                    (:call? karbosh)
-                    {:type :bid :bid-type :karbosh}
+      (:call? karbosh)
+      {:type :bid :bid-type :karbosh}
 
-                    :else
-                    (numeric-target-bid *bid-config* hand))
-        current-rank (rules/bid-rank (game/current-bid game))]
-    (if (> (rules/bid-rank candidate) current-rank)
-      candidate
-      {:type :bid :bid-type :pass})))
+      :else
+      (numeric-target-fn *bid-config* hand))))
+
+(defn probability-bid-action [game player]
+  (playable-bid game
+                (probability-bid-candidate numeric-target-bid game player)))
+
+(defn conservative-probability-bid-action [game player]
+  (playable-bid game
+                (probability-bid-candidate conservative-numeric-target-bid
+                                           game
+                                           player)))
 
 (def bid-strategies
   {:karbosh-threshold threshold-bid-action
-   :karbosh-probability probability-bid-action})
+   :karbosh-probability probability-bid-action
+   :karbosh-probability-conservative conservative-probability-bid-action})
 
 (defn resolve-bid-strategy [strategy]
   (cond

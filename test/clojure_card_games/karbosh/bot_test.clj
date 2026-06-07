@@ -38,6 +38,9 @@
 (def right-only-karbosh-shape
   [[:J :♠] [:A :♠] [:K :♠] [:K :♠] [:Q :♠] [:Q :♠] [10 :♠] [:A :♥]])
 
+(def thin-right-bid-4-hand
+  [[9 :♠] [:K :♣] [:Q :♦] [10 :♥] [9 :♠] [10 :♠] [:J :♥] [:K :♥]])
+
 (def hidden-hand-size (vec (repeat 8 [9 :♣])))
 
 (defn with-hand [game player hand]
@@ -125,6 +128,21 @@
 
   (testing "bots need multiple bowers before calling karbosh"
     (is (not= :karbosh (:bid-type (bot/target-bid right-only-karbosh-shape)))))
+
+  (testing "conservative numeric bidding is pluggable without changing default behavior"
+    (let [game (-> team-game
+                   (assoc :scores {1 0 2 0})
+                   (with-hand :player1 thin-right-bid-4-hand))]
+      (is (= {:type :bid :bid-type :bid :value 4}
+             (bot/bid-action game :player1 :karbosh-probability)))
+      (is (= {:type :bid :bid-type :pass}
+             (bot/bid-action game
+                             :player1
+                             :karbosh-probability-conservative)))
+      (is (= {:type :bid :bid-type :bid :value 4}
+             (bot/bid-action (with-hand game :player1 bid-4-hand)
+                             :player1
+                             :karbosh-probability-conservative)))))
 
   (testing "karbosh evaluation prices the sweep explicitly"
     (let [game (-> team-game

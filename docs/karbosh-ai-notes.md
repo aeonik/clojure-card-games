@@ -37,3 +37,38 @@ Next step: run larger matchups after solver/sim performance improves and inspect
 hand-level deltas, not just game win rate. The current change is mainly justified
 because the local decisions are more coherent and the low-threshold A/B result is
 promising, not because 200 games proves a large global win-rate gain.
+
+## 2026-06-07 Conservative Numeric Bidding Experiment
+
+R7ERG4 hand 6 showed a thin numeric bid shape: right bower plus weak support,
+no left, no trump ace, and no off-suit ace. The current default strategy bids
+that as a `4`, and the result was a hard failure.
+
+Change:
+
+- Added `:karbosh-probability-conservative` as an experimental bid strategy.
+- Default remains `:karbosh-probability`.
+- The conservative strategy keeps the same Karbosh/double-Karbosh logic, but
+  gates numeric bids using configurable control counts derived from high trump,
+  off-suit aces, and extra bower depth.
+- Added bid-strategy-by-team simulation plumbing so A/B tests can swap bidding
+  policies across teams on identical seeds.
+
+Seeded simulation, 500 seeds:
+
+| Strategy | Hands | Bid 4 make | Bid 5 make | Karbosh make | All-pass hands |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default | 8,874 | 81.9% | 76.7% | 55.5% | 4 |
+| Conservative | 8,825 | 82.9% | 77.7% | 55.6% | 16 |
+
+Fair head-to-head bid-policy matchup, same 500 seeds with team assignments
+swapped for 1,000 games:
+
+| Policy | Wins | Win rate |
+| --- | ---: | ---: |
+| Default | 512 | 51.2% |
+| Conservative | 488 | 48.8% |
+
+Read: the conservative gate improves numeric-bid make rates in isolation, but it
+did not beat the default policy head-to-head. Keep it pluggable for comparison;
+do not make it default without stronger evidence.

@@ -9,6 +9,8 @@
    :max-events-per-hand 256
    :collect-analysis? false
    :bid-strategy bot/default-bid-strategy
+   :bid-strategy-by-team nil
+   :bid-strategy-by-player nil
    :play-strategy bot/default-play-strategy
    :play-strategy-by-team nil
    :play-strategy-by-player nil
@@ -47,6 +49,11 @@
       (get-in options [:play-strategy-by-team (game/player-team state player)])
       (:play-strategy options)))
 
+(defn bid-strategy-for [options state player]
+  (or (get-in options [:bid-strategy-by-player player])
+      (get-in options [:bid-strategy-by-team (game/player-team state player)])
+      (:bid-strategy options)))
+
 (defn play-config-for [options state player]
   (or (get-in options [:play-config-by-player player])
       (get-in options [:play-config-by-team (game/player-team state player)])
@@ -55,7 +62,8 @@
 (defn bot-event [state options]
   (when (playable-phase? state)
     (when-let [player (:current-player state)]
-      (binding [bot/*play-strategy* (play-strategy-for options state player)
+      (binding [bot/*bid-strategy* (bid-strategy-for options state player)
+                bot/*play-strategy* (play-strategy-for options state player)
                 bot/*play-config* (play-config-for options state player)]
         (bot/action state player)))))
 
@@ -250,6 +258,14 @@
     {:policy-by-team {1 right-label 2 left-label}
      :play-strategy-by-team {1 right-strategy 2 left-strategy}}))
 
+(defn bid-matchup-assignment
+  [[left-label left-strategy] [right-label right-strategy] orientation]
+  (if (= :forward orientation)
+    {:policy-by-team {1 left-label 2 right-label}
+     :bid-strategy-by-team {1 left-strategy 2 right-strategy}}
+    {:policy-by-team {1 right-label 2 left-label}
+     :bid-strategy-by-team {1 right-strategy 2 left-strategy}}))
+
 (defn play-strategy-matchup-result
   [left right options {:keys [seed orientation]}]
   (let [{:keys [policy-by-team play-strategy-by-team]}
@@ -264,6 +280,20 @@
            :policy-by-team policy-by-team
            :policy-winner (policy-winner policy-by-team result))))
 
+(defn bid-strategy-matchup-result
+  [left right options {:keys [seed orientation]}]
+  (let [{:keys [policy-by-team bid-strategy-by-team]}
+        (bid-matchup-assignment left right orientation)
+        result (summarize-game
+                (run-game seed
+                          (assoc options
+                            :bid-strategy-by-team bid-strategy-by-team)))]
+    (assoc result
+           :seed seed
+           :orientation orientation
+           :policy-by-team policy-by-team
+           :policy-winner (policy-winner policy-by-team result))))
+
 (defn parallel-play-strategy-matchup-results
   "Lazy parallel stream of individual matchup results. Each seed produces two
   games, one with each policy on each team."
@@ -271,6 +301,15 @@
    (parallel-play-strategy-matchup-results left right seeds default-options))
   ([left right seeds options]
    (pmap #(play-strategy-matchup-result left right options %)
+         (matchup-jobs seeds))))
+
+(defn parallel-bid-strategy-matchup-results
+  "Lazy parallel stream of individual bid-policy matchup results. Each seed
+  produces two games, one with each policy on each team."
+  ([left right seeds]
+   (parallel-bid-strategy-matchup-results left right seeds default-options))
+  ([left right seeds options]
+   (pmap #(bid-strategy-matchup-result left right options %)
          (matchup-jobs seeds))))
 
 (defn empty-policy-accumulator []
@@ -363,6 +402,26 @@
        seeds
        (merge default-options options))))))
 
+(defn bid-strategy-matchup-steps
+  "Lazy cumulative checkpoints for a parallel bid-strategy matchup."
+  ([left right seeds]
+   (bid-strategy-matchup-steps left right seeds default-options))
+  ([left right seeds options]
+   (bid-strategy-matchup-steps left right seeds options {:batch-size 64}))
+  ([left right seeds options {:keys [batch-size]
+                              :or {batch-size 64}
+                              :as _step-options}]
+   (let [[left-label] left
+         [right-label] right]
+     (cumulative-policy-summaries
+      [left-label right-label]
+      batch-size
+      (parallel-bid-strategy-matchup-results
+       left
+       right
+       seeds
+       (merge default-options options))))))
+
 (defn convergence-reached?
   [{:keys [min-games epsilon]
     :or {min-games 1000
@@ -410,6 +469,35 @@
          reverse-options (assoc options
                            :play-strategy-by-team {1 right-strategy
                                                    2 left-strategy})
+         attach-winner (fn [policy-by-team result]
+                         (assoc result
+                                :policy-by-team policy-by-team
+                                :policy-winner (policy-winner policy-by-team
+                                                              result)))
+         forward (mapv #(attach-winner forward-policies %)
+                       (run-games-for-seeds seeds forward-options))
+         reverse (mapv #(attach-winner reverse-policies %)
+                       (run-games-for-seeds seeds reverse-options))
+         results (vec (concat forward reverse))]
+     (assoc (aggregate-policy-wins results)
+            :labels [left-label right-label]
+            :seeds (count seeds)
+            :forward (aggregate forward)
+            :reverse (aggregate reverse)))))
+
+(defn bid-strategy-matchup
+  "Compare two bid strategies head-to-head on the same seeds, swapping teams to
+  reduce seat bias."
+  ([left right seeds] (bid-strategy-matchup left right seeds default-options))
+  ([[left-label left-strategy] [right-label right-strategy] seeds options]
+   (let [forward-policies {1 left-label 2 right-label}
+         reverse-policies {1 right-label 2 left-label}
+         forward-options (assoc options
+                           :bid-strategy-by-team {1 left-strategy
+                                                  2 right-strategy})
+         reverse-options (assoc options
+                           :bid-strategy-by-team {1 right-strategy
+                                                  2 left-strategy})
          attach-winner (fn [policy-by-team result]
                          (assoc result
                                 :policy-by-team policy-by-team
