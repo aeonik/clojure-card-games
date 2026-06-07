@@ -863,6 +863,16 @@
     (is (re-find #"<main id=\"admin-main\">" html))
     (is (re-find #"data-delete-room=\"ABC123\"" html))))
 
+(deftest admin-dashboard-stream-html-skips-archive-scan-test
+  (with-redefs [server/historical-room-records
+                (fn []
+                  (throw (ex-info "archive scan should not run for stream"
+                                  {})))]
+    (let [html (server/admin-dashboard-stream-html {:query-string ""})]
+      (is (string? html))
+      (is (re-find #"Historical archive is available" html))
+      (is (not (re-find #"Bid trends" html))))))
+
 (deftest admin-dashboard-renders-delete-room-form-test
   (let [html (admin/render-dashboard
               {:rooms {"ABC123" (room/new-room "ABC123" 9)}

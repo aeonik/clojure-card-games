@@ -285,7 +285,7 @@
 (defn admin-game-snapshot-edn-id [uri]
   (admin-game-snapshot-path uri "/snapshot.edn"))
 
-(declare start-room-sweeper! install-runtime-handlers!)
+(declare start-room-sweeper! install-runtime-handlers! start-nrepl-if-enabled!)
 
 (defn start-audit! []
   (audit/start! {:enabled? (audit-enabled?)
@@ -382,20 +382,29 @@
                                        :idle-room-ms (idle-room-ms)}
                               :started-at (:started-at @metrics)}))))
 
-(defn admin-dashboard-main-html [request]
-  (admin/render-dashboard-main-html
-   {:rooms @rooms
-    :selected-room-id (selected-admin-room-id request)
-    :historical-room-records (historical-room-records)
-    :metrics @metrics
-    :pending-bot-count (count @bot-turns)
-    :open-websocket-count (count @open-websockets)
-    :limits {:max-rooms (max-rooms)
-             :max-room-connections (max-room-connections)
-             :max-websocket-connections (max-websocket-connections)
-             :max-message-bytes (max-message-bytes)
-             :idle-room-ms (idle-room-ms)}
-    :started-at (:started-at @metrics)}))
+(defn admin-dashboard-main-html
+  ([request]
+   (admin-dashboard-main-html request {:include-historical? true}))
+  ([request {:keys [include-historical?]
+             :or {include-historical? true}}]
+   (admin/render-dashboard-main-html
+    (cond-> {:rooms @rooms
+             :selected-room-id (selected-admin-room-id request)
+             :include-historical? include-historical?
+             :metrics @metrics
+             :pending-bot-count (count @bot-turns)
+             :open-websocket-count (count @open-websockets)
+             :limits {:max-rooms (max-rooms)
+                      :max-room-connections (max-room-connections)
+                      :max-websocket-connections (max-websocket-connections)
+                      :max-message-bytes (max-message-bytes)
+                      :idle-room-ms (idle-room-ms)}
+             :started-at (:started-at @metrics)}
+      include-historical? (assoc :historical-room-records
+                                 (historical-room-records))))))
+
+(defn admin-dashboard-stream-html [request]
+  (admin-dashboard-main-html request {:include-historical? false}))
 
 (defn admin-stream-enabled? [request]
   (= "admin" (str/lower-case (or (some-> (query-params (:query-string request))
@@ -419,13 +428,13 @@
       #_{:clj-kondo/ignore [:unresolved-symbol]}
       (http/with-channel request ws
         (http/on-close ws (fn [_] (reset! stop true)))
-        (http/send! ws (admin-dashboard-main-html request))
+        (http/send! ws (admin-dashboard-stream-html request))
         (async/thread
           (while (not @stop)
             (Thread/sleep 3000)
             (when-not @stop
               (try
-                (when-not (http/send! ws (admin-dashboard-main-html request))
+                (when-not (http/send! ws (admin-dashboard-stream-html request))
                   (reset! stop true))
                 (catch Throwable _
                   (reset! stop true))))))))))
@@ -451,6 +460,7 @@
     (audit-current-rooms! :reload-snapshot)
     (start-room-sweeper!)
     (install-runtime-handlers!)
+    (start-nrepl-if-enabled!)
     (refresh-room-view-state!)
     (let [elapsed-ms (/ (- (System/nanoTime) started) 1000000.0)
           result {:ok true

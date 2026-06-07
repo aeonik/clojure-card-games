@@ -340,6 +340,17 @@
        [:h3 "Browse rooms"]
        (historical-rooms-table records)]]]))
 
+(defn historical-panel-placeholder []
+  [:section {:id "admin-history-panel" :class "panel"}
+   [:div {:class "section-heading"}
+    [:div
+     [:p "Archive"]
+     [:h2 "Historical rooms"]]
+    [:div {:class "admin-actions"}
+     [:a {:href "/karbosh/admin/history"} "View all history"]]]
+   [:p {:class "empty"}
+    "Historical archive is available on the full history page."]])
+
 (defn record-game-seed [record]
   (get-in record [:room :game :initial-seed]))
 
@@ -893,13 +904,14 @@
        (hand-history-html (:hand-history debug))])))
 
 (defn render-dashboard-main [{:keys [rooms
-                                    selected-room-id
-                                    historical-room-records
-                                    metrics
-                                    pending-bot-count
-                                    open-websocket-count
-                                    limits
-                                    started-at]}]
+                                     selected-room-id
+                                     historical-room-records
+                                     include-historical?
+                                     metrics
+                                     pending-bot-count
+                                     open-websocket-count
+                                     limits
+                                     started-at]}]
   (let [now (System/currentTimeMillis)
         selected-id (choose-selected-room-id rooms selected-room-id)
         room (selected-room rooms selected-id)
@@ -934,7 +946,9 @@
         [:h2 "Running rooms"]]]
       (rooms-table rooms selected-id now)]
 
-     (historical-panel rooms historical-room-records)
+     (if (false? include-historical?)
+       (historical-panel-placeholder)
+       (historical-panel rooms historical-room-records))
 
      (or (room-detail room)
          [:section {:id "admin-room-detail" :class "panel detail"}
