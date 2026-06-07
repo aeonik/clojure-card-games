@@ -86,6 +86,9 @@
    [:span label]
    [:strong value]])
 
+(defn table-cell [label & body]
+  (into [:td {:data-label label}] body))
+
 (defn live-room-entry? [[_ room]]
   (and (map? room)
        (:created-at room)
@@ -155,19 +158,19 @@
   (let [state (:game room)
         view (game/admin-view state (:seats room))]
     [:tr {:class (when (= selected-id room-id) "selected")}
-     [:td [:a {:href (str "/karbosh/admin?room=" room-id)} room-id]]
-     [:td (kw-label (:phase state))]
-     [:td (score-label (:scores state))]
-     [:td (player-label view (:current-player state))]
-     [:td (inc (or (:hand-index state) 0))]
-     [:td (count (:connections room))]
-     [:td (room-age now room)]
-     [:td (room-idle-age now room)]
-     [:td (delete-room-control room-id)]]))
+     (table-cell "Room" [:a {:href (str "/karbosh/admin?room=" room-id)} room-id])
+     (table-cell "Phase" (kw-label (:phase state)))
+     (table-cell "Score" (score-label (:scores state)))
+     (table-cell "Current" (player-label view (:current-player state)))
+     (table-cell "Hand" (inc (or (:hand-index state) 0)))
+     (table-cell "Conns" (count (:connections room)))
+     (table-cell "Age" (room-age now room))
+     (table-cell "Idle" (room-idle-age now room))
+     (table-cell "Actions" (delete-room-control room-id))]))
 
 (defn rooms-table [rooms selected-id now]
   (if (seq (sorted-room-entries rooms))
-    [:table
+    [:table {:class "admin-table"}
      [:thead
       [:tr
        [:th "Room"]
@@ -259,6 +262,7 @@
   (let [trends (bid-trends records)]
     (if (seq trends)
       [:table
+       {:class "admin-table"}
        [:thead
         [:tr
          [:th "Bid"]
@@ -269,11 +273,11 @@
        [:tbody
         (for [{:keys [bid attempts made make-rate avg-margin]} trends]
           [:tr
-           [:td bid]
-           [:td attempts]
-           [:td made]
-           [:td make-rate]
-           [:td avg-margin]])]]
+           (table-cell "Bid" bid)
+           (table-cell "Attempts" attempts)
+           (table-cell "Made" made)
+           (table-cell "Make rate" make-rate)
+           (table-cell "Avg margin" avg-margin)])]]
       [:p {:class "empty"} "No completed bid history yet."])))
 
 (defn historical-room-row [record]
@@ -281,21 +285,21 @@
         state (:game room)
         room-id (:room-id record)]
     [:tr
-     [:td [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} room-id]]
-     [:td (kw-label (:phase state))]
-     [:td (score-label (:scores state))]
-     [:td (or (some-> room room-winner team-label) "--")]
-     [:td (room-hand-count room)]
-     [:td (kw-label (:type record))]
-     [:td (time-label (:logged-at record))]
-     [:td
+     (table-cell "Room" [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} room-id])
+     (table-cell "Phase" (kw-label (:phase state)))
+     (table-cell "Score" (score-label (:scores state)))
+     (table-cell "Winner" (or (some-> room room-winner team-label) "--"))
+     (table-cell "Hands" (room-hand-count room))
+     (table-cell "Last event" (kw-label (:type record)))
+     (table-cell "Last seen" (time-label (:logged-at record)))
+     (table-cell "Links"
       [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} "Snapshot"]
       " / "
-      [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot.edn")} "Raw"]]]))
+      [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot.edn")} "Raw"])]))
 
 (defn historical-rooms-table [records]
   (if (seq records)
-    [:table
+    [:table {:class "admin-table"}
      [:thead
       [:tr
        [:th "Room"]
@@ -399,24 +403,24 @@
         seed (record-game-seed record)
         timestamp (record-game-timestamp record)]
     [:tr
-     [:td room-id]
-     [:td (or (some-> seed str) "--")]
-     [:td (time-label timestamp)]
-     [:td (kw-label (:phase state))]
-     [:td (score-label (:scores state))]
-     [:td (or (some-> room room-winner team-label) "--")]
-     [:td (room-hand-count room)]
-     [:td (kw-label (:type record))]
-     [:td (time-label (:logged-at record))]
-     [:td
+     (table-cell "Room" room-id)
+     (table-cell "Seed" (or (some-> seed str) "--"))
+     (table-cell "Started" (time-label timestamp))
+     (table-cell "Phase" (kw-label (:phase state)))
+     (table-cell "Score" (score-label (:scores state)))
+     (table-cell "Winner" (or (some-> room room-winner team-label) "--"))
+     (table-cell "Hands" (room-hand-count room))
+     (table-cell "Last event" (kw-label (:type record)))
+     (table-cell "Last seen" (time-label (:logged-at record)))
+     (table-cell "Links"
       [:a {:href (game-history-link room-id seed timestamp "snapshot")} "Snapshot"]
       " / "
-      [:a {:href (game-history-link room-id seed timestamp "snapshot.edn")} "Raw"]]]))
+      [:a {:href (game-history-link room-id seed timestamp "snapshot.edn")} "Raw"])]))
 
 (defn game-history-table [records]
   (let [records (game-history-records records)]
     (if (seq records)
-      [:table
+      [:table {:class "admin-table"}
        [:thead
         [:tr
          [:th "Room"]
@@ -455,7 +459,7 @@
       (game-history-table records)]]))
 
 (defn seats-table [view]
-  [:table
+  [:table {:class "admin-table"}
    [:thead
     [:tr
      [:th "Player"]
@@ -470,10 +474,10 @@
                           :else "offline")
                         (when (false? active?) " / sitting out"))]
         [:tr {:class (when (= id (:current-player view)) "selected")}
-         [:td (or name (clojure.core/name id))]
-         [:td (team-label team)]
-         [:td status]
-         [:td hand-count]]))]])
+         (table-cell "Player" (or name (clojure.core/name id)))
+         (table-cell "Team" (team-label team))
+         (table-cell "Status" status)
+         (table-cell "Cards" hand-count)]))]])
 
 (defn trick-html [view trick]
   (if (seq trick)
@@ -839,7 +843,9 @@
    "th,td{vertical-align:top;overflow-wrap:anywhere;word-break:break-word}"
    "td a{overflow-wrap:anywhere;word-break:break-word}"
    "td:last-child a{display:inline-block;max-width:100%}"
-   "@media(max-width:900px){main{padding:12px}.top,.section-heading{align-items:flex-start;flex-direction:column}.admin-actions{justify-content:flex-start}.two-col{grid-template-columns:1fr}.panel table{min-width:680px}}"))
+   "@media(max-width:900px){main{padding:12px}.top,.section-heading{align-items:flex-start;flex-direction:column}.admin-actions{justify-content:flex-start}.two-col{grid-template-columns:1fr}.panel table:not(.admin-table){min-width:680px}}"
+   "@media(max-width:720px){body{font-size:14px}main{max-width:none;padding:10px}.top{gap:8px;margin-bottom:10px}.top h1{font-size:1.45rem;line-height:1.15}.panel{padding:12px;margin-bottom:10px;overflow:visible}.section-heading{gap:8px;margin-bottom:10px}.section-heading h2{font-size:1.25rem}.admin-actions{gap:8px}.admin-actions a{display:inline-flex;align-items:center;min-height:30px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:8px}.stat span{font-size:.58rem;letter-spacing:.1em}.stat strong{font-size:1rem}.room-stats{margin-bottom:10px}.hands{grid-template-columns:1fr;gap:8px}.hands article{padding:8px}.trick{gap:8px}.trick>div{padding:7px}.admin-table{display:block;width:100%}.admin-table thead{display:none}.admin-table tbody{display:grid;gap:8px}.admin-table tr{display:grid;gap:6px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(0,0,0,.12);padding:10px}.admin-table tr.selected{background:rgba(111,208,199,.16);border-color:rgba(111,208,199,.35)}.admin-table td{display:grid;grid-template-columns:minmax(82px,.42fr) 1fr;gap:8px;align-items:start;border:0;padding:0}.admin-table td::before{content:attr(data-label);color:rgba(255,255,255,.48);font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.admin-table td[data-label=\"Links\"],.admin-table td[data-label=\"Actions\"]{grid-template-columns:1fr}.admin-table td[data-label=\"Links\"]::before,.admin-table td[data-label=\"Actions\"]::before{margin-bottom:2px}.admin-table button{justify-self:start}.compact-list{padding-left:0;list-style:none}.compact-list span{min-width:0}}"
+   "@media(max-width:380px){.stats{grid-template-columns:1fr}.admin-table td{grid-template-columns:1fr;gap:2px}}"))
 
 (def admin-card-styles
   ".suit{color:#f7f8ff;font-weight:900}.suit.heart,.suit.diamond{color:#ff7d8b}.card{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:52px;margin:0 4px 6px 0;padding:0;border:1px solid rgba(0,0,0,.24);border-radius:6px;background:#f8f5ed;color:#141821;font-size:.95rem;font-weight:800;line-height:1;letter-spacing:0;vertical-align:middle;white-space:nowrap}.card.heart,.card.diamond{color:#c62f43}.trick .card,.compact-list .card,.hands .card{display:inline-flex;width:38px;min-width:38px;height:52px;color:#141821;font-size:.95rem;font-weight:800;line-height:1}.trick .card.heart,.trick .card.diamond,.compact-list .card.heart,.compact-list .card.diamond,.hands .card.heart,.hands .card.diamond{color:#c62f43}.trick-card{width:92px;min-width:92px}.trick-card .play-player{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trick>div:not(.trick-card) .card{display:inline-flex;width:38px;min-width:38px;height:52px}")
