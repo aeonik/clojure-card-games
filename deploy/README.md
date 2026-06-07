@@ -105,6 +105,10 @@ clojure -T:build release
 clojure -T:build deploy-compatible
 clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
 clojure -T:build smoke
+clojure -T:build storage-report
+clojure -T:build prod-storage-report
+clojure -T:build compact-archive
+clojure -T:build compact-prod-archive :confirm '"COMPACT_ARCHIVE"'
 ```
 
 Useful deploy environment overrides:
@@ -135,7 +139,8 @@ KARBOSH_MAX_ROOMS=128
 KARBOSH_MAX_ROOM_CONNECTIONS=24
 KARBOSH_MAX_WEBSOCKET_CONNECTIONS=256
 KARBOSH_IDLE_ROOM_MS=14400000
-KARBOSH_AUDIT_ENABLED=true
+KARBOSH_ROOM_DIR=data/karbosh-rooms
+KARBOSH_AUDIT_ENABLED=false
 KARBOSH_AUDIT_DIR=data/karbosh-audit
 KARBOSH_NREPL_ENABLED=true
 KARBOSH_NREPL_BIND=127.0.0.1
@@ -148,11 +153,51 @@ default username is `admin`; override it with `KARBOSH_ADMIN_USER` if needed. If
 
 Rendered room histories are available at `/karbosh/admin/rooms/{ROOM}/snapshot`
 under the same Basic Auth. Raw room snapshots are available at
-`/karbosh/admin/rooms/{ROOM}/snapshot.edn`. The server also appends sanitized EDN
-room snapshots to `KARBOSH_AUDIT_DIR` through a core.async writer after room
-publishes and before room deletion. The audit log preserves seeds, deals, hands,
-bids, tricks, and completed hand histories for long-term bot/game analysis, but
-omits live websocket connection objects.
+`/karbosh/admin/rooms/{ROOM}/snapshot.edn`.
+
+## Durable Room Storage
+
+`KARBOSH_ROOM_DIR` is the canonical production store. Each room is persisted as
+one compact EDN file under `data/karbosh-rooms`, with websocket connection
+objects stripped and human seats marked disconnected on disk. A room can be
+unloaded from memory and later resumed from the same durable file.
+
+Durable room files preserve:
+
+- room code and room options
+- current game state
+- current game seed
+- completed games within the room
+- completed hand/trick/bid history
+- bot personas and player seats
+
+Use the storage report tasks to check the active store:
+
+```sh
+clojure -T:build storage-report
+clojure -T:build prod-storage-report
+```
+
+The report includes active room storage size, legacy audit size, malformed room
+files, zero-hand room files, and the largest durable rooms.
+
+`KARBOSH_AUDIT_DIR` is legacy migration/forensic storage. The server can still
+read it as a fallback for old snapshots, but `KARBOSH_AUDIT_ENABLED` should stay
+`false` unless intentionally collecting short-term forensic records. Normal room
+publishes no longer append full room snapshots to the audit log.
+
+To compact a legacy append-only audit directory into durable room files:
+
+```sh
+clojure -T:build compact-archive
+clojure -T:build compact-prod-archive :confirm '"COMPACT_ARCHIVE"'
+```
+
+The compactor writes durable room files first, then moves the old audit
+directory to a timestamped backup such as
+`data/karbosh-audit.compacted-20260607T182653Z`. Keep the backup until
+historical room links have been spot-checked, then remove it manually when no
+longer needed.
 
 ## Production REPL
 

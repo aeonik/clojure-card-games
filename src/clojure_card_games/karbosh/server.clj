@@ -69,7 +69,7 @@
 
 (defn audit-enabled? []
   (not= "false" (str/lower-case (or (System/getenv "KARBOSH_AUDIT_ENABLED")
-                                    "true"))))
+                                    "false"))))
 
 (defn audit-dir []
   (or (System/getenv "KARBOSH_AUDIT_DIR") "data/karbosh-audit"))

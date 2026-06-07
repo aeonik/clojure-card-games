@@ -115,10 +115,25 @@
 (defn smoke [_]
   (sh! "curl" "-fsS" (health-url)))
 
+(defn- print-edn [x]
+  (println (pr-str x))
+  x)
+
 (defn compact-archive [opts]
   (let [compact! (requiring-resolve
                   'clojure-card-games.karbosh.archive/compact-archive!)]
-    (compact! opts)))
+    (print-edn (compact! opts))))
+
+(defn storage-report [opts]
+  (let [report (requiring-resolve
+                'clojure-card-games.karbosh.storage-report/report)]
+    (print-edn (report opts))))
+
+(defn prod-storage-report [_]
+  (ssh! (str "cd "
+             (env "KARBOSH_APP_DIR" "~/apps/clojure-card-games/")
+             " && /usr/local/bin/clojure -M -m "
+             "clojure-card-games.karbosh.storage-report")))
 
 (defn compact-prod-archive [{:keys [confirm]}]
   (when-not (= confirm "COMPACT_ARCHIVE")
