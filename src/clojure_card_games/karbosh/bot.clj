@@ -746,10 +746,28 @@
       :else
       cards)))
 
-(defn probability-lead-card [config game player analyses cards]
+(defn defender-exit-lead-candidates [game player cards]
+  (let [trump (:trump game)
+        off-aces (seq (filter #(off-ace? trump %) cards))
+        non-trumps (seq (remove #(trump-card? trump %) cards))]
+    (cond
+      (contract-caller? game player)
+      (or non-trumps cards)
+
+      off-aces
+      off-aces
+
+      non-trumps
+      non-trumps
+
+      :else
+      cards)))
+
+(defn probability-lead-card-with-candidates
+  [candidate-fn config game player analyses cards]
   (let [priority (priority-lead-card game player cards)
         safe (safe-cards config analyses :lead-risk-tolerance cards)
-        fallback-cards (risk-adjusted-lead-candidates game player cards)]
+        fallback-cards (candidate-fn game player cards)]
     (cond
       priority
       priority
@@ -761,6 +779,22 @@
       (first (sort-by #(risk-adjusted-lead-value config game analyses %)
                       >
                       fallback-cards)))))
+
+(defn probability-lead-card [config game player analyses cards]
+  (probability-lead-card-with-candidates risk-adjusted-lead-candidates
+                                         config
+                                         game
+                                         player
+                                         analyses
+                                         cards))
+
+(defn defender-exit-probability-lead-card [config game player analyses cards]
+  (probability-lead-card-with-candidates defender-exit-lead-candidates
+                                         config
+                                         game
+                                         player
+                                         analyses
+                                         cards))
 
 (defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
@@ -811,6 +845,11 @@
 (defn probability-card-action [game player]
   (probability-card-action-with-lead probability-lead-card game player))
 
+(defn defender-exit-probability-card-action [game player]
+  (probability-card-action-with-lead defender-exit-probability-lead-card
+                                     game
+                                     player))
+
 (defn hybrid-threshold-card-action [game player]
   (if (special-contract? (game/current-bid game))
     (card-counting-card-action game player)
@@ -821,12 +860,19 @@
     (card-counting-card-action game player)
     (probability-card-action game player)))
 
+(defn defender-exit-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (defender-exit-probability-card-action game player)))
+
 (def play-strategies
   {:card-counting card-counting-card-action
    :probability-threshold threshold-probability-card-action
    :probability probability-card-action
+   :probability-defender-exit defender-exit-probability-card-action
    :hybrid-threshold hybrid-threshold-card-action
-   :hybrid hybrid-card-action})
+   :hybrid hybrid-card-action
+   :hybrid-defender-exit defender-exit-hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond

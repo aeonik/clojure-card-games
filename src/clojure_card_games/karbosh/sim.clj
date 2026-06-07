@@ -232,6 +232,171 @@
                                        0.0)]))
                       winners)}))
 
+(def matchup-orientations [:forward :reverse])
+
+(defn matchup-jobs [seeds]
+  (mapcat (fn [seed]
+            (map (fn [orientation]
+                   {:seed seed
+                    :orientation orientation})
+                 matchup-orientations))
+          seeds))
+
+(defn matchup-assignment
+  [[left-label left-strategy] [right-label right-strategy] orientation]
+  (if (= :forward orientation)
+    {:policy-by-team {1 left-label 2 right-label}
+     :play-strategy-by-team {1 left-strategy 2 right-strategy}}
+    {:policy-by-team {1 right-label 2 left-label}
+     :play-strategy-by-team {1 right-strategy 2 left-strategy}}))
+
+(defn play-strategy-matchup-result
+  [left right options {:keys [seed orientation]}]
+  (let [{:keys [policy-by-team play-strategy-by-team]}
+        (matchup-assignment left right orientation)
+        result (summarize-game
+                (run-game seed
+                          (assoc options
+                            :play-strategy-by-team play-strategy-by-team)))]
+    (assoc result
+           :seed seed
+           :orientation orientation
+           :policy-by-team policy-by-team
+           :policy-winner (policy-winner policy-by-team result))))
+
+(defn parallel-play-strategy-matchup-results
+  "Lazy parallel stream of individual matchup results. Each seed produces two
+  games, one with each policy on each team."
+  ([left right seeds]
+   (parallel-play-strategy-matchup-results left right seeds default-options))
+  ([left right seeds options]
+   (pmap #(play-strategy-matchup-result left right options %)
+         (matchup-jobs seeds))))
+
+(defn empty-policy-accumulator []
+  {:games 0
+   :hands 0
+   :winners {}
+   :stop-reasons {}})
+
+(defn add-policy-result [acc result]
+  (-> acc
+      (update :games inc)
+      (update :hands + (:hands result 0))
+      (update-in [:winners (or (:policy-winner result) :none)] (fnil inc 0))
+      (update-in [:stop-reasons (:stop-reason result)] (fnil inc 0))))
+
+(defn probability [n total]
+  (if (pos? total)
+    (double (/ n total))
+    0.0))
+
+(defn policy-summary [labels {:keys [games hands winners] :as acc}]
+  (let [label-rates (into {}
+                          (map (fn [label]
+                                 [label (probability (get winners label 0)
+                                                     games)]))
+                          labels)]
+    (assoc acc
+           :labels labels
+           :win-rates label-rates
+           :avg-hands (probability hands games))))
+
+(defn win-rate-derivatives [labels previous current]
+  (when previous
+    (into {}
+          (map (fn [label]
+                 [label (- (get-in current [:win-rates label] 0.0)
+                           (get-in previous [:win-rates label] 0.0))]))
+          labels)))
+
+(defn with-derivative [labels previous current]
+  (if-let [derivatives (win-rate-derivatives labels previous current)]
+    (assoc current
+           :win-rate-derivatives derivatives
+           :max-abs-derivative (reduce max
+                                       0.0
+                                       (map #(Math/abs (double %))
+                                            (vals derivatives))))
+    current))
+
+(defn cumulative-policy-summaries
+  "Lazily fold policy results into cumulative summaries every `batch-size`
+  realized games."
+  [labels batch-size results]
+  (let [batches (partition-all batch-size results)
+        summaries (map :summary
+                       (rest
+                        (reductions
+                         (fn [{:keys [acc summary]} batch]
+                           (let [next-acc (reduce add-policy-result acc batch)
+                                 next-summary (assoc (policy-summary labels next-acc)
+                                                :batch-size (count batch)
+                                                :previous-games (:games summary 0))]
+                             {:acc next-acc
+                              :summary (with-derivative labels
+                                         summary
+                                         next-summary)}))
+                         {:acc (empty-policy-accumulator)
+                          :summary nil}
+                         batches)))]
+    summaries))
+
+(defn play-strategy-matchup-steps
+  "Lazy cumulative checkpoints for a parallel play-strategy matchup. The
+  derivative is the change in cumulative win rate since the previous checkpoint."
+  ([left right seeds]
+   (play-strategy-matchup-steps left right seeds default-options))
+  ([left right seeds options]
+   (play-strategy-matchup-steps left right seeds options {:batch-size 64}))
+  ([left right seeds options {:keys [batch-size]
+                              :or {batch-size 64}
+                              :as _step-options}]
+   (let [[left-label] left
+         [right-label] right]
+     (cumulative-policy-summaries
+      [left-label right-label]
+      batch-size
+      (parallel-play-strategy-matchup-results
+       left
+       right
+       seeds
+       (merge default-options options))))))
+
+(defn convergence-reached?
+  [{:keys [min-games epsilon]
+    :or {min-games 1000
+         epsilon 0.001}}
+   {:keys [games max-abs-derivative]}]
+  (and (>= games min-games)
+       (some? max-abs-derivative)
+       (<= max-abs-derivative epsilon)))
+
+(defn take-through [pred coll]
+  (lazy-seq
+   (when-let [items (seq coll)]
+     (let [item (first items)]
+       (cons item
+             (when-not (pred item)
+               (take-through pred (rest items))))))))
+
+(defn play-strategy-matchup-until
+  "Lazy matchup checkpoints through the first checkpoint that satisfies the
+  convergence options."
+  ([left right seeds]
+   (play-strategy-matchup-until left right seeds default-options))
+  ([left right seeds options]
+   (play-strategy-matchup-until left right seeds options {}))
+  ([left right seeds options {:keys [batch-size]
+                              :or {batch-size 64}
+                              :as convergence-options}]
+   (take-through #(convergence-reached? convergence-options %)
+                 (play-strategy-matchup-steps left
+                                              right
+                                              seeds
+                                              options
+                                              {:batch-size batch-size}))))
+
 (defn play-strategy-matchup
   "Compare two play strategies head-to-head on the same seeds, swapping teams to
   reduce seat bias."

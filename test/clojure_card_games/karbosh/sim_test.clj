@@ -72,3 +72,42 @@
     (is (= 2 (:games result)))
     (is (= 1 (:seeds result)))
     (is (contains? result :win-rates))))
+
+(deftest lazy-policy-convergence-test
+  (is (= [{:seed 1 :orientation :forward}
+          {:seed 1 :orientation :reverse}
+          {:seed 2 :orientation :forward}
+          {:seed 2 :orientation :reverse}]
+         (take 4 (sim/matchup-jobs [1 2]))))
+  (let [results [{:policy-winner :old
+                  :hands 10
+                  :stop-reason :target-score}
+                 {:policy-winner :new
+                  :hands 12
+                  :stop-reason :target-score}
+                 {:policy-winner :new
+                  :hands 8
+                  :stop-reason :target-score}
+                 {:policy-winner :new
+                  :hands 14
+                  :stop-reason :target-score}]
+        steps (doall (sim/cumulative-policy-summaries
+                      [:old :new]
+                      2
+                      results))]
+    (is (= [2 4] (mapv :games steps)))
+    (is (= {:old 0.5 :new 0.5}
+           (:win-rates (first steps))))
+    (is (= {:old 0.25 :new 0.75}
+           (:win-rates (second steps))))
+    (is (= {:old -0.25 :new 0.25}
+           (:win-rate-derivatives (second steps))))
+    (is (= 0.25 (:max-abs-derivative (second steps)))))
+  (is (= [1 2 3]
+         (sim/take-through #(= 3 %) (range 1 10))))
+  (is (false? (sim/convergence-reached?
+               {:min-games 4 :epsilon 0.01}
+               {:games 4 :max-abs-derivative 0.02})))
+  (is (true? (sim/convergence-reached?
+              {:min-games 4 :epsilon 0.01}
+              {:games 4 :max-abs-derivative 0.005}))))
