@@ -826,7 +826,7 @@
     (is (not (re-find #"admin/delete-room\?room=" html)))
     (is (re-find #"data-delete-room=\"ABC123\"" html))
     (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot\"" html))
-    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260604-stream\"" html))
+    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260606-scroll\"" html))
     (is (re-find #"\.trick>div" html))
     (is (re-find #"\.trick \.card" html))
     (is (re-find #"\.compact-list \.card" html))

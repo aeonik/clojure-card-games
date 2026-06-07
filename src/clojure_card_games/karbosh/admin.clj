@@ -870,7 +870,7 @@
                               :open-websocket-count open-websocket-count
                               :limits limits
                               :started-at started-at})
-      [:script {:src "/karbosh/assets/js/admin.js?v=20260604-stream"}]]])))
+      [:script {:src "/karbosh/assets/js/admin.js?v=20260606-scroll"}]]])))
 
 (defn render-history [{:keys [rooms records]}]
   (str
