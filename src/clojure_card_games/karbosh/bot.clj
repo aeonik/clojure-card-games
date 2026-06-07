@@ -624,6 +624,10 @@
   (remove #(same-team? game player %)
           (remaining-trick-players-after game player)))
 
+(defn pending-partners-after [game player]
+  (filter #(same-team? game player %)
+          (remaining-trick-players-after game player)))
+
 (defn suit-protecting-card? [game player unseen-counts lead card]
   (and (= lead (rules/effective-suit card (:trump game)))
        (wins-trick? game player card)
@@ -873,40 +877,69 @@
                       trumps))
       (probability-lead-card config game player analyses cards))))
 
-(defn probability-winning-card [config game analyses cards]
-  (let [safe (safe-cards config analyses :win-risk-tolerance cards)]
+(defn probability-winning-card [config game _player analyses _cards winning-cards]
+  (let [safe (safe-cards config analyses :win-risk-tolerance winning-cards)]
     (if (seq safe)
       (lowest-card game safe)
       (first (sort-by #(risk-adjusted-win-cost config game analyses %)
-                      cards)))))
+                      winning-cards)))))
 
-(defn probability-card-action-with-lead [lead-card-fn game player]
-  (let [cards (vec (legal-cards game player))
-        winner (current-trick-winner game)
-        config (context-play-config *play-config* game player)
-        unseen-counts (unseen-card-counts game player)
-        analyses (card-analyses game player cards)
-        winning-cards (filter #(wins-trick? game player %) cards)
-        card (cond
-               (empty? cards)
-               nil
+(defn unsafe-high-trump-winner? [config game analyses card]
+  (and (high-preservation-trump? game card)
+       (> (card-risk analyses card)
+          (:win-risk-tolerance config))))
 
-               (empty? (:current-trick game))
-               (if (special-contract-caller? game player)
-                 (karbosh-caller-lead-card config game player analyses cards)
-                 (lead-card-fn config game player analyses cards))
+(defn preservation-winning-card
+  [config game player analyses cards winning-cards]
+  (let [safe (safe-cards config analyses :win-risk-tolerance winning-cards)
+        non-winning (seq (remove #(wins-trick? game player %) cards))]
+    (cond
+      (seq safe)
+      (lowest-card game safe)
 
-               (same-team? game player winner)
-               (partner-preserving-card game player unseen-counts cards)
+      (and non-winning
+           (seq (pending-partners-after game player))
+           (every? #(unsafe-high-trump-winner? config game analyses %)
+                   winning-cards))
+      (lowest-card game non-winning)
 
-               (seq winning-cards)
-               (probability-winning-card config game analyses winning-cards)
+      :else
+      (first (sort-by #(risk-adjusted-win-cost config game analyses %)
+                      winning-cards)))))
 
-               :else
-               (lowest-card game cards))]
-    (when card
-      {:type :play-card
-       :card card})))
+(defn probability-card-action-with-lead
+  ([lead-card-fn game player]
+   (probability-card-action-with-lead lead-card-fn
+                                      probability-winning-card
+                                      game
+                                      player))
+  ([lead-card-fn winning-card-fn game player]
+   (let [cards (vec (legal-cards game player))
+         winner (current-trick-winner game)
+         config (context-play-config *play-config* game player)
+         unseen-counts (unseen-card-counts game player)
+         analyses (card-analyses game player cards)
+         winning-cards (filter #(wins-trick? game player %) cards)
+         card (cond
+                (empty? cards)
+                nil
+
+                (empty? (:current-trick game))
+                (if (special-contract-caller? game player)
+                  (karbosh-caller-lead-card config game player analyses cards)
+                  (lead-card-fn config game player analyses cards))
+
+                (same-team? game player winner)
+                (partner-preserving-card game player unseen-counts cards)
+
+                (seq winning-cards)
+                (winning-card-fn config game player analyses cards winning-cards)
+
+                :else
+                (lowest-card game cards))]
+     (when card
+       {:type :play-card
+        :card card}))))
 
 (defn threshold-probability-card-action [game player]
   (probability-card-action-with-lead threshold-lead-card game player))
@@ -921,6 +954,7 @@
 
 (defn preservation-probability-card-action [game player]
   (probability-card-action-with-lead preservation-probability-lead-card
+                                     preservation-winning-card
                                      game
                                      player))
 

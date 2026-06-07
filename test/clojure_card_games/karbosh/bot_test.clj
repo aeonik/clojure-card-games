@@ -551,6 +551,42 @@
       (is (= {:type :play-card :card [:K :♥]}
              (bot/card-action game :player4 :hybrid-preservation)))))
 
+  (testing "when following, a bot preserves an unsafe high trump with a partner pending"
+    (let [game {:phase :trick-playing
+                :trump :♦
+                :active-players game/players
+                :hand-index 9
+                :bids [{:type :bid
+                        :player :player6
+                        :bid-type :bid
+                        :value 5
+                        :hand-index 9}]
+                :players {:player1 {:team 1
+                                    :hand [[10 :♣] [:A :♠] [10 :♦]
+                                           [:J :♥] [:Q :♠] [10 :♥]
+                                           [:K :♥]]}
+                          :player2 {:team 2
+                                    :hand hidden-hand-size}
+                          :player3 {:team 1
+                                    :hand hidden-hand-size}
+                          :player4 {:team 2
+                                    :hand hidden-hand-size}
+                          :player5 {:team 1
+                                    :hand hidden-hand-size}
+                          :player6 {:team 2
+                                    :hand hidden-hand-size}}
+                :completed-tricks [[{:player :player6 :card [:J :♦]}
+                                    {:player :player1 :card [9 :♦]}
+                                    {:player :player2 :card [:Q :♦]}
+                                    {:player :player3 :card [:K :♦]}
+                                    {:player :player4 :card [9 :♠]}
+                                    {:player :player5 :card [9 :♦]}]]
+                :current-trick [{:player :player6 :card [10 :♦]}]}]
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action game :player1 :hybrid)))
+      (is (= {:type :play-card :card [10 :♦]}
+             (bot/card-action game :player1 :hybrid-preservation)))))
+
   (testing "when a partner is safely winning, a bot dumps low instead of overtaking"
     (let [game {:players {:player1 {:team 1}
                           :player3 {:team 1

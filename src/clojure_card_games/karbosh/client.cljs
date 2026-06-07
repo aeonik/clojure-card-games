@@ -748,6 +748,9 @@
 (defn table-hand-status-html [view]
   [:div {:class "table-hand-status"}
    [:div
+    [:span "Hand"]
+    [:strong (inc (or (:hand-index view) 0))]]
+   [:div
     [:span "Trump"]
     (trump-value-html (:trump view))]
    [:div
