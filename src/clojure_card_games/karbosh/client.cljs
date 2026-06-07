@@ -12,14 +12,14 @@
   {:play-animation 1150
    :trick-popup 3400
    :bid-popup 1600
-   :fireworks 2300
+   :fireworks 5200
    :hand-animation 220})
 
 (def fast-timings
   {:play-animation 260
    :trick-popup 700
    :bid-popup 420
-   :fireworks 1050
+   :fireworks 2600
    :hand-animation 90})
 
 (defn stored-fast-mode? []
@@ -617,43 +617,71 @@
      [:span (player-label view player)]
      [:strong (bid-label bid)] ]))
 
-(def firework-particles
-  [{:x 18 :y 28 :dx -4.2 :dy -4.8 :h 43 :d 0}
-   {:x 18 :y 28 :dx -2.0 :dy -5.8 :h 51 :d 20}
-   {:x 18 :y 28 :dx 0.7 :dy -5.1 :h 32 :d 40}
-   {:x 18 :y 28 :dx 3.8 :dy -4.2 :h 9 :d 60}
-   {:x 18 :y 28 :dx -5.0 :dy -1.3 :h 198 :d 80}
-   {:x 18 :y 28 :dx 4.9 :dy -0.7 :h 284 :d 100}
-   {:x 18 :y 28 :dx -3.0 :dy 3.7 :h 339 :d 120}
-   {:x 18 :y 28 :dx 2.7 :dy 3.9 :h 159 :d 140}
-   {:x 50 :y 22 :dx -5.4 :dy -3.5 :h 198 :d 210}
-   {:x 50 :y 22 :dx -2.6 :dy -5.7 :h 43 :d 230}
-   {:x 50 :y 22 :dx 1.8 :dy -5.4 :h 284 :d 250}
-   {:x 50 :y 22 :dx 5.1 :dy -2.5 :h 51 :d 270}
-   {:x 50 :y 22 :dx -5.8 :dy 1.7 :h 159 :d 290}
-   {:x 50 :y 22 :dx 5.6 :dy 1.9 :h 9 :d 310}
-   {:x 50 :y 22 :dx -1.6 :dy 5.1 :h 339 :d 330}
-   {:x 50 :y 22 :dx 2.1 :dy 4.8 :h 32 :d 350}
-   {:x 77 :y 31 :dx -4.7 :dy -4.6 :h 339 :d 420}
-   {:x 77 :y 31 :dx -1.0 :dy -5.8 :h 9 :d 440}
-   {:x 77 :y 31 :dx 2.5 :dy -4.9 :h 43 :d 460}
-   {:x 77 :y 31 :dx 5.2 :dy -1.4 :h 198 :d 480}
-   {:x 77 :y 31 :dx -5.4 :dy 1.2 :h 51 :d 500}
-   {:x 77 :y 31 :dx 4.0 :dy 3.8 :h 284 :d 520}
-   {:x 77 :y 31 :dx -2.7 :dy 4.3 :h 159 :d 540}
-   {:x 77 :y 31 :dx 1.4 :dy 5.2 :h 32 :d 560}
-   {:x 35 :y 43 :dx -3.5 :dy -3.5 :h 51 :d 650}
-   {:x 35 :y 43 :dx 3.9 :dy -3.3 :h 198 :d 675}
-   {:x 65 :y 45 :dx -4.0 :dy -3.0 :h 284 :d 700}
-   {:x 65 :y 45 :dx 3.2 :dy -3.8 :h 43 :d 725}])
+(def firework-hues [43 51 9 198 284 339 159 32 316 23 176 211])
 
-(defn particle-style [{:keys [x y dx dy h d]}]
+(def firework-bursts
+  [{:x 16 :y 25 :radius 7.4 :delay 0 :spokes 18 :hue-offset 0 :angle 0.15}
+   {:x 50 :y 18 :radius 8.6 :delay 280 :spokes 22 :hue-offset 3 :angle 0.02}
+   {:x 82 :y 28 :radius 7.8 :delay 540 :spokes 18 :hue-offset 6 :angle 0.22}
+   {:x 31 :y 48 :radius 6.7 :delay 900 :spokes 16 :hue-offset 2 :angle 0.0}
+   {:x 68 :y 48 :radius 7.0 :delay 1130 :spokes 16 :hue-offset 8 :angle 0.34}
+   {:x 18 :y 67 :radius 6.0 :delay 1480 :spokes 14 :hue-offset 5 :angle 0.18}
+   {:x 84 :y 66 :radius 6.3 :delay 1710 :spokes 14 :hue-offset 10 :angle 0.29}])
+
+(defn round-tenth [n]
+  (/ (js/Math.round (* n 10)) 10))
+
+(defn burst-particles [{:keys [x y radius delay spokes hue-offset angle]}]
+  (mapv (fn [i]
+          (let [theta (+ angle (/ (* 2 js/Math.PI i) spokes))
+                ring (+ radius (* 0.55 (mod i 3)))
+                hue (nth firework-hues (mod (+ hue-offset i) (count firework-hues)))]
+            {:x x
+             :y y
+             :dx (round-tenth (* ring (js/Math.cos theta)))
+             :dy (round-tenth (* ring (js/Math.sin theta)))
+             :h hue
+             :d (+ delay (* 16 (mod (* i 7) spokes)))
+             :s (if (zero? (mod i 5)) 1.35 1.0)}))
+        (range spokes)))
+
+(def firework-fountain-particles
+  (mapv (fn [i]
+          (let [left? (< i 16)
+                slot (mod i 16)
+                x (if left?
+                    (+ 10 (* slot 2.3))
+                    (- 90 (* slot 2.3)))
+                dx (if left?
+                     (- (* slot 0.18) 1.8)
+                     (- 1.8 (* slot 0.18)))
+                dy (- -5.5 (* 0.32 (mod i 5)))
+                hue (nth firework-hues (mod (+ 4 i) (count firework-hues)))]
+            {:x (round-tenth x)
+             :y 88
+             :dx (round-tenth dx)
+             :dy (round-tenth dy)
+             :h hue
+             :d (+ 360 (* i 42))
+             :s 0.8}))
+        (range 32)))
+
+(def firework-particles
+  (vec (concat (mapcat burst-particles firework-bursts)
+               firework-fountain-particles)))
+
+(defn particle-style [{:keys [x y dx dy h d s]}]
   {"--x" (str x "%")
    "--y" (str y "%")
    "--dx" (str dx "rem")
    "--dy" (str dy "rem")
+   "--dx-mid" (str (round-tenth (* dx 0.58)) "rem")
+   "--dy-mid" (str (round-tenth (* dy 0.58)) "rem")
+   "--dx-near" (str (round-tenth (* dx 0.9)) "rem")
+   "--dy-near" (str (round-tenth (* dy 0.9)) "rem")
    "--h" h
-   "--d" (str d "ms")})
+   "--d" (str d "ms")
+   "--size" (str (round-tenth (* 0.36 (or s 1))) "rem")})
 
 (defn fireworks-bid-label [{:keys [bid-type] :as bid}]
   (case bid-type
