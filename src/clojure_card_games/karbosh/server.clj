@@ -334,32 +334,24 @@
      (admin/render-history {:rooms @rooms
                             :records (archived-game-records)}))))
 
-(defn admin-game-snapshot-edn-response [request {:keys [room-id seed timestamp]}]
-  (cond
-    (not (admin-password))
-    (admin-disabled-response)
-
-    (not (admin-authorized? request))
-    (admin-unauthorized-response)
-
-    :else
-    (if-let [record (game-history-record room-id seed timestamp)]
-      (let [room (:room record)]
-        (edn-response {:ok true
-                       :historical? true
-                       :record (dissoc record :room)
+(defn admin-game-snapshot-edn-response [_request {:keys [room-id seed timestamp]}]
+  (if-let [record (game-history-record room-id seed timestamp)]
+    (let [room (:room record)]
+      (edn-response {:ok true
+                     :historical? true
+                     :record (dissoc record :room)
+                     :room-id room-id
+                     :seed (get-in room [:game :initial-seed])
+                     :timestamp (audit/game-timestamp record)
+                     :room room
+                     :view (game/admin-view (:game room) (:seats room))}))
+    (response 404
+              (pr-str {:ok false
                        :room-id room-id
-                       :seed (get-in room [:game :initial-seed])
-                       :timestamp (audit/game-timestamp record)
-                       :room room
-                       :view (game/admin-view (:game room) (:seats room))}))
-      (response 404
-                (pr-str {:ok false
-                         :room-id room-id
-                         :seed seed
-                         :timestamp timestamp
-                         :message "Game not found"})
-                "application/edn; charset=utf-8"))))
+                       :seed seed
+                       :timestamp timestamp
+                       :message "Game not found"})
+              "application/edn; charset=utf-8")))
 
 (defn admin-game-snapshot-response [request {:keys [room-id seed timestamp]}]
   (if-let [record (game-history-record room-id seed timestamp)]
@@ -572,33 +564,25 @@
                        :message "Room not found"})
               "application/edn; charset=utf-8")))
 
-(defn admin-room-snapshot-edn-response [request room-id]
-  (cond
-    (not (admin-password))
-    (admin-disabled-response)
-
-    (not (admin-authorized? request))
-    (admin-unauthorized-response)
-
-    :else
-    (if-let [room (get @rooms room-id)]
-      (edn-response {:ok true
-                     :room-id room-id
-                     :room (audit/sanitize-room room)
-                     :view (game/admin-view (:game room) (:seats room))})
-      (if-let [record (historical-room-record room-id)]
-        (let [room (:room record)]
-          (edn-response {:ok true
-                         :historical? true
-                         :record (dissoc record :room)
+(defn admin-room-snapshot-edn-response [_request room-id]
+  (if-let [room (get @rooms room-id)]
+    (edn-response {:ok true
+                   :room-id room-id
+                   :room (audit/sanitize-room room)
+                   :view (game/admin-view (:game room) (:seats room))})
+    (if-let [record (historical-room-record room-id)]
+      (let [room (:room record)]
+        (edn-response {:ok true
+                       :historical? true
+                       :record (dissoc record :room)
+                       :room-id room-id
+                       :room room
+                       :view (game/admin-view (:game room) (:seats room))}))
+      (response 404
+                (pr-str {:ok false
                          :room-id room-id
-                         :room room
-                         :view (game/admin-view (:game room) (:seats room))}))
-        (response 404
-                  (pr-str {:ok false
-                           :room-id room-id
-                           :message "Room not found"})
-                  "application/edn; charset=utf-8")))))
+                         :message "Room not found"})
+                "application/edn; charset=utf-8"))))
 
 (defn admin-room-snapshot-response [request room-id]
   (if-let [room (get @rooms room-id)]

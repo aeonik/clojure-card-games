@@ -384,8 +384,7 @@
         (let [response (server/handler
                         {:request-method :get
                          :uri "/karbosh/admin/rooms/ABC123/snapshot.edn"
-                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                   "host" "dc3systems.com"}})
+                         :headers {"host" "dc3systems.com"}})
               body (edn/read-string (:body response))]
           (is (= 200 (:status response)))
           (is (:ok body))
@@ -435,15 +434,21 @@
               game-edn-response (server/handler
                                  {:request-method :get
                                   :uri "/karbosh/admin/history/OLD123/17/111/snapshot.edn"
-                                  :headers {"host" "dc3systems.com"}})]
+                                  :headers {"host" "dc3systems.com"}})
+              room-edn-body (edn/read-string (:body room-edn-response))
+              game-edn-body (edn/read-string (:body game-edn-response))]
           (is (= 401 (:status dashboard-response)))
           (is (= 401 (:status history-response)))
           (is (= 200 (:status room-html-response)))
           (is (re-find #"Room OLD123 History" (:body room-html-response)))
-          (is (= 401 (:status room-edn-response)))
+          (is (= 200 (:status room-edn-response)))
+          (is (:ok room-edn-body))
+          (is (= "OLD123" (:room-id room-edn-body)))
           (is (= 200 (:status game-html-response)))
           (is (re-find #"Room OLD123 History" (:body game-html-response)))
-          (is (= 401 (:status game-edn-response)))))
+          (is (= 200 (:status game-edn-response)))
+          (is (:ok game-edn-body))
+          (is (= "OLD123" (:room-id game-edn-body)))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -562,8 +567,7 @@
         (let [response (server/handler
                         {:request-method :get
                          :uri "/karbosh/admin/history/ROOM1/17/222/snapshot.edn"
-                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                   "host" "dc3systems.com"}})
+                         :headers {"host" "dc3systems.com"}})
               body (edn/read-string (:body response))]
           (is (= 200 (:status response)))
           (is (= 17 (:seed body)))
@@ -591,13 +595,11 @@
         (let [html-response (server/handler
                              {:request-method :get
                               :uri "/karbosh/admin/rooms/OLD123/snapshot"
-                              :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                        "host" "dc3systems.com"}})
+                              :headers {"host" "dc3systems.com"}})
               edn-response (server/handler
                             {:request-method :get
                              :uri "/karbosh/admin/rooms/OLD123/snapshot.edn"
-                             :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                       "host" "dc3systems.com"}})
+                             :headers {"host" "dc3systems.com"}})
               body (edn/read-string (:body edn-response))]
           (is (= 200 (:status html-response)))
           (is (re-find #"Room OLD123 History" (:body html-response)))
