@@ -36,15 +36,59 @@ clojure -M:karbosh-logic 10000
 For 10,000 sampled trick contexts:
 
 ```clojure
-{:contexts 10000
- :pure {:card-count 33004, :elapsed-ms 67.304416}
- :core-logic {:card-count 33004, :elapsed-ms 1774.739712}
- :logic-over-pure-ratio 26.36884498039475
- :mismatch-count 0}
+{:contexts 10000,
+ :tasks
+ [{:task :effective-suit,
+   :pure {:elapsed-ms 29.420875},
+   :core-logic {:elapsed-ms 553.986553},
+   :logic-over-pure-ratio 18.82971029923481,
+   :mismatch-count 0}
+  {:task :legal-cards,
+   :pure {:elapsed-ms 71.207813},
+   :core-logic {:elapsed-ms 1695.007304},
+   :logic-over-pure-ratio 23.80367030791972,
+   :mismatch-count 0}
+  {:task :winning-play,
+   :pure {:elapsed-ms 17.33195},
+   :core-logic {:elapsed-ms 80.7244},
+   :logic-over-pure-ratio 4.657548631284997,
+   :mismatch-count 0}
+  {:task :simple-card-action,
+   :pure {:elapsed-ms 101.687198},
+   :core-logic {:elapsed-ms 1961.953848},
+   :logic-over-pure-ratio 19.29401032369876,
+   :mismatch-count 0}]}
 ```
 
-The relation implementation agrees with the pure rules for sampled legal-card
-generation, but it is much slower in this direct use.
+For 50,000 sampled trick contexts:
+
+```clojure
+{:contexts 50000,
+ :tasks
+ [{:task :effective-suit,
+   :pure {:elapsed-ms 68.167658},
+   :core-logic {:elapsed-ms 2087.747126},
+   :logic-over-pure-ratio 30.62665180605149,
+   :mismatch-count 0}
+  {:task :legal-cards,
+   :pure {:elapsed-ms 224.809509},
+   :core-logic {:elapsed-ms 7806.643637},
+   :logic-over-pure-ratio 34.72559355574234,
+   :mismatch-count 0}
+  {:task :winning-play,
+   :pure {:elapsed-ms 64.998776},
+   :core-logic {:elapsed-ms 336.100163},
+   :logic-over-pure-ratio 5.17086910990447,
+   :mismatch-count 0}
+  {:task :simple-card-action,
+   :pure {:elapsed-ms 398.83729},
+   :core-logic {:elapsed-ms 9619.135222},
+   :logic-over-pure-ratio 24.11794349018869,
+   :mismatch-count 0}]}
+```
+
+The relation implementation agrees with the pure rules for sampled like-for-like
+tasks, but it is much slower in direct use.
 
 ## Takeaway
 

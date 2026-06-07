@@ -76,8 +76,12 @@
 
 (deftest bench-reports-equivalent-legal-card-counts-test
   (let [report (logic-bench/bench 50)]
-    (is (= 0 (:mismatch-count report)))
-    (is (= (get-in report [:pure :card-count])
-           (get-in report [:core-logic :card-count])))
-    (is (pos? (get-in report [:pure :elapsed-ms])))
-    (is (pos? (get-in report [:core-logic :elapsed-ms])))))
+    (is (= #{:effective-suit :legal-cards :winning-play :simple-card-action}
+           (set (map :task (:tasks report)))))
+    (doseq [task (:tasks report)]
+      (is (= 0 (:mismatch-count task)) (pr-str task))
+      (is (= (get-in task [:pure :result])
+             (get-in task [:core-logic :result]))
+          (pr-str task))
+      (is (pos? (get-in task [:pure :elapsed-ms])) (pr-str task))
+      (is (pos? (get-in task [:core-logic :elapsed-ms])) (pr-str task)))))
