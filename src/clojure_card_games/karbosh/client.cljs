@@ -709,6 +709,9 @@
                         :style (particle-style particle)}])
                  firework-particles)))))
 
+(defn panel-fireworks? [fireworks]
+  (= :game-win (:kind fireworks)))
+
 (defn bid-log-html [view]
   (when (seq (:bids-this-hand view))
     [:ol {:class "bid-log"}
@@ -1040,7 +1043,14 @@
                    [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
                    [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
                  (or (game-over-html view) "")
-                 (table-surface-html view play-animation trick-popup queued-trick-popup fireworks)
+                 (when (panel-fireworks? fireworks)
+                   (fireworks-html view fireworks))
+                 (table-surface-html view
+                                     play-animation
+                                     trick-popup
+                                     queued-trick-popup
+                                     (when-not (panel-fireworks? fireworks)
+                                       fireworks))
                  [:div {:class "play-controls-panel"}
                   (hand-panel-html view pending-card (or (some? trick-popup)
                                                         (some? queued-trick-popup))
@@ -1177,9 +1187,11 @@
     (render-game!)
     (js/setTimeout #(clear-fireworks! (:id fireworks)) (timing-ms :fireworks))))
 
-(defn fireworks-delay-ms [animation popup]
+(defn fireworks-delay-ms [fireworks animation popup]
   (+ (if animation (timing-ms :play-animation) 0)
-     (if popup (+ (timing-ms :trick-popup) 120) 0)))
+     (if (and popup (not (panel-fireworks? fireworks)))
+       (+ (timing-ms :trick-popup) 120)
+       0)))
 
 (defn reset-room-state! [message]
   (when-let [socket (:socket @app)]
@@ -1235,19 +1247,19 @@
             bid-popup-id (when bid
                            (str now "-bid-" (kw-name (:player bid))))
             fireworks (cond
-                        successful-karbosh
-                        (assoc successful-karbosh
-                               :id (str now "-karbosh-made-" (kw-name (:player successful-karbosh)))
-                               :room-id (:room-id message)
-                               :hand-index (:hand-index view)
-                               :kind :karbosh)
-
                         game-winner
                         (assoc game-winner
                                :id (str now "-game-win")
                                :room-id (:room-id message)
                                :hand-index (:hand-index view)
-                               :kind :game-win))]
+                               :kind :game-win)
+
+                        successful-karbosh
+                        (assoc successful-karbosh
+                               :id (str now "-karbosh-made-" (kw-name (:player successful-karbosh)))
+                               :room-id (:room-id message)
+                               :hand-index (:hand-index view)
+                               :kind :karbosh))]
         (swap! app assoc
                :room-id (:room-id message)
                :player (:player message)
@@ -1277,7 +1289,7 @@
           (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup)))
         (when fireworks
           (js/setTimeout #(show-fireworks! fireworks)
-                         (fireworks-delay-ms animation popup))))
+                         (fireworks-delay-ms fireworks animation popup))))
 
       :error
       (do

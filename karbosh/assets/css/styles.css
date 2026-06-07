@@ -1099,6 +1099,10 @@ body:not(.has-karbosh-game) .meta-grid,
   pointer-events: none;
 }
 
+.table-panel > .fireworks-overlay {
+  border-radius: 8px;
+}
+
 .fireworks-overlay::before {
   content: "";
   position: absolute;
