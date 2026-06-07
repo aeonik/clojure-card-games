@@ -49,6 +49,9 @@
       (room/seat-bot :player2 (bot-persona "Trumpelstiltskin"))
       (room/seat-bot :player3 (bot-persona "Deal-E"))))
 
+(defn played-room [room]
+  (assoc-in room [:game :hand-history] [{:hand-index 0}]))
+
 (deftest bot-turn-delay-test
   (let [players (zipmap game/players (repeat {:team 1 :hand []}))
         room (-> (room/new-room "ABC123" 3)
@@ -164,7 +167,7 @@
   (let [old-rooms @server/rooms
         records (atom [])]
     (try
-      (reset! server/rooms {"ABC123" (room/new-room "ABC123" 9)
+      (reset! server/rooms {"ABC123" (played-room (room/new-room "ABC123" 9))
                             "STALE" nil})
       (with-redefs [audit/record-room! (fn [event-type room]
                                          (swap! records conj [event-type (:id room)]))]
@@ -727,6 +730,35 @@
                          :connections {}
                          :game {}}}
                  1500))))))
+
+(deftest publish-room-skips-zero-hand-archive-test
+  (let [published (atom [])
+        room (room/new-room "ABC123" 9)]
+    (with-redefs [audit/record-room! (fn [event-type room]
+                                       (swap! published conj [event-type (:id room)])
+                                       true)]
+      (server/publish-room! "ABC123" room)
+      (is (= [] @published))
+      (server/publish-room! "ABC123" (played-room room))
+      (is (= [[:room-publish "ABC123"]] @published)))))
+
+(deftest idle-delete-prunes-zero-hand-archive-test
+  (let [old-rooms @server/rooms
+        dir (.toFile (Files/createTempDirectory "karbosh-idle-prune-test"
+                                                (make-array FileAttribute 0)))
+        room (-> (room/new-room "EMPTY1" 9)
+                 (assoc :empty-since 0
+                        :connections {}))
+        file (java.io.File. dir "EMPTY1.edn")]
+    (try
+      (audit/append-record! dir (audit/room-record :room-publish room 1000))
+      (reset! server/rooms {"EMPTY1" room})
+      (with-redefs [server/audit-dir (constantly (.getPath dir))]
+        (is (= room (server/delete-room! "EMPTY1" :idle)))
+        (is (not (contains? @server/rooms "EMPTY1")))
+        (is (not (.exists file))))
+      (finally
+        (reset! server/rooms old-rooms)))))
 
 (deftest leave-room-removes-connection-test
   (let [out (async/chan 1)

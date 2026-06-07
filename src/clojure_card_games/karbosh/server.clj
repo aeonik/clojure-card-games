@@ -293,7 +293,8 @@
 
 (defn audit-current-rooms! [event-type]
   (doseq [room (vals @rooms)
-          :when (map? room)]
+          :when (and (map? room)
+                     (audit/played-room? room))]
     (audit/record-room! event-type room)))
 
 (defn historical-room-records []
@@ -603,7 +604,9 @@
   (let [room-id (normalize-room-id room-id)
         room (get @rooms room-id)]
     (when room
-      (audit/record-room! (keyword "room-delete" (name reason)) room)
+      (if (audit/played-room? room)
+        (audit/record-room! (keyword "room-delete" (name reason)) room)
+        (audit/prune-room-records! (audit-dir) room-id))
       (notify-room! room {:op :room-closed
                           :room-id room-id
                           :reason reason
@@ -709,7 +712,8 @@
       (if fast? fast-bot-action-delay-ms bot-action-delay-ms))))
 
 (defn publish-room! [room-id room]
-  (audit/record-room! :room-publish room)
+  (when (audit/played-room? room)
+    (audit/record-room! :room-publish room))
   (broadcast-room! room)
   (schedule-bot-turn! room-id room)
   room)

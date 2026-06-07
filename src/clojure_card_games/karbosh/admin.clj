@@ -193,6 +193,9 @@
 (defn room-hand-count [room]
   (count (get-in room [:game :hand-history])))
 
+(defn room-played? [room]
+  (pos? (room-hand-count room)))
+
 (defn room-winner [room]
   (get-in room [:game :winner]))
 
@@ -200,6 +203,7 @@
   (let [live-ids (set (map first (sorted-room-entries rooms)))]
     (->> records
          (remove #(contains? live-ids (:room-id %)))
+         (filter #(room-played? (:room %)))
          (sort-by :logged-at >)
          vec)))
 
@@ -341,8 +345,7 @@
 
 (defn record-game-timestamp [record]
   (or (get-in record [:room :game-started-at])
-      (when (= :room-live (:type record))
-        (get-in record [:room :created-at]))
+      (get-in record [:room :created-at])
       (:logged-at record)))
 
 (defn record-game-key [record]
@@ -361,6 +364,7 @@
 (defn live-room-records [rooms now]
   (->> rooms
        sorted-room-entries
+       (filter (fn [[_ room]] (room-played? room)))
        (map (fn [[room-id room]]
               {:schema :karbosh.audit/v1
                :type :room-live
@@ -377,6 +381,7 @@
    (let [now (System/currentTimeMillis)]
      (->> (concat (live-room-records rooms now) records)
           (filter record-game-seed)
+          (filter #(room-played? (:room %)))
           (group-by record-game-key)
           vals
           (keep preferred-game-record)

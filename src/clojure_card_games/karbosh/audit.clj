@@ -90,11 +90,22 @@
       (catch Throwable _
         nil))))
 
+(defn room-hand-count [room]
+  (count (get-in room [:game :hand-history])))
+
+(defn played-room? [room]
+  (pos? (room-hand-count room)))
+
+(defn played-record? [record]
+  (played-room? (:room record)))
+
 (defn room-records [dir room-id]
   (read-records (room-file dir room-id)))
 
 (defn latest-room-record [dir room-id]
-  (latest-record (room-file dir room-id)))
+  (let [record (latest-record (room-file dir room-id))]
+    (when (played-record? record)
+      record)))
 
 (defn room-files [dir]
   (let [dir (io/file dir)]
@@ -109,6 +120,7 @@
 (defn latest-room-records [dir]
   (->> (room-files dir)
        (keep latest-record)
+       (filter played-record?)
        (sort-by :logged-at >)
        vec))
 
@@ -127,13 +139,33 @@
 (defn game-over-line? [line]
   (str/includes? line ":phase :game-over"))
 
+(defn line-long [pattern line]
+  (when-let [[_ n] (re-find pattern line)]
+    (try
+      (Long/parseLong n)
+      (catch NumberFormatException _
+        nil))))
+
+(defn line-game-seed [line]
+  (line-long #":initial-seed (-?\d+)" line))
+
+(defn line-logged-at [line]
+  (line-long #":logged-at (-?\d+)" line))
+
+(defn line-game-timestamp [line]
+  (or (line-long #":game-started-at (-?\d+)" line)
+      (line-long #":created-at (-?\d+)" line)
+      (line-logged-at line)))
+
+(defn game-line-key [room-id line]
+  [room-id (line-game-seed line) (line-game-timestamp line)])
+
 (defn game-seed [record]
   (get-in record [:room :game :initial-seed]))
 
 (defn game-timestamp [record]
   (or (get-in record [:room :game-started-at])
-      (when (= :room-live (:type record))
-        (get-in record [:room :created-at]))
+      (get-in record [:room :created-at])
       (:logged-at record)))
 
 (defn game-key [record]
@@ -159,12 +191,28 @@
 
 (defn game-candidate-records [file]
   (let [file (io/file file)
-        latest (latest-record file)
+        room-id (str/replace (.getName file) #"\.edn$" "")
+        latest-record (latest-record file)
+        latest (when (played-record? latest-record) latest-record)
         game-over-records (when (and (.exists file) (.isFile file))
                             (with-open [reader (io/reader file)]
                               (->> (line-seq reader)
                                    (filter game-over-line?)
+                                   (reduce (fn [lines line]
+                                             (let [k (game-line-key room-id line)
+                                                   logged-at (or (line-logged-at line) 0)]
+                                               (update lines k
+                                                       (fn [existing]
+                                                         (if (> logged-at
+                                                                (or (:logged-at existing) 0))
+                                                           {:logged-at logged-at
+                                                            :line line}
+                                                           existing)))))
+                                           {})
+                                   vals
+                                   (map :line)
                                    (keep read-record-line)
+                                   (filter played-record?)
                                    doall)))]
     (cond-> (vec game-over-records)
       latest (conj latest))))
@@ -172,6 +220,7 @@
 (defn game-records-from-candidates [records]
   (->> records
        (filter game-seed)
+       (filter played-record?)
        (reduce (fn [games record]
                  (update games (game-key record) preferred-game-record record))
                {})
@@ -194,6 +243,41 @@
                           (= (str timestamp) (str (game-timestamp %))))))
         game-records-from-candidates
         first)))
+
+(defn write-records! [file records]
+  (if (seq records)
+    (with-open [writer (io/writer file)]
+      (doseq [record records]
+        (.write writer (pr-str record))
+        (.write writer "\n"))
+      file)
+    (do
+      (when (.exists (io/file file))
+        (.delete (io/file file)))
+      nil)))
+
+(defn prune-room-records!
+  "Remove records that do not satisfy `keep?` from one room audit file."
+  ([dir room-id]
+   (prune-room-records! dir room-id played-record?))
+  ([dir room-id keep?]
+   (let [file (room-file dir room-id)
+         records (vec (or (read-records file) []))
+         kept (vec (filter keep? records))]
+     (when (not= (count records) (count kept))
+       (write-records! file kept))
+     {:room-id room-id
+      :before (count records)
+      :after (count kept)
+      :removed (- (count records) (count kept))})))
+
+(defn prune-zero-hand-records! [dir]
+  (let [results (mapv #(prune-room-records! dir
+                                            (str/replace (.getName %) #"\.edn$" ""))
+                      (room-files dir))]
+    {:rooms (count results)
+     :removed (reduce + (map :removed results))
+     :results results}))
 
 (defn start!
   [{:keys [enabled? dir buffer-size]
