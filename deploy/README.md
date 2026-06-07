@@ -263,5 +263,8 @@ The service includes modest hardening:
 - `CapabilityBoundingSet=`
 - `LimitNOFILE`, `TasksMax`, and `MemoryMax`
 
+The production unit gives the process a 1536 MB cgroup ceiling and starts the
+JVM with `-Xmx1280m`, leaving room for metaspace, threads, and native overhead.
+
 Avoid `ProtectHome=true` unless the Clojure and Maven caches are moved elsewhere
 or explicitly allowed.

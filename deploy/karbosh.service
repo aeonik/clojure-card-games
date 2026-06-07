@@ -10,13 +10,13 @@ Environment=KARBOSH_NREPL_ENABLED=true
 Environment=KARBOSH_NREPL_BIND=127.0.0.1
 Environment=KARBOSH_NREPL_PORT=7888
 EnvironmentFile=-%h/.config/karbosh/karbosh.env
-ExecStart=/usr/local/bin/clojure -M:karbosh-server
+ExecStart=/usr/local/bin/clojure -J-Xmx1280m -M:karbosh-server
 Restart=always
 RestartSec=5
 UMask=0077
 LimitNOFILE=4096
 TasksMax=256
-MemoryMax=768M
+MemoryMax=1536M
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
