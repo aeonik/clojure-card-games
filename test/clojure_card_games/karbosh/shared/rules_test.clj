@@ -35,3 +35,16 @@
                                  {:player :player2 :card [:A :♥]}
                                  {:player :player3 :card [:K :♥]}]
                                 :♠)))))
+
+(deftest legal-bid-test
+  (testing "non-pass bids must strictly outrank the current bid"
+    (let [current {:type :bid :player :player1 :bid-type :bid :value 5}]
+      (is (true? (rules/legal-bid? current {:bid-type :pass})))
+      (is (false? (rules/legal-bid? current {:bid-type :bid :value 4})))
+      (is (false? (rules/legal-bid? current {:bid-type :bid :value 5})))
+      (is (true? (rules/legal-bid? current {:bid-type :bid :value 6})))
+      (is (true? (rules/legal-bid? current {:bid-type :karbosh})))
+      (is (true? (rules/legal-bid? {:bid-type :karbosh}
+                                    {:bid-type :double-karbosh})))
+      (is (false? (rules/legal-bid? {:bid-type :karbosh}
+                                     {:bid-type :karbosh}))))))

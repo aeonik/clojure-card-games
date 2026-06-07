@@ -163,6 +163,10 @@
           {:expected (current-bidder game) :actual player :event event}))
   (when-not (rules/valid-bid? event)
     (fail "Invalid bid" {:event event}))
+  (when-not (rules/legal-bid? (current-bid game) event)
+    (fail "Bid does not beat current bid"
+          {:current-bid (current-bid game)
+           :event event}))
   (let [event (select-keys event [:type :player :bid-type :value])
         hand-index (:hand-index game)
         updated-game (-> game

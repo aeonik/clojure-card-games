@@ -24,6 +24,34 @@
             {:player :player6 :bid-type :pass}]
            (:bids-this-hand (game/public-view state {} :player1))))))
 
+(deftest illegal-overcall-test
+  (let [state (game/apply-event (game/init-game 7)
+                                {:type :bid
+                                 :player :player1
+                                 :bid-type :bid
+                                 :value 4})]
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"does not beat"
+         (game/apply-event state {:type :bid
+                                  :player :player2
+                                  :bid-type :bid
+                                  :value 3})))
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"does not beat"
+         (game/apply-event state {:type :bid
+                                  :player :player2
+                                  :bid-type :bid
+                                  :value 4})))
+    (let [passed (game/apply-event state {:type :bid
+                                          :player :player2
+                                          :bid-type :pass})]
+      (is (= :player3 (:current-player passed)))
+      (is (= [{:player :player1 :bid-type :bid :value 4}
+              {:player :player2 :bid-type :pass}]
+             (:bids-this-hand (game/public-view passed {} :player1)))))))
+
 (deftest reshuffle-hand-test
   (let [state (game/init-game 7)
         original-hands (game/player-hands state)

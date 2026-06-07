@@ -77,6 +77,17 @@
     :double-karbosh 10
     0))
 
+(defn legal-bid?
+  "Return true when `bid` can be made over `current-bid`.
+
+  Passing is always legal. Any non-pass bid must strictly outrank the current
+  winning bid; equal or lower bids are ignored by trick-taking rules but should
+  not enter game history."
+  [current-bid {:keys [bid-type] :as bid}]
+  (and (valid-bid? bid)
+       (or (= :pass bid-type)
+           (> (bid-rank bid) (bid-rank current-bid)))))
+
 (defn winning-bid [bids]
   (->> bids
        (filter #(and (= (:type %) :bid)

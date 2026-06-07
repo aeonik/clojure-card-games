@@ -873,25 +873,31 @@
 
 (defn bid-controls [view active?]
   (when (= :bidding (:phase view))
-    (let [disabled (not active?)]
+    (let [disabled (not active?)
+          legal? #(and active? (rules/legal-bid? (:current-bid view) %))
+          bid-disabled? #(not (legal? %))]
       [:div {:class "control-group"}
        [:button {:type "button"
                  :data-bid "pass"
                  :disabled disabled}
         "Pass"]
        (for [n (range 1 9)]
-         [:button {:type "button"
-                   :data-bid-value n
-                   :disabled disabled}
-          n])
+         (let [bid {:bid-type :bid :value n}]
+           [:button {:type "button"
+                     :data-bid-value n
+                     :disabled (bid-disabled? bid)}
+            n]))
        [:button {:type "button"
                  :data-bid "karbosh"
-                 :disabled disabled}
+                 :disabled (bid-disabled? {:bid-type :karbosh})}
         "Karbosh"]
        [:button {:type "button"
                  :data-bid "double-karbosh"
-                 :disabled disabled}
+                 :disabled (bid-disabled? {:bid-type :double-karbosh})}
         "Double"]])))
+
+(defn disabled-button? [target]
+  (true? (.-disabled target)))
 
 (defn trump-picker-html [view active?]
   (when (= :trump-selection (:phase view))
@@ -1637,13 +1643,15 @@
                               (keyword (.getAttribute seat-target "data-seat-player"))))
 
                            (.hasAttribute target "data-bid")
-                           (let [bid (keyword (.getAttribute target "data-bid"))]
-                             (action! {:type :bid :bid-type bid}))
+                           (when-not (disabled-button? target)
+                             (let [bid (keyword (.getAttribute target "data-bid"))]
+                               (action! {:type :bid :bid-type bid})))
 
                            (.hasAttribute target "data-bid-value")
-                           (action! {:type :bid
-                                     :bid-type :bid
-                                     :value (js/Number (.getAttribute target "data-bid-value"))})
+                           (when-not (disabled-button? target)
+                             (action! {:type :bid
+                                       :bid-type :bid
+                                       :value (js/Number (.getAttribute target "data-bid-value"))}))
 
                            (.hasAttribute target "data-trump")
                            (action! {:type :trump-selection
