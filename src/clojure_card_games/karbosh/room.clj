@@ -8,6 +8,7 @@
 (def default-bot-play-strategy :hybrid-preservation)
 (def aggressive-bot-play-strategy :hybrid)
 (def ruff-invite-bot-play-strategy :hybrid-ruff-invite)
+(def default-auto-play-strategy ruff-invite-bot-play-strategy)
 
 (def aggressive-bot-names
   #{"Cardi-Bot"
@@ -340,11 +341,14 @@
          (System/nanoTime)]))
 
 (defn completed-game-entry [room now]
-  {:game-index (or (:game-index room) (count (:games room)))
-   :seed (get-in room [:game :initial-seed])
-   :started-at (:game-started-at room)
-   :completed-at now
-   :game (:game room)})
+  (let [completed? (= :game-over (get-in room [:game :phase]))]
+    (cond-> {:game-index (or (:game-index room) (count (:games room)))
+             :seed (get-in room [:game :initial-seed])
+             :started-at (:game-started-at room)
+             :completed-at now
+             :ended-reason (if completed? :completed :abandoned)
+             :game (:game room)}
+      (not completed?) (assoc :abandoned? true))))
 
 (defn start-new-game [room event]
   (let [now (System/currentTimeMillis)
@@ -354,8 +358,7 @@
         (assoc :seed seed
                :game-started-at now
                :game-index (inc (or (:game-index room) (count (:games room))))
-               :game (game/apply-event (:game room)
-                                       (assoc event :seed seed))))))
+               :game (game/init-game seed)))))
 
 (defn apply-player-event [room conn-id event]
   (let [player (connection-player room conn-id)
@@ -410,7 +413,8 @@
     (when-not (actionable-phases (:phase game))
       (throw (ex-info "Auto-play is not available in this phase"
                       {:phase (:phase game)})))
-    (if-let [event (bot/action game player)]
+    (if-let [event (binding [bot/*play-strategy* default-auto-play-strategy]
+                     (bot/action game player))]
       (apply-bot-event room player event)
       (throw (ex-info "Auto-play could not choose an action"
                       {:phase (:phase game)

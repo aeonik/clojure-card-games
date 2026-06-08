@@ -58,6 +58,7 @@
                 :style :aggressive
                 :play-strategy :hybrid})]
     (is (= :hybrid-preservation bot/default-play-strategy))
+    (is (= :hybrid-ruff-invite room/default-auto-play-strategy))
     (is (= :preservation (:style deal-e)))
     (is (= :hybrid-preservation (:play-strategy deal-e)))
     (is (= :aggressive (:style trumpelstiltskin)))
@@ -265,14 +266,20 @@
          (not (room/bot-player? advanced current-player))))))
 
 (deftest auto-play-applies-bot-action-for-human-turn
-  (let [state (room/join-room (room/new-room "ABC123" 9)
-                              {:conn-id :human
-                               :out nil
-                               :name "Human"})
-        advanced (room/auto-play-player state :human)
-        event (-> advanced :game :history first)]
-    (is (= :bid (:type event)))
-    (is (= :player1 (:player event)))))
+  (let [observed-strategy (atom nil)]
+    (with-redefs [bot/action (fn [_ _]
+                               (reset! observed-strategy bot/*play-strategy*)
+                               {:type :bid
+                                :bid-type :pass})]
+      (let [state (room/join-room (room/new-room "ABC123" 9)
+                                  {:conn-id :human
+                                   :out nil
+                                   :name "Human"})
+            advanced (room/auto-play-player state :human)
+            event (-> advanced :game :history first)]
+        (is (= :bid (:type event)))
+        (is (= :player1 (:player event)))
+        (is (= :hybrid-ruff-invite @observed-strategy))))))
 
 (deftest new-game-preserves-completed-game-history
   (let [completed (-> (room/new-room "ABC123" 9)
@@ -287,12 +294,34 @@
     (is (= 0 (:game-index entry)))
     (is (= 9 (:seed entry)))
     (is (= 1000 (:started-at entry)))
+    (is (= :completed (:ended-reason entry)))
+    (is (not (:abandoned? entry)))
     (is (= :game-over (get-in entry [:game :phase])))
     (is (= 1 (get-in entry [:game :winner])))
     (is (= 1 (:game-index next-room)))
     (is (= 42 (:seed next-room)))
     (is (= 42 (get-in next-room [:game :initial-seed])))
     (is (= :bidding (get-in next-room [:game :phase])))))
+
+(deftest new-game-can-start-from-active-game
+  (let [active (-> (room/new-room "ABC123" 9)
+                   (assoc :game-started-at 1000)
+                   (assoc-in [:game :phase] :trick-playing)
+                   (assoc-in [:game :current-player] :player4)
+                   (assoc-in [:game :scores] {1 12 2 9}))
+        next-room (room/apply-player-event active nil {:type :new-game
+                                                       :seed 42})
+        entry (first (:games next-room))]
+    (is (= 1 (count (:games next-room))))
+    (is (= :trick-playing (get-in entry [:game :phase])))
+    (is (= {1 12 2 9} (get-in entry [:game :scores])))
+    (is (= :abandoned (:ended-reason entry)))
+    (is (true? (:abandoned? entry)))
+    (is (= 1 (:game-index next-room)))
+    (is (= 42 (:seed next-room)))
+    (is (= 42 (get-in next-room [:game :initial-seed])))
+    (is (= :bidding (get-in next-room [:game :phase])))
+    (is (= {1 0 2 0} (get-in next-room [:game :scores])))))
 
 (deftest auto-play-requires-current-player
   (let [state (-> (room/new-room "ABC123" 9)

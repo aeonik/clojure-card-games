@@ -1012,12 +1012,11 @@
             :data-fill-bots true}
    "Fill Bots"])
 
-(defn table-new-game-button [view]
-  (when (= :game-over (:phase view))
-    [:button {:class "table-new-game-button"
-              :type "button"
-              :data-new-game true}
-     "New Game"]))
+(defn table-new-game-button []
+  [:button {:class "table-new-game-button"
+            :type "button"
+            :data-new-game true}
+   "New Game"])
 
 (defn leave-room-button []
   [:button {:class "leave-room-button"
@@ -1036,7 +1035,7 @@
   [:div {:class "table-top-actions"}
    (fill-bots-button)
    [:div {:class "table-room-actions"}
-    (table-new-game-button view)
+    (table-new-game-button)
     (room-visibility-button view)
     (leave-room-button)]])
 
