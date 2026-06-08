@@ -887,9 +887,13 @@
          (for [event events]
            (ai-decision-row-html view event))]]])))
 
+(defn trick-anchor [index]
+  (str "trick-" (inc index)))
+
 (defn trick-detail-html [view trump index trick]
   (let [winner (trick-winner trump trick)]
-    [:article {:class "trick-detail"}
+    [:article {:id (trick-anchor index)
+               :class "trick-detail"}
      [:div {:class "trick-heading"}
       [:strong (str "Trick " (inc index))]
       [:span (str "Winner: " (player-label view winner))]]
@@ -899,7 +903,8 @@
 
 (defn current-trick-detail-html [view trump trick]
   (when (seq trick)
-    [:article {:class "trick-detail current-trick-detail"}
+    [:article {:id "current-trick"
+               :class "trick-detail current-trick-detail"}
      [:div {:class "trick-heading"}
       [:strong "Current trick"]
       [:span "In progress"]]
@@ -948,18 +953,54 @@
 (defn hand-detail-url [snapshot-base-url hand]
   (str snapshot-base-url "/hands/" (:hand-index hand)))
 
+(defn trick-detail-url [snapshot-base-url hand index]
+  (str (hand-detail-url snapshot-base-url hand) "#" (trick-anchor index)))
+
+(defn current-trick-detail-url [snapshot-base-url hand]
+  (str (hand-detail-url snapshot-base-url hand) "#current-trick"))
+
+(defn compact-trick-link-html [view snapshot-base-url hand index trick]
+  (let [winner (trick-winner (:trump hand) trick)]
+    [:a {:class "trick-chip"
+         :href (trick-detail-url snapshot-base-url hand index)}
+     [:strong (str "T" (inc index))]
+     [:span (player-label view winner)]]))
+
+(defn compact-trick-links-html [view snapshot-base-url hand]
+  (let [completed (:completed-tricks hand)
+        current (:current-trick hand)]
+    (when (or (seq completed) (seq current))
+      [:div {:class "trick-chip-list"}
+       [:span {:class "trick-chip-label"} "Tricks"]
+       (for [[index trick] (map-indexed vector completed)]
+         (compact-trick-link-html view snapshot-base-url hand index trick))
+       (when (seq current)
+         [:a {:class "trick-chip current"
+              :href (current-trick-detail-url snapshot-base-url hand)}
+          [:strong "Live"]
+          [:span (str (count current) " played")]])])))
+
 (defn hand-summary-row-html [snapshot-base-url hand]
-  [:a {:class "hand-summary-row"
-       :href (hand-detail-url snapshot-base-url hand)}
+  [:div {:class "hand-summary-row"}
    [:span {:class "hand-summary-title"} (hand-title hand)]
    [:span (bid-label (:bid hand))]
    [:span (or (suit-html (:trump hand)) "--")]
    [:span (str "Tricks " (score-label (:tricks hand)))]
    [:span (str "Points " (score-label (:points hand)))]
    [:span (str "Score " (score-label (:scores-after hand)))]
-   [:strong "Explain"]])
+   [:a {:class "hand-explain-link"
+        :href (hand-detail-url snapshot-base-url hand)}
+    "Explain"]])
 
-(defn hand-summary-list-html [snapshot-base-url hands]
+(defn hand-summary-card-html [view snapshot-base-url hand]
+  [:article {:class "hand-summary-card"}
+   (hand-summary-row-html snapshot-base-url hand)
+   [:div {:class "hand-summary-hands"}
+    [:div {:class "hand-summary-subhead"} "Starting hands"]
+    (compact-starting-hands-html view (:initial-hands hand))]
+   (compact-trick-links-html view snapshot-base-url hand)])
+
+(defn hand-summary-list-html [view snapshot-base-url hands]
   [:section {:class "panel hand-summary-panel"}
    [:div {:class "section-heading"}
     [:div
@@ -968,7 +1009,7 @@
    (if (seq hands)
      [:div {:class "hand-summary-list"}
       (for [hand hands]
-        (hand-summary-row-html snapshot-base-url hand))]
+        (hand-summary-card-html view snapshot-base-url hand))]
      [:p {:class "empty"} "No hands recorded."])])
 
 (defn hand-play-by-play-html [view hand]
@@ -1045,7 +1086,7 @@
        (stat-card "Room seed" (or (some-> (:seed room) str) "--"))]
       [:h3 "Seats"]
       (seats-table view)]
-     (hand-summary-list-html snapshot-base-url hands)]))
+     (hand-summary-list-html view snapshot-base-url hands)]))
 
 (def snapshot-styles
   (str
@@ -1086,12 +1127,26 @@
    ".ai-decision-table-panel{margin:0 0 14px}"
    ".ai-decision-table .ai-selected .card{width:24px;min-width:24px;height:32px;margin:0;border-radius:4px;font-size:.68rem}"
    ".hand-summary-panel{overflow:hidden}"
-   ".hand-summary-list{display:grid;gap:4px}"
-   ".hand-summary-row{display:grid;grid-template-columns:minmax(74px,1.1fr) minmax(66px,.8fr) minmax(28px,.35fr) minmax(84px,.9fr) minmax(86px,.9fr) minmax(84px,.9fr) minmax(58px,.55fr);gap:8px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:rgba(0,0,0,.12);padding:7px 9px;color:rgba(255,255,255,.76);font-size:.82rem;line-height:1.1;text-decoration:none;white-space:nowrap}"
-   ".hand-summary-row:hover{background:rgba(111,208,199,.1)}"
+   ".hand-summary-list{display:grid;gap:10px}"
+   ".hand-summary-card{border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(0,0,0,.12);padding:8px}"
+   ".hand-summary-row{display:grid;grid-template-columns:minmax(74px,1.1fr) minmax(66px,.8fr) minmax(28px,.35fr) minmax(84px,.9fr) minmax(86px,.9fr) minmax(84px,.9fr) minmax(58px,.55fr);gap:8px;align-items:center;color:rgba(255,255,255,.76);font-size:.82rem;line-height:1.1;white-space:nowrap}"
+   ".hand-summary-card:hover{background:rgba(111,208,199,.06)}"
    ".hand-summary-title{color:white;font-weight:800}"
    ".hand-summary-row .suit{font-size:1rem}"
-   ".hand-summary-row strong{color:#6fd0c7;font-size:.66rem;letter-spacing:.08em;text-align:right;text-transform:uppercase}"
+   ".hand-explain-link{color:#6fd0c7;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-align:right;text-transform:uppercase}"
+   ".hand-summary-hands{margin-top:7px}"
+   ".hand-summary-subhead,.trick-chip-label{color:rgba(255,255,255,.42);font-size:.56rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
+   ".hand-summary-subhead{margin-bottom:4px}"
+   ".hand-summary-card .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px}"
+   ".hand-summary-card .starting-hand-row{grid-template-columns:minmax(58px,84px) 1fr;gap:4px;padding:2px 0}"
+   ".hand-summary-card .starting-hand-row strong{font-size:.62rem}"
+   ".hand-summary-card .starting-hands-strip .card{width:20px;min-width:20px;height:28px;border-radius:4px;font-size:.58rem}"
+   ".trick-chip-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}"
+   ".trick-chip-label{display:inline-flex;align-items:center;padding:0 2px}"
+   ".trick-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.13);border-radius:5px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.68);font-size:.66rem;line-height:1;padding:5px 6px;text-decoration:none}"
+   ".trick-chip:hover{border-color:rgba(111,208,199,.45);background:rgba(111,208,199,.1)}"
+   ".trick-chip strong{color:#f5c85b;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase}"
+   ".trick-chip.current strong{color:#6fd0c7}"
    ".starting-hands-strip{display:grid;gap:7px}"
    ".starting-hand-row{display:grid;grid-template-columns:minmax(84px,112px) 1fr;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0}"
    ".starting-hand-row strong{color:rgba(255,255,255,.72);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
@@ -1100,7 +1155,7 @@
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;padding:5px 4px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-summary-row strong{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.hand-summary-card .starting-hand-row{grid-template-columns:minmax(42px,54px) 1fr;gap:2px;padding:1px 0}.hand-summary-card .starting-hand-row strong{font-size:.5rem}.hand-summary-card .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
 
 (declare styles admin-layout-styles admin-card-styles)
 

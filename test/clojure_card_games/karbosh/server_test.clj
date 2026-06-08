@@ -404,9 +404,14 @@
           (is (re-find #"text/html" (get-in response [:headers "Content-Type"])))
           (is (re-find #"Room ABC123 History" (:body response)))
           (is (re-find #"Hand history" (:body response)))
+          (is (re-find #"Starting hands" (:body response)))
+          (is (re-find #"starting-hands-strip" (:body response)))
           (is (re-find #"Explain" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0\""
                        (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0#trick-1\""
+                       (:body response)))
+          (is (re-find #"T1" (:body response)))
           (is (re-find #"class=\"suit heart\">♥" (:body response)))
           (is (re-find #"\.suit\.heart,\.suit\.diamond" (:body response)))
           (is (re-find #"Raw EDN" (:body response)))
@@ -423,6 +428,7 @@
           (is (re-find #"starting-hands-strip" (:body detail-response)))
           (is (re-find #"starting-hand-row" (:body detail-response)))
           (is (re-find #"Trick 1" (:body detail-response)))
+          (is (re-find #"id=\"trick-1\"" (:body detail-response)))
           (is (re-find #"Winner: player4" (:body detail-response)))))
       (finally
         (reset! server/rooms old-rooms)))))
@@ -692,6 +698,7 @@
           (is (= 200 (:status html-response)))
           (is (re-find #"Room OLD123 History" (:body html-response)))
           (is (re-find #"Hand history" (:body html-response)))
+          (is (re-find #"Starting hands" (:body html-response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot/hands/0\""
                        (:body html-response)))
           (is (= 200 (:status edn-response)))
