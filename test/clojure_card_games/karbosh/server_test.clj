@@ -1110,6 +1110,52 @@
     (is (= 2 (get-in trends ["Bid 4" :attempts])))
     (is (= 2 (get-in trends ["Bid 4" :made])))))
 
+(deftest room-snapshot-renders-stored-room-games-test
+  (let [previous (-> (completed-room "MULTI1" 101)
+                     (assoc :game-started-at 111)
+                     (assoc-in [:game :hand-history 0 :hand-index] 0))
+        current (-> (completed-room "MULTI1" 202)
+                    (assoc :game-started-at 222)
+                    (assoc :game-index 1)
+                    (assoc-in [:game :hand-history 0 :hand-index] 1))
+        room (assoc current
+                    :games [{:game-index 0
+                             :seed 101
+                             :started-at 111
+                             :completed-at 120
+                             :game (:game previous)}])
+        html (admin/render-room-snapshot room)]
+    (is (re-find #"Games in this room" html))
+    (is (re-find #"Game 1" html))
+    (is (re-find #"Game 2 / current" html))
+    (is (re-find #"/karbosh/admin/history/MULTI1/101/111/snapshot" html))
+    (is (re-find #"/karbosh/admin/history/MULTI1/202/222/snapshot" html))))
+
+(deftest durable-game-records-preserve-stored-game-hands-test
+  (let [previous (-> (completed-room "MULTI1" 101)
+                     (assoc :game-started-at 111)
+                     (assoc-in [:game :hand-history]
+                               [{:hand-index 0
+                                 :marker :previous}]))
+        current (-> (completed-room "MULTI1" 202)
+                    (assoc :game-started-at 222)
+                    (assoc :game-index 1)
+                    (assoc-in [:game :hand-history]
+                              [{:hand-index 0
+                                :marker :current}]))
+        room (assoc current
+                    :games [{:game-index 0
+                             :seed 101
+                             :started-at 111
+                             :completed-at 120
+                             :game (:game previous)}])
+        by-seed (into {} (map (fn [record]
+                                [(get-in record [:room :game :initial-seed])
+                                 (get-in record [:room :game :hand-history])])
+                              (server/durable-game-records-for-room room)))]
+    (is (= [{:hand-index 0 :marker :previous}] (get by-seed 101)))
+    (is (= [{:hand-index 0 :marker :current}] (get by-seed 202)))))
+
 (deftest admin-dashboard-stream-html-skips-archive-scan-test
   (with-redefs [server/historical-room-records
                 (fn []

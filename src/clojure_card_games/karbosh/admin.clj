@@ -222,9 +222,26 @@
 (defn game-hand-history [game]
   (vec (:hand-history game)))
 
+(defn current-game-entry [room]
+  (when-let [game (:game room)]
+    {:game-index (:game-index room)
+     :seed (get-in game [:initial-seed])
+     :started-at (or (:game-started-at room) (:created-at room))
+     :completed-at (when (= :game-over (:phase game))
+                     (:updated-at room))
+     :current? true
+     :game game}))
+
+(defn room-game-entries [room]
+  (->> (conj (vec (:games room)) (current-game-entry room))
+       (filter some?)
+       (sort-by (juxt #(or (:game-index %) Long/MAX_VALUE)
+                      #(or (:started-at %) 0)
+                      #(str (:seed %))))
+       vec))
+
 (defn room-games [room]
-  (->> (conj (mapv :game (:games room)) (:game room))
-       (filter some?)))
+  (keep :game (room-game-entries room)))
 
 (defn game-played? [game]
   (seq (game-hand-history game)))
@@ -628,6 +645,58 @@
 
 (defn game-history-link [room-id seed timestamp suffix]
   (str "/karbosh/admin/history/" room-id "/" seed "/" timestamp "/" suffix))
+
+(defn game-entry-history-link [room-id {:keys [seed started-at]} suffix]
+  (when (and seed started-at)
+    (game-history-link room-id seed started-at suffix)))
+
+(defn game-entry-hand-count [{:keys [game]}]
+  (count (game-hand-history game)))
+
+(defn game-entry-row [room-id {:keys [game-index seed started-at game current?] :as entry}]
+  (let [snapshot-url (game-entry-history-link room-id entry "snapshot")
+        raw-url (game-entry-history-link room-id entry "snapshot.edn")]
+    [:tr
+     (table-cell "Game" (str "Game " (inc (or game-index 0)))
+                 (when current? " / current"))
+     (table-cell "Seed" (or (some-> seed str) "--"))
+     (table-cell "Started" (time-label started-at))
+     (table-cell "Phase" (kw-label (:phase game)))
+     (table-cell "Score" (score-label (:scores game)))
+     (table-cell "Winner" (or (some-> (:winner game) team-label) "--"))
+     (table-cell "Hands" (game-entry-hand-count entry))
+     (table-cell "Links"
+                 (if snapshot-url
+                   [:a {:href snapshot-url} "Snapshot"]
+                   "--")
+                 (when raw-url
+                   (list " / " [:a {:href raw-url} "Raw"])))]))
+
+(defn room-games-table-html [room]
+  (let [entries (filter #(or (:current? %)
+                             (pos? (game-entry-hand-count %)))
+                        (room-game-entries room))]
+    [:section {:class "panel"}
+     [:div {:class "section-heading"}
+      [:div
+       [:p "Archive"]
+       [:h2 "Games in this room"]]]
+     (if (seq entries)
+       [:table {:class "admin-table"}
+        [:thead
+         [:tr
+          [:th "Game"]
+          [:th "Seed"]
+          [:th "Started"]
+          [:th "Phase"]
+          [:th "Score"]
+          [:th "Winner"]
+          [:th "Hands"]
+          [:th "Links"]]]
+        [:tbody
+         (for [entry entries]
+           (game-entry-row (:id room) entry))]]
+       [:p {:class "empty"} "No games recorded."])]))
 
 (defn game-history-row [record]
   (let [room (:room record)
@@ -1400,6 +1469,7 @@
        (stat-card "Room seed" (or (some-> (:seed room) str) "--"))]
       [:h3 "Seats"]
       (seats-table view)]
+     (room-games-table-html room)
      (hand-summary-list-html view snapshot-base-url hands)]))
 
 (def snapshot-styles
