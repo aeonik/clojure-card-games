@@ -1079,6 +1079,16 @@
       :else
       cards)))
 
+(defn defender-low-exit-card [game player cards]
+  (let [{:keys [defender?]} (lead-context game player)
+        trump (:trump game)
+        off-aces (seq (filter #(off-ace? trump %) cards))
+        non-trumps (seq (remove #(trump-card? trump %) cards))]
+    (when (and defender?
+               non-trumps
+               (not off-aces))
+      (lowest-card game non-trumps))))
+
 (defn probability-lead-card-with-candidates
   [candidate-fn config game player analyses cards]
   (let [priority (priority-lead-card game player cards)
@@ -1107,16 +1117,31 @@
                                          cards))
 
 (defn defender-exit-probability-lead-card [config game player analyses cards]
-  (probability-lead-card-with-candidates defender-exit-lead-candidates
-                                         config
-                                         game
-                                         player
-                                         analyses
-                                         cards))
+  (let [priority (priority-lead-card game player cards)
+        safe (safe-cards config analyses :lead-risk-tolerance cards)
+        defender-low-exit (defender-low-exit-card game player cards)
+        fallback-cards (defender-exit-lead-candidates game player cards)]
+    (cond
+      priority
+      priority
+
+      (seq safe)
+      (lowest-card game safe)
+
+      defender-low-exit
+      defender-low-exit
+
+      :else
+      (best-lead-by-value #(risk-adjusted-lead-value config
+                                                    game
+                                                    analyses
+                                                    %)
+                          fallback-cards))))
 
 (defn preservation-probability-lead-card [config game player analyses cards]
   (let [priority (priority-lead-card game player cards)
         safe (safe-cards config analyses :lead-risk-tolerance cards)
+        defender-low-exit (defender-low-exit-card game player cards)
         fallback-cards (risk-adjusted-lead-candidates game player cards)
         context (lead-context game player)]
     (cond
@@ -1125,6 +1150,9 @@
 
       (seq safe)
       (lowest-card game safe)
+
+      defender-low-exit
+      defender-low-exit
 
       :else
       (best-lead-by-value #(preservation-lead-value config
@@ -1442,12 +1470,16 @@
         good? (zero? selected-risk)
         config (context-play-config *play-config* game player)
         unseen-counts (unseen-card-counts game player)
-        ruff-invite (partner-ruff-invite-card game player unseen-counts cards)]
+        ruff-invite (partner-ruff-invite-card game player unseen-counts cards)
+        defender-low-exit (defender-low-exit-card game player cards)]
     (cond
       leading?
       (cond
         (= card ruff-invite)
         :partner-ruff-invite
+
+        (= card defender-low-exit)
+        :defender-low-exit
 
         (and (special-contract-caller? game player)
              (trump-card? (:trump game) card))

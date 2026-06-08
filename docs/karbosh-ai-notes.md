@@ -49,6 +49,10 @@
     were clearly poor exits. Study whether defender lead policy should avoid
     vulnerable trump leads unless they are safe, intentionally pulling trump,
     or materially better in rollout/PIMC evaluation.
+  - Initial fix: preservation and defender-exit lead policies now use
+    `:defender-low-exit` when a defender has no safe card, no off-suit ace,
+    and at least one non-trump exit. In this hand, autoplay now leads `9♠`
+    instead of `Q♣`. Plain aggressive `:hybrid` remains allowed to spend trump.
 
 ## 2026-06-05 Lead Policy
 

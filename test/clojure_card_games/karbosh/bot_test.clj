@@ -543,7 +543,7 @@
       (is (= {:type :play-card :card [:A :♣]}
              (bot/card-action game :player4 :hybrid)))))
 
-  (testing "defenders preserve unsafe high trump when the other team made trump"
+  (testing "defenders preserve unsafe high trump with a low non-trump exit"
     (let [game {:phase :trick-playing
                 :trump :♦
                 :active-players game/players
@@ -588,14 +588,64 @@
       (is (false? (bot/good-card? game :player4 [:A :♦])))
       (is (= {:type :play-card :card [:A :♦]}
              (bot/card-action game :player4 :hybrid)))
-      (is (= {:type :play-card :card [:K :♥]}
+      (is (= {:type :play-card :card [10 :♠]}
              (bot/card-action game :player4 :probability-defender-exit)))
-      (is (= {:type :play-card :card [:K :♥]}
+      (is (= {:type :play-card :card [10 :♠]}
              (bot/card-action game :player4 :hybrid-defender-exit)))
-      (is (= {:type :play-card :card [:K :♥]}
+      (is (= {:type :play-card :card [10 :♠]}
              (bot/card-action game :player4 :probability-preservation)))
-      (is (= {:type :play-card :card [:K :♥]}
+      (is (= {:type :play-card :card [10 :♠]}
              (bot/card-action game :player4 :hybrid-preservation)))))
+
+  (testing "defenders exit low non-trump instead of leading vulnerable trump"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :hand-index 11
+                :bids [{:type :bid
+                        :player :player6
+                        :bid-type :bid
+                        :value 4
+                        :hand-index 11}]
+                :players {:player1 {:team 1
+                                    :hand [[:Q :♥] [10 :♦] [10 :♣]
+                                           [:Q :♦] [:K :♦] [:Q :♣]
+                                           [9 :♠]]}
+                          :player2 {:team 2
+                                    :hand [[:Q :♦] [9 :♦] [:K :♠]
+                                           [:K :♥] [10 :♠] [10 :♦]
+                                           [:A :♥]]}
+                          :player3 {:team 1
+                                    :hand [[10 :♠] [:A :♣] [:K :♦]
+                                           [:A :♦] [:A :♠] [:J :♦]
+                                           [:K :♣]]}
+                          :player4 {:team 2
+                                    :hand [[:J :♣] [9 :♥] [:A :♦]
+                                           [10 :♥] [:A :♥] [:Q :♥]
+                                           [:Q :♠]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♥] [:J :♦] [:A :♠]
+                                           [9 :♥] [9 :♠] [:K :♠]
+                                           [:J :♥]]}
+                          :player6 {:team 2
+                                    :hand [[:J :♥] [10 :♥] [:Q :♠]
+                                           [:J :♠] [:A :♣] [:Q :♣]
+                                           [:K :♣]]}}
+                :completed-tricks [[{:player :player6 :card [9 :♣]}
+                                    {:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [10 :♣]}
+                                    {:player :player3 :card [9 :♣]}
+                                    {:player :player4 :card [:J :♠]}
+                                    {:player :player5 :card [9 :♦]}]]
+                :current-trick []}
+          event (bot/card-action game :player1 :hybrid-ruff-invite)]
+      (is (= {:type :play-card :card [9 :♠]} event))
+      (is (= :defender-low-exit
+             (:reason (bot/explain-card-action
+                       game
+                       :player1
+                       :hybrid-ruff-invite
+                       event))))))
 
   (testing "ruff invite strategy can lead a partner-void suit over a good trump"
     (let [game (with-hidden-hand-sizes

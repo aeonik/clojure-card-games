@@ -11,11 +11,10 @@
 - Compare bot policy changes with seeded Monte Carlo runs and record the
   aggregate results alongside the change. Keep old policies pluggable so
   suspected improvements can be validated against the same deal set.
-- Study defender trump-lead discipline using `ZXD4P4` hand 11 as a concrete
-  case. Autoplay won trick 1 with the right bower after the maker led low
-  clubs, then led vulnerable `Q♣` on trick 2 and lost to the duplicate right.
-  Evaluate whether defenders should prefer non-trump exits or lower trump in
-  this shape before changing defaults.
+- Validate defender low-exit lead policy with seeded Monte Carlo. The first
+  fix was motivated by `ZXD4P4` hand 11: after winning trick 1 in the maker's
+  trump suit, preservation/defender-exit policies now prefer a low non-trump
+  exit when no safe card or off-suit ace is available.
 
 ## Karbosh UI
 
