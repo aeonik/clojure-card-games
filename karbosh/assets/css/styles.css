@@ -625,6 +625,21 @@ body:not(.has-karbosh-game) .meta-grid,
   animation: deal-to-trick-slot var(--play-card-animation-ms) cubic-bezier(0.18, 0.82, 0.24, 1) both;
 }
 
+.trick-card.is-winning .card-face {
+  border-color: rgba(246, 211, 100, 0.95);
+  box-shadow:
+    0 0 0 0.16rem rgba(246, 211, 100, 0.38),
+    0 0 1rem rgba(246, 211, 100, 0.42),
+    0 0.35rem 0.8rem rgba(8, 12, 26, 0.22);
+}
+
+.trick-card.is-animating.is-winning .card-face {
+  box-shadow:
+    0 0 0 0.18rem rgba(246, 211, 100, 0.46),
+    0 0 1.25rem rgba(246, 211, 100, 0.5),
+    0 0.4rem 0.9rem rgba(8, 12, 26, 0.24);
+}
+
 .player-seat {
   --seat-team-color: var(--line-strong);
   position: absolute;

@@ -731,29 +731,37 @@
                [:em (bid-label bid)]
                [:em "--"])]))))
 
-(defn trick-card-html [view {:keys [player card]}]
-  [:li {:class (str "trick-card " (player-class player))}
+(defn same-play? [a b]
+  (and (= (:player a) (:player b))
+       (= (:card a) (:card b))))
+
+(defn trick-card-html [view winning-play {:keys [player card] :as play}]
+  [:li {:class (str "trick-card "
+                    (player-class player)
+                    (when (same-play? play winning-play) " is-winning"))}
    [:span (player-label view player)]
    [:strong {:class (str "card-face" (card-suit-class card))}
     (card-label card)]])
 
-(defn play-animation-html [view {:keys [player card]}]
+(defn play-animation-html [view winning-play {:keys [player card] :as play}]
   (when (and player card)
-    [:li {:class (str "trick-card is-animating " (player-class player) " from-" (player-class player))}
+    [:li {:class (str "trick-card is-animating "
+                      (player-class player)
+                      (when (same-play? play winning-play) " is-winning")
+                      " from-" (player-class player))}
      [:span (player-label view player)]
      [:strong {:class (str "card-face" (card-suit-class card))}
       (card-label card)]]))
 
 (defn trick-html [view trick animation]
-  (let [cards (map #(trick-card-html view %) trick)
-        animation (play-animation-html view animation)]
+  (let [visible-trick (cond-> (vec trick)
+                        animation (conj animation))
+        winning-play (rules/winning-play visible-trick (:trump view))
+        cards (map #(trick-card-html view winning-play %) trick)
+        animation (play-animation-html view winning-play animation)]
     (if (or (seq trick) animation)
       (vec (concat cards (when animation [animation])))
       [[:li {:class "trick-empty"} [:span "No cards played"]]])))
-
-(defn same-play? [a b]
-  (and (= (:player a) (:player b))
-       (= (:card a) (:card b))))
 
 (defn settled-trick [trick animation]
   (if animation
