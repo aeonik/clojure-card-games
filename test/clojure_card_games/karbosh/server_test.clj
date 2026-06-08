@@ -360,13 +360,17 @@
 
 (deftest admin-room-snapshot-test
   (let [old-rooms @server/rooms
+        ai {:policy :hybrid-ruff-invite
+            :engine :probability-ruff-invite
+            :reason :lead-safe-card}
+        trick (update completed-trick 0 assoc :ai ai)
         room (-> (room/new-room "ABC123" 9)
                  (room/seat-player :player1 "Dave")
                  (assoc-in [:game :phase] :trick-playing)
                  (assoc-in [:game :trump] :♥)
-                 (assoc-in [:game :completed-tricks] [completed-trick])
+                 (assoc-in [:game :completed-tricks] [trick])
                  (assoc-in [:game :history]
-                           (mapv #(assoc % :type :play-card) completed-trick))
+                           (mapv #(assoc % :type :play-card) trick))
                  (assoc-in [:game :tricks-this-hand] {1 0 2 1})
                  (assoc-in [:game :current-player] :player2)
                  (assoc :connections {:conn {:player :player1
@@ -384,6 +388,9 @@
           (is (re-find #"text/html" (get-in response [:headers "Content-Type"])))
           (is (re-find #"Room ABC123 History" (:body response)))
           (is (re-find #"Play by Play" (:body response)))
+          (is (re-find #"AI Policies" (:body response)))
+          (is (re-find #"Hybrid ruff invite" (:body response)))
+          (is (re-find #"Lead safe card" (:body response)))
           (is (re-find #"Starting Hands" (:body response)))
           (is (re-find #"starting-hands-strip" (:body response)))
           (is (re-find #"starting-hand-row" (:body response)))

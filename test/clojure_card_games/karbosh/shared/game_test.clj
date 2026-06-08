@@ -124,7 +124,30 @@
            #"Illegal"
            (-> state
                (game/apply-event {:type :play-card :player :player1 :card [:A :♥]})
-               (game/apply-event {:type :play-card :player :player2 :card [:A :♠]})))))))
+               (game/apply-event {:type :play-card :player :player2 :card [:A :♠]}))))))
+
+  (testing "ai metadata stays in history but not public table state"
+    (let [state {:phase :trick-playing
+                 :history []
+                 :players {:player1 {:hand [[:A :♥]] :team 1}
+                           :player2 {:hand [[:K :♥]] :team 2}}
+                 :active-players [:player1 :player2]
+                 :current-player :player1
+                 :current-trick []
+                 :completed-tricks []
+                 :trump :♠}
+          ai {:policy :hybrid-ruff-invite
+              :reason :lead-safe-card}
+          updated (game/apply-event state {:type :play-card
+                                           :player :player1
+                                           :card [:A :♥]
+                                           :ai ai})]
+      (is (= ai (-> updated :history first :ai)))
+      (is (= ai (-> updated :current-trick first :ai)))
+      (is (nil? (-> (game/public-view updated {} :player1)
+                    :current-trick
+                    first
+                    :ai))))))
 
 (def karbosh-state
   {:phase :trump-selection

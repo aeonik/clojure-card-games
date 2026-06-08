@@ -733,3 +733,21 @@
                                     :hand [[:A :♠] [9 :♣] [:K :♥]]}}}]
       (is (= {:type :discard-card :card [9 :♣]}
              (bot/action game :player1))))))
+
+(deftest explained-action-test
+  (let [game (with-hidden-hand-sizes
+               {:phase :trick-playing
+                :trump :♠
+                :active-players game/players
+                :players {:player1 {:team 1
+                                    :hand [[:A :♠] [9 :♥]]}}
+                :completed-tricks []
+                :current-trick []})
+        event (binding [bot/*play-strategy* :hybrid-ruff-invite]
+                (bot/explained-action game :player1))]
+    (is (= :play-card (:type event)))
+    (is (= :hybrid-ruff-invite (get-in event [:ai :policy])))
+    (is (contains? #{:probability-ruff-invite :card-counting}
+                   (get-in event [:ai :engine])))
+    (is (some? (get-in event [:ai :reason])))
+    (is (seq (get-in event [:ai :candidates])))))

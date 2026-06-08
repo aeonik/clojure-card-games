@@ -69,6 +69,17 @@
   [:span {:class (str "card" (card-class card))}
    (cards/card->str card)])
 
+(defn maybe-card-html [x]
+  (if (and (vector? x) (= 2 (count x)))
+    (card-html x)
+    (str x)))
+
+(defn compact-number [x]
+  (cond
+    (number? x) (format "%.3f" (double x))
+    (nil? x) "--"
+    :else (str x)))
+
 (defn cards-html [cards]
   (if (seq cards)
     (for [card cards]
@@ -665,6 +676,48 @@
            (when suit [" / " (cards/suit->str suit)])
            (when card [" / " (card-html card)]))))
 
+(defn ai-selected-html [selected]
+  (let [selected (if (map? selected) selected {:value selected})
+        {:keys [card score risk good? winning? trump? value]} selected]
+    [:span {:class "ai-selected"}
+     (cond
+       card (card-html card)
+       value (maybe-card-html value)
+       :else "--")
+     (when score
+       [:span (str " score " score)])
+     (when (contains? selected :risk)
+       [:span (str " risk " (compact-number risk))])
+     (when (contains? selected :good?)
+       [:span (str " " (if good? "good" "beatable"))])
+     (when winning?
+       [:span " winning"])
+     (when trump?
+       [:span " trump"])]))
+
+(defn ai-candidates-html [candidates]
+  (when (seq candidates)
+    [:div {:class "ai-candidates"}
+     (for [{:keys [card score risk good? winning?]} candidates]
+       [:span {:class (str "ai-candidate"
+                           (when good? " good")
+                           (when winning? " winning"))}
+        (card-html card)
+        [:small (str "s" score " r" (compact-number risk))]])]))
+
+(defn ai-decision-html [{:keys [policy engine reason selected candidates]}]
+  (when policy
+    [:details {:class "ai-decision"}
+     [:summary
+      [:span "AI"]
+      [:strong (kw-label policy)]
+      [:em (str (kw-label reason) " via " (kw-label engine))]]
+     [:div {:class "ai-decision-body"}
+      [:div [:span "Selected"] (ai-selected-html selected)]
+      [:div [:span "Reason"] [:strong (kw-label reason)]]
+      [:div [:span "Engine"] [:strong (kw-label engine)]]
+      (ai-candidates-html candidates)]]))
+
 (defn recent-events-html [view events]
   (if (seq events)
     [:ol {:class "compact-list events"}
@@ -721,13 +774,46 @@
 (defn trick-winner [trump trick]
   (some-> (rules/winning-play trick trump) :player))
 
-(defn trick-card-html [view trump winner {:keys [player card]}]
+(defn trick-card-html [view trump winner {:keys [player card ai]}]
   [:div {:class (str "trick-card"
                      (when (= winner player) " winner"))}
    [:span {:class "play-player"} (player-label view player)]
    (card-html card)
    (when (= winner player)
-     [:strong "Won"])])
+     [:strong "Won"])
+   (ai-decision-html ai)])
+
+(defn ai-events [hand]
+  (filter :ai (:history hand)))
+
+(defn ai-policy-summary [events]
+  (->> events
+       (group-by :player)
+       (map (fn [[player events]]
+              {:player player
+               :policies (frequencies (map #(get-in % [:ai :policy]) events))
+               :engines (frequencies (map #(get-in % [:ai :engine]) events))}))
+       (sort-by (comp str :player))
+       vec))
+
+(defn freq-label [m]
+  (->> m
+       (remove (comp nil? key))
+       (map (fn [[k n]]
+              (str (kw-label k) " x" n)))
+       (str/join ", ")))
+
+(defn ai-policy-summary-html [view hand]
+  (let [rows (ai-policy-summary (ai-events hand))]
+    (when (seq rows)
+      [:section {:class "ai-policy-summary"}
+       [:h3 "AI Policies"]
+       [:ol {:class "compact-list"}
+        (for [{:keys [player policies engines]} rows]
+          [:li
+           [:span (player-label view player)]
+           [:strong (freq-label policies)]
+           [:em (str " / " (freq-label engines))]])]])))
 
 (defn trick-detail-html [view trump index trick]
   (let [winner (trick-winner trump trick)]
@@ -794,6 +880,7 @@
      [:p (if (:current? hand) "Live hand" "Completed hand")]
      [:h2 (hand-title hand)]]]
    (hand-stats-html hand)
+   (ai-policy-summary-html view hand)
    [:div {:class "two-col"}
     [:section
      [:h3 "Bidding"]
@@ -860,6 +947,23 @@
    ".trick-card.winner{border-color:rgba(245,200,91,.65);background:rgba(245,200,91,.12)}"
    ".trick-card .play-player{color:rgba(255,255,255,.58);font-size:.72rem;font-weight:700}"
    ".trick-card strong{display:block;color:#f5c85b;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}"
+   ".ai-policy-summary{margin:0 0 12px}"
+   ".ai-decision{margin-top:7px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}"
+   ".ai-decision summary{cursor:pointer;list-style:none;color:rgba(255,255,255,.62);font-size:.62rem;font-weight:700;line-height:1.2}"
+   ".ai-decision summary::-webkit-details-marker{display:none}"
+   ".ai-decision summary span{display:inline;color:#6fd0c7;margin-right:4px}"
+   ".ai-decision summary strong{display:inline;color:#f5c85b;font-size:.62rem;letter-spacing:0;text-transform:none;margin-right:4px}"
+   ".ai-decision summary em{display:block;color:rgba(255,255,255,.48);font-style:normal;font-weight:600;margin-top:2px}"
+   ".ai-decision-body{display:grid;gap:4px;margin-top:6px;color:rgba(255,255,255,.68);font-size:.66rem;line-height:1.25}"
+   ".ai-decision-body>div>span:first-child{display:inline-block;min-width:56px;color:rgba(255,255,255,.42);font-weight:700;text-transform:uppercase}"
+   ".ai-selected{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}"
+   ".ai-selected .card{width:24px;min-width:24px;height:32px;margin:0;border-radius:4px;font-size:.68rem}"
+   ".ai-candidates{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}"
+   ".ai-candidate{display:inline-flex;align-items:center;gap:3px;border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:2px;background:rgba(255,255,255,.04)}"
+   ".ai-candidate.good{border-color:rgba(111,208,199,.42)}"
+   ".ai-candidate.winning{background:rgba(245,200,91,.1)}"
+   ".ai-candidate .card{width:20px;min-width:20px;height:28px;margin:0;border-radius:4px;font-size:.62rem}"
+   ".ai-candidate small{color:rgba(255,255,255,.48);font-size:.55rem}"
    ".starting-hands-strip{display:grid;gap:7px}"
    ".starting-hand-row{display:grid;grid-template-columns:minmax(84px,112px) 1fr;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0}"
    ".starting-hand-row strong{color:rgba(255,255,255,.72);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"

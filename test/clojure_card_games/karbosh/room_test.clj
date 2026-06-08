@@ -92,9 +92,9 @@
                   (room/seat-bot :player2 aggressive)
                   (assoc-in [:game :phase] :bidding)
                   (assoc-in [:game :current-player] :player2))]
-    (with-redefs [bot/action (fn [_ _]
-                               {:type :observed
-                                :play-strategy bot/*play-strategy*})]
+    (with-redefs [bot/explained-action (fn [_ _]
+                                         {:type :observed
+                                          :play-strategy bot/*play-strategy*})]
       (is (= {:player :player2
               :event {:type :observed
                       :play-strategy :hybrid}}
@@ -267,10 +267,11 @@
 
 (deftest auto-play-applies-bot-action-for-human-turn
   (let [observed-strategy (atom nil)]
-    (with-redefs [bot/action (fn [_ _]
-                               (reset! observed-strategy bot/*play-strategy*)
-                               {:type :bid
-                                :bid-type :pass})]
+    (with-redefs [bot/explained-action (fn [_ _]
+                                         (reset! observed-strategy bot/*play-strategy*)
+                                         {:type :bid
+                                          :bid-type :pass
+                                          :ai {:policy bot/*play-strategy*}})]
       (let [state (room/join-room (room/new-room "ABC123" 9)
                                   {:conn-id :human
                                    :out nil
@@ -279,6 +280,7 @@
             event (-> advanced :game :history first)]
         (is (= :bid (:type event)))
         (is (= :player1 (:player event)))
+        (is (= :hybrid-ruff-invite (get-in event [:ai :policy])))
         (is (= :hybrid-ruff-invite @observed-strategy))))))
 
 (deftest new-game-preserves-completed-game-history

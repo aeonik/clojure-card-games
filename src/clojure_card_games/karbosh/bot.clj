@@ -824,6 +824,9 @@
 (defn probability [x]
   (double (or x 0)))
 
+(defn round-probability [x]
+  (/ (Math/round (* 1000.0 (probability x))) 1000.0))
+
 (defn card-risk [analyses card]
   (probability (get-in analyses [card :prob-pending-opponent-can-beat-card])))
 
@@ -1123,6 +1126,148 @@
                                              :available (keys play-strategies)})))
     :else (throw (ex-info "Invalid play strategy" {:strategy strategy}))))
 
+(defn strategy-key [strategy fallback]
+  (if (keyword? strategy) strategy fallback))
+
+(def hybrid-engines
+  {:hybrid-threshold :probability-threshold
+   :hybrid :probability
+   :hybrid-defender-exit :probability-defender-exit
+   :hybrid-preservation :probability-preservation
+   :hybrid-ruff-invite :probability-ruff-invite})
+
+(defn card-engine [game strategy]
+  (let [strategy (strategy-key strategy :custom)]
+    (if (and (contains? hybrid-engines strategy)
+             (special-contract? (game/current-bid game)))
+      :card-counting
+      (get hybrid-engines strategy strategy))))
+
+(defn candidate-summary [game player analyses card]
+  {:card card
+   :score (card-score game card)
+   :risk (round-probability (card-risk analyses card))
+   :good? (zero? (card-risk analyses card))
+   :trump? (trump-card? (:trump game) card)
+   :winning? (wins-trick? game player card)})
+
+(defn card-reason [game player engine cards analyses card]
+  (let [winner (current-trick-winner game)
+        leading? (empty? (:current-trick game))
+        partner-winning? (same-team? game player winner)
+        selected-risk (card-risk analyses card)
+        winning? (wins-trick? game player card)
+        good? (zero? selected-risk)
+        unseen-counts (unseen-card-counts game player)
+        ruff-invite (partner-ruff-invite-card game player unseen-counts cards)]
+    (cond
+      leading?
+      (cond
+        (= card ruff-invite)
+        :partner-ruff-invite
+
+        (and (special-contract-caller? game player)
+             (trump-card? (:trump game) card))
+        :karbosh-caller-trump-control
+
+        good?
+        :lead-safe-card
+
+        (#{:probability-preservation
+           :probability-ruff-invite
+           :hybrid-preservation
+           :hybrid-ruff-invite} engine)
+        :lead-preserve-high-trump
+
+        :else
+        :lead-risk-adjusted-card)
+
+      partner-winning?
+      (if winning?
+        :protect-partner-trick
+        :preserve-partner-trick)
+
+      (and winning? good?)
+      :secure-winning-card
+
+      winning?
+      :risk-adjusted-winning-card
+
+      :else
+      :cannot-win-lowest-card)))
+
+(defn explain-card-action [game player strategy event]
+  (let [strategy (strategy-key strategy :custom)
+        engine (card-engine game strategy)
+        cards (vec (legal-cards game player))
+        analyses (card-analyses game player cards)
+        card (:card event)]
+    {:source :ai
+     :phase :trick-playing
+     :policy strategy
+     :engine engine
+     :reason (card-reason game player engine cards analyses card)
+     :legal-count (count cards)
+     :selected (candidate-summary game player analyses card)
+     :candidates (mapv #(candidate-summary game player analyses %) cards)}))
+
+(defn explain-bid-action [strategy event]
+  {:source :ai
+   :phase :bidding
+   :policy (strategy-key strategy :custom)
+   :engine :bidding
+   :reason (case (:bid-type event)
+             :pass :bid-pass
+             :bid :numeric-contract
+             :karbosh :karbosh-contract
+             :double-karbosh :double-karbosh-contract
+             :bid-decision)
+   :selected (select-keys event [:bid-type :value])})
+
+(defn explain-trump-action [game player event]
+  (let [hand (get-in game [:players player :hand])
+        strengths (into {}
+                        (map (fn [suit]
+                               [suit (suit-strength hand suit)]))
+                        cards/suits)]
+    {:source :ai
+     :phase :trump-selection
+     :policy :best-trump
+     :engine :trump-strength
+     :reason :strongest-suit
+     :selected (:suit event)
+     :suit-strengths strengths}))
+
+(defn explain-donation-action [game event]
+  {:source :ai
+   :phase :karbosh-donation
+   :policy :donate-highest-card
+   :engine :card-strength
+   :reason :donate-strongest-card
+   :selected {:card (:card event)
+              :score (card-score game (:card event))}})
+
+(defn explain-discard-action [game event]
+  {:source :ai
+   :phase :karbosh-discard
+   :policy :discard-lowest-card
+   :engine :card-strength
+   :reason :discard-weakest-card
+   :selected {:card (:card event)
+              :score (card-score game (:card event))}})
+
+(defn explain-action [game player event]
+  (case (:phase game)
+    :bidding (explain-bid-action *bid-strategy* event)
+    :trump-selection (explain-trump-action game player event)
+    :karbosh-donation (explain-donation-action game event)
+    :karbosh-discard (explain-discard-action game event)
+    :trick-playing (explain-card-action game player *play-strategy* event)
+    {:source :ai
+     :phase (:phase game)
+     :policy :unknown
+     :reason :unknown}))
+
 (defn card-action
   ([game player]
    (card-action game player *play-strategy*))
@@ -1137,3 +1282,7 @@
     :karbosh-discard (discard-action game player)
     :trick-playing (card-action game player)
     nil))
+
+(defn explained-action [game player]
+  (when-let [event (action game player)]
+    (assoc event :ai (explain-action game player event))))

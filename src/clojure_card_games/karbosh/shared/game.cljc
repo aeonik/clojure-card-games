@@ -89,6 +89,15 @@
    :points points
    :scores-after scores})
 
+(defn- history-event [event ks]
+  (select-keys event (conj ks :ai)))
+
+(defn- public-play [play]
+  (select-keys play [:player :card]))
+
+(defn- public-tricks [tricks]
+  (mapv #(mapv public-play %) tricks))
+
 (defn- complete-hand [game]
   (let [bid (current-bid game)
         tricks (:tricks-this-hand game)
@@ -167,7 +176,7 @@
     (fail "Bid does not beat current bid"
           {:current-bid (current-bid game)
            :event event}))
-  (let [event (select-keys event [:type :player :bid-type :value])
+  (let [event (history-event event [:type :player :bid-type :value])
         hand-index (:hand-index game)
         updated-game (-> game
                          (update :history conj event)
@@ -214,7 +223,8 @@
   (require-current-player game player event)
   (when-not (contains? (set cards/suits) suit)
     (fail "Invalid trump suit" {:suit suit :event event}))
-  (let [bid (current-bid game)
+  (let [event (history-event event [:type :player :suit])
+        bid (current-bid game)
         game (-> game
                  (update :history conj event)
                  (assoc :trump suit)
@@ -240,7 +250,7 @@
         hand (get-in game [:players player :hand])]
     (when-not (some #(= card %) hand)
       (fail "Card is not in player's hand" {:player player :card card :event event}))
-    (let [event (select-keys (assoc event :to caller) [:type :player :to :card])
+    (let [event (history-event (assoc event :to caller) [:type :player :to :card])
           remaining-donors (vec (rest (:donation-order game)))
           updated-game (-> game
                            (update :history conj event)
@@ -261,7 +271,7 @@
       (fail "Card is not in player's hand" {:player player :card card :event event}))
     (let [discard-count (inc (or (:discard-count game) 0))
           updated-game (-> game
-                           (update :history conj (select-keys event [:type :player :card]))
+                           (update :history conj (history-event event [:type :player :card]))
                            (update-in [:players player :hand] #(remove-first card %))
                            (assoc :discard-count discard-count))]
       (if (= 2 discard-count)
@@ -275,10 +285,11 @@
         hand (get-in game [:players player :hand])]
     (when-not (rules/legal-play? hand current-trick card (:trump game))
       (fail "Illegal card play" {:player player :card card :event event}))
-    (let [updated-trick (conj current-trick {:player player :card card})
+    (let [play (history-event event [:player :card])
+          updated-trick (conj current-trick play)
           complete? (= (count updated-trick) (count (trick-players game)))
           game-after-play (-> game
-                              (update :history conj event)
+                              (update :history conj (history-event event [:type :player :card]))
                               (update-in [:players player :hand]
                                          #(remove-first card %)))
           hands-empty? (every? #(empty? (get-in game-after-play [:players % :hand]))
@@ -381,8 +392,8 @@
    :current-player (:current-player game)
    :dealer (:dealer game)
    :trump (:trump game)
-   :current-trick (:current-trick game)
-   :completed-tricks (:completed-tricks game)
+   :current-trick (mapv public-play (:current-trick game))
+   :completed-tricks (public-tricks (:completed-tricks game))
    :tricks-this-hand (:tricks-this-hand game)
    :active-players (:active-players game)
    :donation-order (:donation-order game)
