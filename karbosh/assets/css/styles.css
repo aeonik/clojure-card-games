@@ -632,23 +632,10 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .trick-card.is-winning .card-face {
-  border-color: rgba(246, 211, 100, 0.78);
+  border-color: #f6d364;
   box-shadow:
-    0 0 0 0.14rem rgba(246, 211, 100, 0.22),
-    0 0 1.35rem rgba(246, 211, 100, 0.36),
+    0 0 0 0.12rem rgba(246, 211, 100, 0.54),
     0 0.35rem 0.8rem rgba(8, 12, 26, 0.22);
-}
-
-.trick-card.is-animating.is-winning .card-face {
-  box-shadow:
-    0 0 0 0.08rem rgba(246, 211, 100, 0.24),
-    0 0.4rem 0.9rem rgba(8, 12, 26, 0.24);
-}
-
-body.karbosh-fast-mode .trick-card.is-animating.is-winning .card-face {
-  box-shadow:
-    0 0 0 0.07rem rgba(246, 211, 100, 0.22),
-    0 0.3rem 0.65rem rgba(8, 12, 26, 0.22);
 }
 
 .player-seat {
