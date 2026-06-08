@@ -394,9 +394,14 @@
                (actionable-phases (get-in room [:game :phase])))
       player)))
 
+(defn explained-bot-action [game player]
+  (if-let [f (ns-resolve 'clojure-card-games.karbosh.bot 'explained-action)]
+    (f game player)
+    (bot/action game player)))
+
 (defn bot-action [room player]
   (binding [bot/*play-strategy* (bot-play-strategy room player)]
-    (bot/explained-action (:game room) player)))
+    (explained-bot-action (:game room) player)))
 
 (defn apply-bot-event [room player event]
   (assoc room :game (game/apply-event (:game room) (assoc event :player player))))
@@ -414,7 +419,7 @@
       (throw (ex-info "Auto-play is not available in this phase"
                       {:phase (:phase game)})))
     (if-let [event (binding [bot/*play-strategy* default-auto-play-strategy]
-                     (bot/explained-action game player))]
+                     (explained-bot-action game player))]
       (apply-bot-event room player event)
       (throw (ex-info "Auto-play could not choose an action"
                       {:phase (:phase game)
