@@ -365,7 +365,16 @@
   (let [old-rooms @server/rooms
         ai {:policy :hybrid-ruff-invite
             :engine :probability-ruff-invite
-            :reason :lead-safe-card}
+            :reason :lead-safe-card
+            :selected {:card [:K :♥]
+                       :score 400
+                       :risk 0.25
+                       :hypergeom {:prob-can-beat 0.25
+                                   :prob-any-higher 0.4
+                                   :prob-higher-follow 0.2
+                                   :higher-unseen 2
+                                   :higher-follow-unseen 1
+                                   :higher-trump-unseen 0}}}
         trick (update completed-trick 0 assoc :ai ai)
         room (-> (room/new-room "ABC123" 9)
                  (room/seat-player :player1 "Dave")
@@ -386,25 +395,35 @@
                         {:request-method :get
                          :uri "/karbosh/admin/rooms/ABC123/snapshot"
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                   "host" "dc3systems.com"}})]
+                                   "host" "dc3systems.com"}})
+              detail-response (server/handler
+                               {:request-method :get
+                                :uri "/karbosh/admin/rooms/ABC123/snapshot/hands/0"
+                                :headers {"host" "dc3systems.com"}})]
           (is (= 200 (:status response)))
           (is (re-find #"text/html" (get-in response [:headers "Content-Type"])))
           (is (re-find #"Room ABC123 History" (:body response)))
-          (is (re-find #"Play by Play" (:body response)))
-          (is (re-find #"AI Policies" (:body response)))
-          (is (re-find #"Hybrid ruff invite" (:body response)))
-          (is (re-find #"Lead safe card" (:body response)))
-          (is (re-find #"Starting Hands" (:body response)))
-          (is (re-find #"starting-hands-strip" (:body response)))
-          (is (re-find #"starting-hand-row" (:body response)))
-          (is (re-find #"Trick 1" (:body response)))
-          (is (re-find #"Winner: player4" (:body response)))
+          (is (re-find #"Hand history" (:body response)))
+          (is (re-find #"Explain" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0\""
+                       (:body response)))
           (is (re-find #"class=\"suit heart\">♥" (:body response)))
           (is (re-find #"\.suit\.heart,\.suit\.diamond" (:body response)))
-          (is (re-find #"\.trick \.card" (:body response)))
-          (is (re-find #"\.compact-list \.card" (:body response)))
-          (is (re-find #"\.starting-hands-strip \.card" (:body response)))
-          (is (re-find #"Raw EDN" (:body response)))))
+          (is (re-find #"Raw EDN" (:body response)))
+          (is (= 200 (:status detail-response)))
+          (is (re-find #"Karbosh hand detail" (:body detail-response)))
+          (is (re-find #"Play by Play" (:body detail-response)))
+          (is (re-find #"AI Policies" (:body detail-response)))
+          (is (re-find #"AI Decisions" (:body detail-response)))
+          (is (re-find #"Hybrid ruff invite" (:body detail-response)))
+          (is (re-find #"Lead safe card" (:body detail-response)))
+          (is (re-find #"P beat" (:body detail-response)))
+          (is (re-find #"0.250" (:body detail-response)))
+          (is (re-find #"Starting Hands" (:body detail-response)))
+          (is (re-find #"starting-hands-strip" (:body detail-response)))
+          (is (re-find #"starting-hand-row" (:body detail-response)))
+          (is (re-find #"Trick 1" (:body detail-response)))
+          (is (re-find #"Winner: player4" (:body detail-response)))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -472,6 +491,10 @@
                                  {:request-method :get
                                   :uri "/karbosh/admin/history/OLD123/17/111/snapshot.edn"
                                   :headers {"host" "dc3systems.com"}})
+              game-hand-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/history/OLD123/17/111/snapshot/hands/0"
+                                   :headers {"host" "dc3systems.com"}})
               room-edn-body (edn/read-string (:body room-edn-response))
               game-edn-body (edn/read-string (:body game-edn-response))]
           (is (= 401 (:status dashboard-response)))
@@ -485,6 +508,8 @@
           (is (re-find #"Room OLD123 History" (:body game-html-response)))
           (is (= 200 (:status game-edn-response)))
           (is (:ok game-edn-body))
+          (is (= 200 (:status game-hand-response)))
+          (is (re-find #"Karbosh hand detail" (:body game-hand-response)))
           (is (= "OLD123" (:room-id game-edn-body)))))
       (finally
         (reset! server/rooms old-rooms)))))
@@ -506,11 +531,25 @@
                               :uri (str "/karbosh/admin/history/ABC123/9/"
                                         timestamp
                                         "/snapshot")
-                              :headers {"host" "dc3systems.com"}})]
+                              :headers {"host" "dc3systems.com"}})
+              room-hand-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/rooms/ABC123/snapshot/hands/0"
+                                   :headers {"host" "dc3systems.com"}})
+              game-hand-response (server/handler
+                                  {:request-method :get
+                                   :uri (str "/karbosh/admin/history/ABC123/9/"
+                                             timestamp
+                                             "/snapshot/hands/0")
+                                   :headers {"host" "dc3systems.com"}})]
           (is (= 200 (:status room-response)))
           (is (re-find #"Room ABC123 History" (:body room-response)))
           (is (= 200 (:status game-response)))
-          (is (re-find #"Room ABC123 History" (:body game-response)))))
+          (is (re-find #"Room ABC123 History" (:body game-response)))
+          (is (= 200 (:status room-hand-response)))
+          (is (re-find #"Karbosh hand detail" (:body room-hand-response)))
+          (is (= 200 (:status game-hand-response)))
+          (is (re-find #"Karbosh hand detail" (:body game-hand-response)))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -652,7 +691,9 @@
               body (edn/read-string (:body edn-response))]
           (is (= 200 (:status html-response)))
           (is (re-find #"Room OLD123 History" (:body html-response)))
-          (is (re-find #"Starting Hands" (:body html-response)))
+          (is (re-find #"Hand history" (:body html-response)))
+          (is (re-find #"href=\"/karbosh/admin/rooms/OLD123/snapshot/hands/0\""
+                       (:body html-response)))
           (is (= 200 (:status edn-response)))
           (is (:ok body))
           (is (:historical? body))

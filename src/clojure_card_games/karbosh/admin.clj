@@ -705,6 +705,36 @@
         (card-html card)
         [:small (str "s" score " r" (compact-number risk))]])]))
 
+(defn ai-hypergeom-html [hypergeom]
+  (when (seq hypergeom)
+    [:dl {:class "ai-hypergeom"}
+     [:div
+      [:dt "P beat"]
+      [:dd (compact-number (:prob-can-beat hypergeom))]]
+     [:div
+      [:dt "P higher"]
+      [:dd (compact-number (:prob-any-higher hypergeom))]]
+     [:div
+      [:dt "P follow higher"]
+      [:dd (compact-number (:prob-higher-follow hypergeom))]]
+     [:div
+      [:dt "Higher unseen"]
+      [:dd (str (or (:higher-unseen hypergeom) 0)
+                " / follow "
+                (or (:higher-follow-unseen hypergeom) 0)
+                " / trump "
+                (or (:higher-trump-unseen hypergeom) 0))]]
+     (when-let [ruff (:prob-void-higher-trump-by-player hypergeom)]
+       [:div
+        [:dt "Ruff risk"]
+        [:dd
+         (if (seq ruff)
+           (str/join ", "
+                     (map (fn [[player p]]
+                            (str (name player) " " (compact-number p)))
+                          ruff))
+           "--")]])]))
+
 (defn ai-decision-html [{:keys [policy engine reason selected candidates]}]
   (when policy
     [:details {:class "ai-decision"}
@@ -716,6 +746,7 @@
       [:div [:span "Selected"] (ai-selected-html selected)]
       [:div [:span "Reason"] [:strong (kw-label reason)]]
       [:div [:span "Engine"] [:strong (kw-label engine)]]
+      (ai-hypergeom-html (:hypergeom selected))
       (ai-candidates-html candidates)]]))
 
 (defn recent-events-html [view events]
@@ -815,6 +846,47 @@
            [:strong (freq-label policies)]
            [:em (str " / " (freq-label engines))]])]])))
 
+(defn ai-decision-row-html [view event]
+  (let [{:keys [policy engine reason selected]} (:ai event)
+        hypergeom (:hypergeom selected)]
+    [:tr
+     (table-cell "Player" (player-label view (:player event)))
+     (table-cell "Event" (kw-label (:type event)))
+     (table-cell "Policy" (kw-label policy))
+     (table-cell "Reason" (kw-label reason))
+     (table-cell "Selected" (ai-selected-html selected))
+     (table-cell "P beat" (compact-number (:prob-can-beat hypergeom)))
+     (table-cell "Higher unseen"
+                 (if hypergeom
+                   (str (or (:higher-unseen hypergeom) 0)
+                        " / "
+                        (or (:higher-follow-unseen hypergeom) 0)
+                        " follow / "
+                        (or (:higher-trump-unseen hypergeom) 0)
+                        " trump")
+                   "--"))
+     (table-cell "Engine" (kw-label engine))]))
+
+(defn ai-decisions-table-html [view hand]
+  (let [events (ai-events hand)]
+    (when (seq events)
+      [:section {:class "ai-decision-table-panel"}
+       [:h3 "AI Decisions"]
+       [:table {:class "admin-table ai-decision-table"}
+        [:thead
+         [:tr
+          [:th "Player"]
+          [:th "Event"]
+          [:th "Policy"]
+          [:th "Reason"]
+          [:th "Selected"]
+          [:th "P beat"]
+          [:th "Higher unseen"]
+          [:th "Engine"]]]
+        [:tbody
+         (for [event events]
+           (ai-decision-row-html view event))]]])))
+
 (defn trick-detail-html [view trump index trick]
   (let [winner (trick-winner trump trick)]
     [:article {:class "trick-detail"}
@@ -873,6 +945,32 @@
    (stat-card "Score" (score-label (:scores-after hand)))
    (stat-card "Seed" (or (some-> hand hand-seed str) "--"))])
 
+(defn hand-detail-url [snapshot-base-url hand]
+  (str snapshot-base-url "/hands/" (:hand-index hand)))
+
+(defn hand-summary-row-html [snapshot-base-url hand]
+  [:a {:class "hand-summary-row"
+       :href (hand-detail-url snapshot-base-url hand)}
+   [:span {:class "hand-summary-title"} (hand-title hand)]
+   [:span (bid-label (:bid hand))]
+   [:span (or (suit-html (:trump hand)) "--")]
+   [:span (str "Tricks " (score-label (:tricks hand)))]
+   [:span (str "Points " (score-label (:points hand)))]
+   [:span (str "Score " (score-label (:scores-after hand)))]
+   [:strong "Explain"]])
+
+(defn hand-summary-list-html [snapshot-base-url hands]
+  [:section {:class "panel hand-summary-panel"}
+   [:div {:class "section-heading"}
+    [:div
+     [:p "Hands"]
+     [:h2 "Hand history"]]]
+   (if (seq hands)
+     [:div {:class "hand-summary-list"}
+      (for [hand hands]
+        (hand-summary-row-html snapshot-base-url hand))]
+     [:p {:class "empty"} "No hands recorded."])])
+
 (defn hand-play-by-play-html [view hand]
   [:section {:class "panel hand-detail"}
    [:div {:class "section-heading"}
@@ -881,6 +979,7 @@
      [:h2 (hand-title hand)]]]
    (hand-stats-html hand)
    (ai-policy-summary-html view hand)
+   (ai-decisions-table-html view hand)
    [:div {:class "two-col"}
     [:section
      [:h3 "Bidding"]
@@ -898,7 +997,27 @@
      [:p {:class "empty"} "No cards have been played."])
    (initial-hands-html view (:initial-hands hand))])
 
-(defn room-snapshot-main [room]
+(defn room-hand [room hand-index]
+  (first (filter #(= hand-index (:hand-index %)) (room-hands room))))
+
+(defn room-hand-detail-main [room hand-index snapshot-base-url]
+  (let [state (:game room)
+        view (game/admin-view state (:seats room))]
+    [:main {:id "admin-main"}
+     [:div {:class "top"}
+      [:div
+       [:p "Karbosh hand detail"]
+       [:h1 (str "Room " (:id room) " Hand " (inc hand-index))]]
+      [:div {:class "admin-actions"}
+       [:a {:href snapshot-base-url} "Room snapshot"]
+       [:a {:href (str snapshot-base-url ".edn")} "Raw EDN"]
+       [:a {:href "/karbosh/"} "Back to game"]]]
+     (if-let [hand (room-hand room hand-index)]
+       (hand-play-by-play-html view hand)
+       [:section {:class "panel"}
+        [:p {:class "empty"} "Hand not found."]])]))
+
+(defn room-snapshot-main [room snapshot-base-url]
   (let [state (:game room)
         view (game/admin-view state (:seats room))
         hands (room-hands room)]
@@ -926,11 +1045,7 @@
        (stat-card "Room seed" (or (some-> (:seed room) str) "--"))]
       [:h3 "Seats"]
       (seats-table view)]
-     (if (seq hands)
-       (for [hand hands]
-         (hand-play-by-play-html view hand))
-       [:section {:class "panel"}
-        [:p {:class "empty"} "No hands recorded."]])]))
+     (hand-summary-list-html snapshot-base-url hands)]))
 
 (def snapshot-styles
   (str
@@ -964,6 +1079,19 @@
    ".ai-candidate.winning{background:rgba(245,200,91,.1)}"
    ".ai-candidate .card{width:20px;min-width:20px;height:28px;margin:0;border-radius:4px;font-size:.62rem}"
    ".ai-candidate small{color:rgba(255,255,255,.48);font-size:.55rem}"
+   ".ai-hypergeom{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:4px;margin:2px 0 0;padding:0}"
+   ".ai-hypergeom div{border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:4px;background:rgba(255,255,255,.035)}"
+   ".ai-hypergeom dt{color:rgba(255,255,255,.42);font-size:.55rem;font-weight:700;text-transform:uppercase}"
+   ".ai-hypergeom dd{margin:0;color:white;font-size:.66rem;font-weight:700}"
+   ".ai-decision-table-panel{margin:0 0 14px}"
+   ".ai-decision-table .ai-selected .card{width:24px;min-width:24px;height:32px;margin:0;border-radius:4px;font-size:.68rem}"
+   ".hand-summary-panel{overflow:hidden}"
+   ".hand-summary-list{display:grid;gap:4px}"
+   ".hand-summary-row{display:grid;grid-template-columns:minmax(74px,1.1fr) minmax(66px,.8fr) minmax(28px,.35fr) minmax(84px,.9fr) minmax(86px,.9fr) minmax(84px,.9fr) minmax(58px,.55fr);gap:8px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:rgba(0,0,0,.12);padding:7px 9px;color:rgba(255,255,255,.76);font-size:.82rem;line-height:1.1;text-decoration:none;white-space:nowrap}"
+   ".hand-summary-row:hover{background:rgba(111,208,199,.1)}"
+   ".hand-summary-title{color:white;font-weight:800}"
+   ".hand-summary-row .suit{font-size:1rem}"
+   ".hand-summary-row strong{color:#6fd0c7;font-size:.66rem;letter-spacing:.08em;text-align:right;text-transform:uppercase}"
    ".starting-hands-strip{display:grid;gap:7px}"
    ".starting-hand-row{display:grid;grid-template-columns:minmax(84px,112px) 1fr;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0}"
    ".starting-hand-row strong{color:rgba(255,255,255,.72);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
@@ -972,11 +1100,27 @@
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}}"))
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;padding:5px 4px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-summary-row strong{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
 
 (declare styles admin-layout-styles admin-card-styles)
 
-(defn render-room-snapshot [room]
+(defn render-room-snapshot
+  ([room]
+   (render-room-snapshot room (str "/karbosh/admin/rooms/" (:id room) "/snapshot")))
+  ([room snapshot-base-url]
+   (str
+    "<!doctype html>"
+    (h/render
+     [:html {:lang "en"}
+      [:head
+       [:meta {:charset "utf-8"}]
+       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+       [:title (str "Karbosh Room " (:id room) " History")]
+       [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
+      [:body
+       (room-snapshot-main room snapshot-base-url)]]))))
+
+(defn render-room-hand-detail [room hand-index snapshot-base-url]
   (str
    "<!doctype html>"
    (h/render
@@ -984,10 +1128,10 @@
      [:head
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title (str "Karbosh Room " (:id room) " History")]
+      [:title (str "Karbosh Room " (:id room) " Hand " (inc hand-index))]
       [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
      [:body
-      (room-snapshot-main room)]])))
+      (room-hand-detail-main room hand-index snapshot-base-url)]])))
 
 (defn selected-room [rooms selected-room-id]
   (or (live-room rooms selected-room-id)

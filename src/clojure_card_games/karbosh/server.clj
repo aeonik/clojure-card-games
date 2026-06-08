@@ -268,6 +268,26 @@
        (decode-query-value
         (subs uri (count prefix) (- (count uri) (count suffix))))))))
 
+(defn parse-hand-index [s]
+  (try
+    (Long/parseLong (str s))
+    (catch Exception _
+      nil)))
+
+(defn admin-room-hand-detail-id [uri]
+  (let [prefix "/karbosh/admin/rooms/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id snapshot hands hand-index & extra]
+            (str/split (subs uri (count prefix)) #"/")]
+        (when (and room-id
+                   (= "snapshot" snapshot)
+                   (= "hands" hands)
+                   hand-index
+                   (nil? extra))
+          (when-let [hand-index (parse-hand-index hand-index)]
+            {:room-id (normalize-room-id (decode-query-value room-id))
+             :hand-index hand-index}))))))
+
 (defn admin-history-path? [uri]
   (= uri "/karbosh/admin/history"))
 
@@ -289,6 +309,27 @@
 
 (defn admin-game-snapshot-edn-id [uri]
   (admin-game-snapshot-path uri "/snapshot.edn"))
+
+(defn admin-game-hand-detail-id [uri]
+  (let [prefix "/karbosh/admin/history/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id seed third fourth fifth sixth & extra]
+            (str/split (subs uri (count prefix)) #"/")
+            timestamp (when-not (= "snapshot" third) third)
+            snapshot (if timestamp fourth third)
+            hands (if timestamp fifth fourth)
+            hand-index (if timestamp sixth fifth)]
+        (when (and room-id
+                   seed
+                   (= "snapshot" snapshot)
+                   (= "hands" hands)
+                   hand-index
+                   (nil? extra))
+          (when-let [hand-index (parse-hand-index hand-index)]
+            (cond-> {:room-id (normalize-room-id (decode-query-value room-id))
+                     :seed (decode-query-value seed)
+                     :hand-index hand-index}
+              timestamp (assoc :timestamp (decode-query-value timestamp)))))))))
 
 (declare start-room-sweeper! install-runtime-handlers! start-nrepl-if-enabled!)
 
@@ -435,6 +476,14 @@
   (or (live-game-record room-id seed timestamp)
       (historical-game-record room-id seed timestamp)))
 
+(defn room-snapshot-url [room-id]
+  (str "/karbosh/admin/rooms/" room-id "/snapshot"))
+
+(defn game-snapshot-url [{:keys [room-id seed timestamp]}]
+  (str "/karbosh/admin/history/" room-id "/" seed
+       (when timestamp (str "/" timestamp))
+       "/snapshot"))
+
 (defn admin-history-response [request]
   (cond
     (not (admin-password))
@@ -469,7 +518,21 @@
 
 (defn admin-game-snapshot-response [request {:keys [room-id seed timestamp]}]
   (if-let [record (game-history-record room-id seed timestamp)]
-    (html-response (admin/render-room-snapshot (:room record)))
+    (html-response (admin/render-room-snapshot
+                    (:room record)
+                    (game-snapshot-url {:room-id room-id
+                                        :seed seed
+                                        :timestamp timestamp})))
+    (response 404 "Game not found")))
+
+(defn admin-game-hand-detail-response
+  [request {:keys [room-id seed timestamp hand-index] :as id}]
+  (if-let [record (game-history-record room-id seed timestamp)]
+    (let [room (:room record)
+          snapshot-url (game-snapshot-url id)]
+      (if (admin/room-hand room hand-index)
+        (html-response (admin/render-room-hand-detail room hand-index snapshot-url))
+        (response 404 "Hand not found")))
     (response 404 "Game not found")))
 
 (defn admin-dashboard-response [request]
@@ -716,9 +779,29 @@
 (defn admin-room-snapshot-response [request room-id]
   (if-let [room (or (get @rooms room-id)
                     (stored-room room-id))]
-    (html-response (admin/render-room-snapshot (audit/sanitize-room room)))
+    (html-response (admin/render-room-snapshot
+                    (audit/sanitize-room room)
+                    (room-snapshot-url room-id)))
     (if-let [record (historical-room-record room-id)]
-      (html-response (admin/render-room-snapshot (:room record)))
+      (html-response (admin/render-room-snapshot
+                      (:room record)
+                      (room-snapshot-url room-id)))
+      (response 404 "Room not found"))))
+
+(defn admin-room-hand-detail-response [request {:keys [room-id hand-index]}]
+  (if-let [room (or (get @rooms room-id)
+                    (stored-room room-id))]
+    (let [room (audit/sanitize-room room)]
+      (if (admin/room-hand room hand-index)
+        (html-response
+         (admin/render-room-hand-detail room hand-index (room-snapshot-url room-id)))
+        (response 404 "Hand not found")))
+    (if-let [record (historical-room-record room-id)]
+      (let [room (:room record)]
+        (if (admin/room-hand room hand-index)
+          (html-response
+           (admin/render-room-hand-detail room hand-index (room-snapshot-url room-id)))
+          (response 404 "Hand not found")))
       (response 404 "Room not found"))))
 
 (defn send-edn! [out message]
@@ -1212,8 +1295,10 @@
   (let [room-preview-id (room-preview-id uri)
         snapshot-room-id (admin-room-snapshot-id uri)
         snapshot-edn-room-id (admin-room-snapshot-edn-id uri)
+        room-hand-detail-id (admin-room-hand-detail-id uri)
         game-snapshot-id (admin-game-snapshot-id uri)
-        game-snapshot-edn-id (admin-game-snapshot-edn-id uri)]
+        game-snapshot-edn-id (admin-game-snapshot-edn-id uri)
+        game-hand-detail-id (admin-game-hand-detail-id uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -1232,11 +1317,17 @@
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
 
+      (and (= request-method :get) game-hand-detail-id)
+      (admin-game-hand-detail-response request game-hand-detail-id)
+
       (and (= request-method :get) game-snapshot-id)
       (admin-game-snapshot-response request game-snapshot-id)
 
       (and (= request-method :get) game-snapshot-edn-id)
       (admin-game-snapshot-edn-response request game-snapshot-edn-id)
+
+      (and (= request-method :get) room-hand-detail-id)
+      (admin-room-hand-detail-response request room-hand-detail-id)
 
       (and (= request-method :get) snapshot-room-id)
       (admin-room-snapshot-response request snapshot-room-id)

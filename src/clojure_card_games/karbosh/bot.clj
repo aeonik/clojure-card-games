@@ -1144,12 +1144,33 @@
       (get hybrid-engines strategy strategy))))
 
 (defn candidate-summary [game player analyses card]
-  {:card card
-   :score (card-score game card)
-   :risk (round-probability (card-risk analyses card))
-   :good? (zero? (card-risk analyses card))
-   :trump? (trump-card? (:trump game) card)
-   :winning? (wins-trick? game player card)})
+  (let [{:keys [higher-unseen
+                higher-follow-unseen
+                higher-trump-unseen
+                prob-pending-opponent-has-higher-card
+                prob-pending-opponent-has-higher-follow-card
+                prob-pending-opponent-void-and-higher-trump
+                prob-pending-opponent-can-beat-card]} (get analyses card)]
+    {:card card
+     :score (card-score game card)
+     :risk (round-probability (card-risk analyses card))
+     :good? (zero? (card-risk analyses card))
+     :trump? (trump-card? (:trump game) card)
+     :winning? (wins-trick? game player card)
+     :hypergeom {:higher-unseen higher-unseen
+                 :higher-follow-unseen higher-follow-unseen
+                 :higher-trump-unseen higher-trump-unseen
+                 :prob-any-higher (round-probability
+                                   prob-pending-opponent-has-higher-card)
+                 :prob-higher-follow (round-probability
+                                      prob-pending-opponent-has-higher-follow-card)
+                 :prob-void-higher-trump-by-player
+                 (into {}
+                       (map (fn [[player p]]
+                              [player (round-probability p)]))
+                       prob-pending-opponent-void-and-higher-trump)
+                 :prob-can-beat (round-probability
+                                 prob-pending-opponent-can-beat-card)}}))
 
 (defn card-reason [game player engine cards analyses card]
   (let [winner (current-trick-winner game)
