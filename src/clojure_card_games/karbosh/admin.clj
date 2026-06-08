@@ -6,6 +6,7 @@
             [clojure-card-games.karbosh.shared.hand-order :as hand-order]
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.room :as room]
+            [clojure-card-games.karbosh.trick-lab :as trick-lab]
             [clojure-card-games.karbosh.hiccup :as h])
   (:import [java.lang.management ManagementFactory]
            [java.time Instant]))
@@ -978,13 +979,19 @@
 (defn trick-anchor [index]
   (str "trick-" (inc index)))
 
-(defn trick-detail-html [view trump index trick]
+(declare trick-analysis-url)
+
+(defn trick-detail-html [view snapshot-base-url hand trump index trick]
   (let [winner (trick-winner trump trick)]
     [:article {:id (trick-anchor index)
                :class "trick-detail"}
      [:div {:class "trick-heading"}
-      [:strong (str "Trick " (inc index))]
-      [:span (str "Winner: " (player-label view winner))]]
+      [:div
+       [:strong (str "Trick " (inc index))]
+       [:span (str "Winner: " (player-label view winner))]]
+      [:a {:class "trick-analysis-link"
+           :href (trick-analysis-url snapshot-base-url hand index)}
+       "Analyze"]]
      [:div {:class "trick"}
       (for [play trick]
         (trick-card-html view trump winner play))]]))
@@ -1047,6 +1054,9 @@
 (defn trick-detail-url [snapshot-base-url hand index]
   (str (hand-detail-url snapshot-base-url hand) "#" (trick-anchor index)))
 
+(defn trick-analysis-url [snapshot-base-url hand index]
+  (str (hand-detail-url snapshot-base-url hand) "/tricks/" index "/analysis"))
+
 (defn current-trick-detail-url [snapshot-base-url hand]
   (str (hand-detail-url snapshot-base-url hand) "#current-trick"))
 
@@ -1103,7 +1113,7 @@
         (hand-summary-card-html view snapshot-base-url hand))]
      [:p {:class "empty"} "No hands recorded."])])
 
-(defn hand-play-by-play-html [view hand]
+(defn hand-play-by-play-html [view snapshot-base-url hand]
   [:section {:class "panel hand-detail"}
    [:div {:class "section-heading"}
     [:div
@@ -1124,7 +1134,7 @@
            (seq (:current-trick hand)))
      [:div {:class "trick-timeline"}
       (for [[index trick] (map-indexed vector (:completed-tricks hand))]
-        (trick-detail-html view (:trump hand) index trick))
+        (trick-detail-html view snapshot-base-url hand (:trump hand) index trick))
       (current-trick-detail-html view (:trump hand) (:current-trick hand))]
      [:p {:class "empty"} "No cards have been played."])
    (initial-hands-html view (:initial-hands hand))])
@@ -1145,9 +1155,196 @@
        [:a {:href (str snapshot-base-url ".edn")} "Raw EDN"]
        [:a {:href "/karbosh/"} "Back to game"]]]
      (if-let [hand (room-hand room hand-index)]
-       (hand-play-by-play-html view hand)
+       (hand-play-by-play-html view snapshot-base-url hand)
        [:section {:class "panel"}
         [:p {:class "empty"} "Hand not found."]])]))
+
+(declare styles admin-layout-styles admin-card-styles snapshot-styles)
+
+(defn rate-label [n total]
+  (if (pos? (or total 0))
+    (format "%.1f%%" (* 100.0 (/ (double n) total)))
+    "--"))
+
+(defn winner-count-label [view winners]
+  (let [[winner n] (first (sort-by (comp - val) winners))]
+    (if winner
+      (str (player-label view winner) " x" n)
+      "--")))
+
+(defn result-by-card [results]
+  (into {} (map (juxt :card identity) results)))
+
+(defn probability-by-card [probabilities]
+  (into {} (map (juxt :card identity) probabilities)))
+
+(defn played-cards-html [view trick winner]
+  [:div {:class "analysis-trick"}
+   (for [{:keys [player card]} trick]
+     [:div {:class (str "analysis-play"
+                        (when (= player winner) " winner"))}
+      [:span (player-label view player)]
+      (card-html card)
+      (when (= player winner)
+        [:strong "Won"])])])
+
+(defn known-result-row-html [view {:keys [card winner winner-team team-wins? trick]}]
+  [:tr
+   (table-cell "Lead" (card-html card))
+   (table-cell "Winner" (player-label view winner))
+   (table-cell "Team" (team-label winner-team))
+   (table-cell "Actor team?" (if team-wins? "Yes" "No"))
+   (table-cell "Policy trick"
+               [:div {:class "analysis-mini-trick"}
+                (for [{:keys [card]} trick]
+                  (card-html card))])])
+
+(defn monte-carlo-row-html [view known-by-card probability-by-card {:keys [card samples team-wins actor-wins winners]}]
+  (let [known (get known-by-card card)
+        probability (get probability-by-card card)
+        hypergeom (get-in probability [:hypergeom])]
+    [:tr
+     (table-cell "Card" (card-html card))
+     (table-cell "Known result"
+                 (str (player-label view (:winner known))
+                      " / "
+                      (team-label (:winner-team known))))
+     (table-cell "Team wins" (rate-label team-wins samples))
+     (table-cell "Actor wins" (rate-label actor-wins samples))
+     (table-cell "Top winner" (winner-count-label view winners))
+     (table-cell "P beat" (probability-label (:prob-can-beat hypergeom)))
+     (table-cell "Higher unseen"
+                 (if hypergeom
+                   (str (or (:higher-unseen hypergeom) 0)
+                        " / "
+                        (or (:higher-follow-unseen hypergeom) 0)
+                        " follow / "
+                        (or (:higher-trump-unseen hypergeom) 0)
+                        " trump")
+                   "--"))]))
+
+(defn monte-carlo-table-html [view analysis]
+  (let [known-by-card (result-by-card (:known-results analysis))
+        probability-by-card (probability-by-card (:probabilities analysis))
+        results (->> (get-in analysis [:monte-carlo :results])
+                     vals
+                     (sort-by (fn [{:keys [samples team-wins]}]
+                                (if (pos? samples)
+                                  (- (/ (double team-wins) samples))
+                                  0))))]
+    [:table {:class "admin-table analysis-table"}
+     [:thead
+      [:tr
+       [:th "Card"]
+       [:th "Known result"]
+       [:th "Team wins"]
+       [:th "Actor wins"]
+       [:th "Top winner"]
+       [:th "P beat"]
+       [:th "Higher unseen"]]]
+     [:tbody
+      (for [result results]
+        (monte-carlo-row-html view known-by-card probability-by-card result))]]))
+
+(defn known-results-table-html [view results]
+  [:table {:class "admin-table analysis-table"}
+   [:thead
+    [:tr
+     [:th "Lead"]
+     [:th "Winner"]
+     [:th "Team"]
+     [:th "Actor team?"]
+     [:th "Policy trick"]]]
+   [:tbody
+    (for [result results]
+      (known-result-row-html view result))]])
+
+(defn analysis-console-form-html [analysis]
+  (let [{:keys [requested-samples seed]} (:monte-carlo analysis)]
+    [:form {:class "analysis-console-form" :method "get"}
+     [:label
+      [:span "Samples"]
+      [:input {:type "number"
+               :name "samples"
+               :min "1"
+               :max (str trick-lab/max-samples)
+               :value (str requested-samples)}]]
+     [:label
+      [:span "Seed"]
+      [:input {:type "number"
+               :name "seed"
+               :value (str seed)}]]
+     [:button {:type "submit"} "Run"]]))
+
+(defn analysis-console-main [room hand-index trick-index snapshot-base-url options]
+  (let [state (:game room)
+        view (game/admin-view state (:seats room))]
+    [:main {:id "admin-main"}
+     [:div {:class "top"}
+      [:div
+       [:p "Karbosh trick lab"]
+       [:h1 (str "Room " (:id room)
+                 " Hand " (inc hand-index)
+                 " Trick " (inc trick-index))]]
+      [:div {:class "admin-actions"}
+       [:a {:href (hand-detail-url snapshot-base-url {:hand-index hand-index})}
+        "Hand detail"]
+       [:a {:href snapshot-base-url} "Room snapshot"]
+       [:a {:href (str snapshot-base-url ".edn")} "Raw EDN"]]]
+     (try
+       (let [{:keys [actor actual trump monte-carlo] :as analysis}
+             (trick-lab/analyze room hand-index trick-index options)]
+         (list
+          [:section {:class "panel analysis-console"}
+           [:div {:class "section-heading"}
+            [:div
+             [:p "Console"]
+             [:h2 "Counterfactual trick analysis"]]]
+           (analysis-console-form-html analysis)
+           [:div {:class "stats room-stats"}
+            (stat-card "Actor" (player-label view actor))
+            (stat-card "Actor team" (team-label (:actor-team analysis)))
+            (stat-card "Trump" (suit-html trump))
+            (stat-card "Actual lead" (card-html (:card actual)))
+            (stat-card "Actual winner" (player-label view (:winner actual)))
+            (stat-card "Samples" (str (:accepted-samples monte-carlo)
+                                      " / "
+                                      (:requested-samples monte-carlo)))
+            (stat-card "Attempts" (str (:attempts monte-carlo)))]
+           [:h3 "Actual trick"]
+           (played-cards-html view (:trick actual) (:winner actual))]
+          [:section {:class "panel analysis-console"}
+           [:div {:class "section-heading"}
+            [:div
+             [:p "Known cards"]
+             [:h2 "Policy finish from exact hands"]]]
+           (known-results-table-html view (:known-results analysis))]
+          [:section {:class "panel analysis-console"}
+           [:div {:class "section-heading"}
+            [:div
+             [:p "Hidden worlds"]
+             [:h2 "Monte Carlo by legal lead"]]]
+           (monte-carlo-table-html view analysis)]))
+       (catch Exception e
+         [:section {:class "panel"}
+          [:p {:class "empty"} (.getMessage e)]]))]))
+
+(defn render-trick-analysis [room hand-index trick-index snapshot-base-url options]
+  (str
+   "<!doctype html>"
+   (h/render
+    [:html {:lang "en"}
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+      [:title (str "Karbosh Trick Lab " (:id room))]
+      [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
+     [:body
+      (analysis-console-main room
+                             hand-index
+                             trick-index
+                             snapshot-base-url
+                             options)]])))
 
 (defn room-snapshot-main [room snapshot-base-url]
   (let [state (:game room)
@@ -1258,12 +1455,25 @@
    ".trick-chip:hover{border-color:rgba(111,208,199,.45);background:rgba(111,208,199,.1)}"
    ".trick-chip strong{color:#f5c85b;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase}"
    ".trick-chip.current strong{color:#6fd0c7}"
+   ".trick-analysis-link{display:inline-flex;align-items:center;border:1px solid rgba(111,208,199,.35);border-radius:999px;background:rgba(111,208,199,.09);color:#6fd0c7;font-size:.58rem;font-weight:900;letter-spacing:.08em;line-height:1;padding:5px 8px;text-decoration:none;text-transform:uppercase}"
+   ".trick-analysis-link:hover{background:rgba(111,208,199,.16);border-color:rgba(111,208,199,.55)}"
+   ".analysis-console{overflow-x:auto}"
+   ".analysis-console-form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:0 0 12px}"
+   ".analysis-console-form label{display:grid;gap:4px;color:rgba(255,255,255,.55);font-size:.62rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
+   ".analysis-console-form input{width:118px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(0,0,0,.18);color:white;font:inherit;font-size:.78rem;line-height:1;padding:7px}"
+   ".analysis-console-form button{border:1px solid rgba(111,208,199,.42);border-radius:6px;background:rgba(111,208,199,.14);color:#bdf4ef;font-size:.68rem;font-weight:900;letter-spacing:.08em;line-height:1;padding:9px 12px;text-transform:uppercase}"
+   ".analysis-trick,.analysis-mini-trick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}"
+   ".analysis-play{display:grid;grid-template-columns:minmax(70px,1fr) auto auto;gap:6px;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(255,255,255,.04);padding:6px}"
+   ".analysis-play.winner{border-color:rgba(245,200,91,.5);background:rgba(245,200,91,.1)}"
+   ".analysis-play span{color:rgba(255,255,255,.68);font-size:.64rem;font-weight:800;line-height:1.1}"
+   ".analysis-play strong{color:#f5c85b;font-size:.54rem;letter-spacing:.08em;text-transform:uppercase}"
+   ".analysis-table .card,.analysis-mini-trick .card{width:26px;min-width:26px;height:34px;margin:0;border-radius:4px;font-size:.72rem}"
    ".starting-hands-strip{display:grid;gap:7px}"
    ".starting-hands-strip .card{width:24px;min-width:24px;height:32px;margin:0;padding:0;border-radius:4px;font-size:.68rem}"
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.trick-detail{padding:7px}.trick-detail .trick{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.trick-detail .trick-card{padding:5px}.trick-card .play-player{font-size:.6rem;margin-bottom:3px}.trick-card strong{font-size:.48rem}.ai-policy-grid{grid-template-columns:1fr;gap:5px}.ai-policy-card{padding:6px}.ai-policy-card h4{font-size:.62rem;margin-bottom:5px}.ai-policy-columns{gap:5px}.ai-policy-chip{font-size:.5rem;padding:3px 5px}.ai-policy-chip strong{font-size:.48rem}.ai-decision{margin-top:5px;border-radius:5px}.ai-decision-summary{gap:4px;padding:5px}.ai-badge{min-width:22px;font-size:.46rem}.ai-summary-text strong{font-size:.55rem}.ai-summary-text em{font-size:.48rem}.ai-decision-body{gap:5px;padding:5px;font-size:.56rem}.ai-facts{grid-template-columns:1fr;gap:4px}.ai-fact,.ai-hypergeom div{padding:4px}.ai-fact>span,.ai-subhead,.ai-hypergeom dt{font-size:.45rem;letter-spacing:.04em}.ai-fact>strong,.ai-hypergeom dd{font-size:.56rem}.ai-selected{gap:3px}.ai-selected .card{width:20px;min-width:20px;height:28px;font-size:.58rem}.ai-pill{font-size:.46rem;padding:2px 4px}.ai-hypergeom{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.ai-candidates{gap:3px}.ai-candidate{gap:3px;padding:2px}.ai-candidate .card{width:18px;min-width:18px;height:25px;font-size:.54rem}.ai-candidate small{font-size:.46rem}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:4px}.trick-detail{padding:7px}.trick-detail .trick{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.trick-detail .trick-card{padding:5px}.trick-card .play-player{font-size:.6rem;margin-bottom:3px}.trick-card strong{font-size:.48rem}.trick-analysis-link{font-size:.5rem;padding:4px 6px}.analysis-console-form{gap:6px}.analysis-console-form input{width:88px;padding:6px}.analysis-console-form button{padding:8px 10px}.analysis-play{grid-template-columns:minmax(54px,1fr) auto;gap:4px}.analysis-play strong{grid-column:1/-1}.analysis-table{font-size:clamp(.48rem,1.65vw,.62rem)}.analysis-table .card,.analysis-mini-trick .card{width:20px;min-width:20px;height:27px;font-size:.56rem}.ai-policy-grid{grid-template-columns:1fr;gap:5px}.ai-policy-card{padding:6px}.ai-policy-card h4{font-size:.62rem;margin-bottom:5px}.ai-policy-columns{gap:5px}.ai-policy-chip{font-size:.5rem;padding:3px 5px}.ai-policy-chip strong{font-size:.48rem}.ai-decision{margin-top:5px;border-radius:5px}.ai-decision-summary{gap:4px;padding:5px}.ai-badge{min-width:22px;font-size:.46rem}.ai-summary-text strong{font-size:.55rem}.ai-summary-text em{font-size:.48rem}.ai-decision-body{gap:5px;padding:5px;font-size:.56rem}.ai-facts{grid-template-columns:1fr;gap:4px}.ai-fact,.ai-hypergeom div{padding:4px}.ai-fact>span,.ai-subhead,.ai-hypergeom dt{font-size:.45rem;letter-spacing:.04em}.ai-fact>strong,.ai-hypergeom dd{font-size:.56rem}.ai-selected{gap:3px}.ai-selected .card{width:20px;min-width:20px;height:28px;font-size:.58rem}.ai-pill{font-size:.46rem;padding:2px 4px}.ai-hypergeom{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.ai-candidates{gap:3px}.ai-candidate{gap:3px;padding:2px}.ai-candidate .card{width:18px;min-width:18px;height:25px;font-size:.54rem}.ai-candidate small{font-size:.46rem}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
 
 (declare styles admin-layout-styles admin-card-styles)
 

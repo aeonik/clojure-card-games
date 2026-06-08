@@ -288,6 +288,25 @@
             {:room-id (normalize-room-id (decode-query-value room-id))
              :hand-index hand-index}))))))
 
+(defn admin-room-trick-analysis-id [uri]
+  (let [prefix "/karbosh/admin/rooms/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id snapshot hands hand-index tricks trick-index analysis & extra]
+            (str/split (subs uri (count prefix)) #"/")]
+        (when (and room-id
+                   (= "snapshot" snapshot)
+                   (= "hands" hands)
+                   hand-index
+                   (= "tricks" tricks)
+                   trick-index
+                   (= "analysis" analysis)
+                   (nil? extra))
+          (when-let [hand-index (parse-hand-index hand-index)]
+            (when-let [trick-index (parse-hand-index trick-index)]
+              {:room-id (normalize-room-id (decode-query-value room-id))
+               :hand-index hand-index
+               :trick-index trick-index})))))))
+
 (defn admin-history-path? [uri]
   (= uri "/karbosh/admin/history"))
 
@@ -330,6 +349,35 @@
                      :seed (decode-query-value seed)
                      :hand-index hand-index}
               timestamp (assoc :timestamp (decode-query-value timestamp)))))))))
+
+(defn admin-game-trick-analysis-id [uri]
+  (let [prefix "/karbosh/admin/history/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id seed third fourth fifth sixth seventh eighth ninth & extra]
+            (str/split (subs uri (count prefix)) #"/")
+            timestamp (when-not (= "snapshot" third) third)
+            snapshot (if timestamp fourth third)
+            hands (if timestamp fifth fourth)
+            hand-index (if timestamp sixth fifth)
+            tricks (if timestamp seventh sixth)
+            trick-index (if timestamp eighth seventh)
+            analysis (if timestamp ninth eighth)]
+        (when (and room-id
+                   seed
+                   (= "snapshot" snapshot)
+                   (= "hands" hands)
+                   hand-index
+                   (= "tricks" tricks)
+                   trick-index
+                   (= "analysis" analysis)
+                   (nil? extra))
+          (when-let [hand-index (parse-hand-index hand-index)]
+            (when-let [trick-index (parse-hand-index trick-index)]
+              (cond-> {:room-id (normalize-room-id (decode-query-value room-id))
+                       :seed (decode-query-value seed)
+                       :hand-index hand-index
+                       :trick-index trick-index}
+                timestamp (assoc :timestamp (decode-query-value timestamp))))))))))
 
 (declare start-room-sweeper! install-runtime-handlers! start-nrepl-if-enabled!)
 
@@ -532,6 +580,21 @@
           snapshot-url (game-snapshot-url id)]
       (if (admin/room-hand room hand-index)
         (html-response (admin/render-room-hand-detail room hand-index snapshot-url))
+        (response 404 "Hand not found")))
+    (response 404 "Game not found")))
+
+(defn admin-game-trick-analysis-response
+  [request {:keys [room-id seed timestamp hand-index trick-index] :as id}]
+  (if-let [record (game-history-record room-id seed timestamp)]
+    (let [room (:room record)
+          snapshot-url (game-snapshot-url id)]
+      (if (admin/room-hand room hand-index)
+        (html-response
+         (admin/render-trick-analysis room
+                                      hand-index
+                                      trick-index
+                                      snapshot-url
+                                      (query-params (:query-string request))))
         (response 404 "Hand not found")))
     (response 404 "Game not found")))
 
@@ -801,6 +864,31 @@
         (if (admin/room-hand room hand-index)
           (html-response
            (admin/render-room-hand-detail room hand-index (room-snapshot-url room-id)))
+          (response 404 "Hand not found")))
+      (response 404 "Room not found"))))
+
+(defn admin-room-trick-analysis-response
+  [request {:keys [room-id hand-index trick-index]}]
+  (if-let [room (or (get @rooms room-id)
+                    (stored-room room-id))]
+    (let [room (audit/sanitize-room room)]
+      (if (admin/room-hand room hand-index)
+        (html-response
+         (admin/render-trick-analysis room
+                                      hand-index
+                                      trick-index
+                                      (room-snapshot-url room-id)
+                                      (query-params (:query-string request))))
+        (response 404 "Hand not found")))
+    (if-let [record (historical-room-record room-id)]
+      (let [room (:room record)]
+        (if (admin/room-hand room hand-index)
+          (html-response
+           (admin/render-trick-analysis room
+                                        hand-index
+                                        trick-index
+                                        (room-snapshot-url room-id)
+                                        (query-params (:query-string request))))
           (response 404 "Hand not found")))
       (response 404 "Room not found"))))
 
@@ -1296,9 +1384,11 @@
         snapshot-room-id (admin-room-snapshot-id uri)
         snapshot-edn-room-id (admin-room-snapshot-edn-id uri)
         room-hand-detail-id (admin-room-hand-detail-id uri)
+        room-trick-analysis-id (admin-room-trick-analysis-id uri)
         game-snapshot-id (admin-game-snapshot-id uri)
         game-snapshot-edn-id (admin-game-snapshot-edn-id uri)
-        game-hand-detail-id (admin-game-hand-detail-id uri)]
+        game-hand-detail-id (admin-game-hand-detail-id uri)
+        game-trick-analysis-id (admin-game-trick-analysis-id uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -1317,6 +1407,9 @@
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
 
+      (and (= request-method :get) game-trick-analysis-id)
+      (admin-game-trick-analysis-response request game-trick-analysis-id)
+
       (and (= request-method :get) game-hand-detail-id)
       (admin-game-hand-detail-response request game-hand-detail-id)
 
@@ -1325,6 +1418,9 @@
 
       (and (= request-method :get) game-snapshot-edn-id)
       (admin-game-snapshot-edn-response request game-snapshot-edn-id)
+
+      (and (= request-method :get) room-trick-analysis-id)
+      (admin-room-trick-analysis-response request room-trick-analysis-id)
 
       (and (= request-method :get) room-hand-detail-id)
       (admin-room-hand-detail-response request room-hand-detail-id)
