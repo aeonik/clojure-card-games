@@ -1090,6 +1090,26 @@
     (is (not-any? #(= "ROOM00" (:room-id %)) latest))
     (is (not-any? #(= "ROOM01" (:room-id %)) latest))))
 
+(deftest admin-history-stats-count-games-inside-rooms-test
+  (let [previous (completed-room "MULTI1" 101)
+        current (completed-room "MULTI1" 202)
+        room (assoc current
+                    :games [{:game (:game previous)
+                             :ended-reason :completed
+                             :completed-at 111}])
+        records [{:room-id "MULTI1"
+                  :logged-at 222
+                  :type :room-durable
+                  :room room}]
+        stats (into {} (map (juxt :label :value) (admin/historical-stats records)))
+        trends (into {} (map (juxt :bid identity) (admin/bid-trends records)))]
+    (is (= 1 (get stats "Rooms shown")))
+    (is (= 2 (get stats "Games")))
+    (is (= 2 (get stats "Completed games")))
+    (is (= 2 (get stats "Total hands")))
+    (is (= 2 (get-in trends ["Bid 4" :attempts])))
+    (is (= 2 (get-in trends ["Bid 4" :made])))))
+
 (deftest admin-dashboard-stream-html-skips-archive-scan-test
   (with-redefs [server/historical-room-records
                 (fn []

@@ -219,10 +219,27 @@
 (defn room-record-room [record]
   (:room record))
 
+(defn game-hand-history [game]
+  (vec (:hand-history game)))
+
+(defn room-games [room]
+  (->> (conj (mapv :game (:games room)) (:game room))
+       (filter some?)))
+
+(defn game-played? [game]
+  (seq (game-hand-history game)))
+
+(defn completed-game? [game]
+  (= :game-over (:phase game)))
+
+(defn room-record-hands [room]
+  (mapcat game-hand-history (room-games room)))
+
 (defn room-hand-count [room]
-  (+ (count (get-in room [:game :hand-history]))
-     (reduce + (map #(count (get-in % [:game :hand-history]))
-                    (:games room)))))
+  (count (room-record-hands room)))
+
+(defn room-game-count [room]
+  (count (filter game-played? (room-games room))))
 
 (defn room-played? [room]
   (pos? (room-hand-count room)))
@@ -241,12 +258,15 @@
 
 (defn historical-stats [records]
   (let [rooms (map room-record-room records)
-        games (filter #(= :game-over (get-in % [:game :phase])) rooms)
+        games (mapcat room-games rooms)
+        played-games (filter game-played? games)
+        completed-games (filter completed-game? played-games)
         hands (reduce + (map room-hand-count rooms))
-        winners (frequencies (keep room-winner games))
+        winners (frequencies (keep :winner completed-games))
         room-count (count rooms)]
     [{:label "Rooms shown" :value room-count}
-     {:label "Completed games" :value (count games)}
+     {:label "Games" :value (count played-games)}
+     {:label "Completed games" :value (count completed-games)}
      {:label "Total hands" :value hands}
      {:label "Avg hands" :value (if (pos? room-count)
                                   (format "%.1f" (/ (double hands) room-count))
@@ -275,7 +295,7 @@
        (map room-record-room)
        (mapcat (fn [room]
                  (keep #(bid-outcome room %)
-                       (get-in room [:game :hand-history]))))
+                       (room-record-hands room))))
        (group-by :bid)
        (map (fn [[bid outcomes]]
               (let [attempts (count outcomes)
@@ -326,6 +346,7 @@
      (table-cell "Phase" (kw-label (:phase state)))
      (table-cell "Score" (score-label (:scores state)))
      (table-cell "Winner" (or (some-> room room-winner team-label) "--"))
+     (table-cell "Games" (room-game-count room))
      (table-cell "Hands" (room-hand-count room))
      (table-cell "Last event" (kw-label (:type record)))
      (table-cell "Last seen" (time-label (:logged-at record)))
@@ -343,6 +364,7 @@
        [:th "Phase"]
        [:th "Score"]
        [:th "Winner"]
+       [:th "Games"]
        [:th "Hands"]
        [:th "Last event"]
        [:th "Last seen"]
@@ -364,13 +386,12 @@
      [:div {:class "stats room-stats"}
       (for [metric (historical-stats records)]
         (stat-card (:label metric) (:value metric)))]
-     [:div {:class "two-col"}
-      [:section
-       [:h3 "Bid trends"]
-       (bid-trends-table records)]
-      [:section
-       [:h3 "Last 10 rooms"]
-       (historical-rooms-table records)]]]))
+     [:section
+      [:h3 "Last 10 rooms"]
+      (historical-rooms-table records)]
+     [:section
+      [:h3 "Bid trends"]
+      (bid-trends-table records)]]))
 
 (defn historical-panel-placeholder []
   [:section {:id "admin-history-panel" :class "panel"}
