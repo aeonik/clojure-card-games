@@ -2274,15 +2274,18 @@ input {
   margin-top: 1rem;
 }
 
+.recent-rooms-panel,
 .public-rooms-panel {
   min-height: 13rem;
 }
 
+.recent-room-list,
 .public-room-list {
   display: grid;
   gap: 0.55rem;
 }
 
+.recent-room-row,
 .public-room-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
@@ -2294,12 +2297,22 @@ input {
   padding: 0.6rem;
 }
 
+.recent-room-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.recent-room-row strong,
+.recent-room-row span,
+.recent-room-row em,
 .public-room-row strong,
 .public-room-row span,
 .public-room-row em {
   display: block;
 }
 
+.recent-room-row span,
+.recent-room-row em,
+.recent-rooms-empty,
 .public-room-row span,
 .public-room-row em,
 .public-rooms-empty {
@@ -2309,6 +2322,28 @@ input {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.recent-room-row strong,
+.public-room-row strong {
+  overflow-wrap: anywhere;
+}
+
+.recent-room-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.recent-room-actions button {
+  min-height: 2.25rem;
+  padding: 0 0.65rem;
+}
+
+.recent-room-actions .recent-room-forget {
+  border-color: rgba(255, 154, 168, 0.48);
+  color: rgba(255, 230, 234, 0.9);
 }
 
 .public-room-row button {
@@ -2458,13 +2493,20 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .recent-room-row,
   .public-room-row {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
 
+  .recent-room-actions,
+  .recent-room-row button,
   .public-room-row button {
     width: 100%;
+  }
+
+  .recent-room-actions {
+    justify-content: stretch;
   }
 
   .trick-row {

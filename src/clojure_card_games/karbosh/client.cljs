@@ -7,6 +7,8 @@
             [clojure-card-games.karbosh.hiccup :as h]))
 
 (def fast-mode-storage-key "karbosh-fast-mode")
+(def room-history-storage-key "karbosh-room-history")
+(def max-room-history 10)
 
 (def normal-timings
   {:play-animation 1150
@@ -234,11 +236,6 @@
         protocol (if (= "https:" (.-protocol js/location)) "wss://" "ws://")]
     (or explicit (str protocol (.-host js/location) "/karbosh/ws"))))
 
-(defn save-session! [room-id player name]
-  (.setItem js/localStorage "karbosh-room" room-id)
-  (.setItem js/localStorage "karbosh-player" (kw-name player))
-  (.setItem js/localStorage "karbosh-name" name))
-
 (defn send! [message]
   (when-let [socket (:socket @app)]
     (when (= (.-readyState socket) js/WebSocket.OPEN)
@@ -266,6 +263,111 @@
   (let [p (.getItem js/localStorage "karbosh-player")]
     (when-not (str/blank? p) (keyword p))))
 
+(defn stored-player-name []
+  (let [n (.getItem js/localStorage "karbosh-name")]
+    (when-not (str/blank? n) n)))
+
+(defn local-storage-read [k]
+  (try
+    (.getItem js/localStorage k)
+    (catch :default _
+      nil)))
+
+(defn local-storage-write! [k value]
+  (try
+    (.setItem js/localStorage k value)
+    (catch :default _
+      nil)))
+
+(defn local-storage-remove! [k]
+  (try
+    (.removeItem js/localStorage k)
+    (catch :default _
+      nil)))
+
+(defn normalize-room-history-entry [entry]
+  (let [room-id (some-> (:room-id entry) str str/trim str/upper-case)
+        player (:player entry)
+        player (cond
+                 (keyword? player) player
+                 (str/blank? (str player)) nil
+                 :else (keyword player))
+        name (some-> (:name entry) str str/trim)
+        updated-at (:updated-at entry)]
+    (when-not (str/blank? room-id)
+      (cond-> {:room-id room-id
+               :updated-at (if (number? updated-at) updated-at 0)}
+        player (assoc :player player)
+        (not (str/blank? name)) (assoc :name name)))))
+
+(defn room-history-from-storage []
+  (try
+    (let [raw (local-storage-read room-history-storage-key)
+          value (when-not (str/blank? raw)
+                  (reader/read-string raw))]
+      (->> (if (sequential? value) value [])
+           (keep normalize-room-history-entry)
+           vec))
+    (catch :default _
+      [])))
+
+(defn legacy-room-history-entry []
+  (when-let [room-id (stored-room-id)]
+    (normalize-room-history-entry
+     {:room-id room-id
+      :player (stored-player)
+      :name (stored-player-name)
+      :updated-at 0})))
+
+(defn dedupe-room-history [entries]
+  (->> entries
+       (keep normalize-room-history-entry)
+       (reduce (fn [by-room entry]
+                 (let [k (:room-id entry)
+                       existing (get by-room k)]
+                   (if (>= (:updated-at entry)
+                           (or (:updated-at existing) -1))
+                     (assoc by-room k entry)
+                     by-room)))
+               {})
+       vals
+       (sort-by :updated-at >)
+       (take max-room-history)
+       vec))
+
+(defn stored-room-history []
+  (let [legacy (legacy-room-history-entry)]
+    (dedupe-room-history
+     (cond-> (room-history-from-storage)
+       legacy (conj legacy)))))
+
+(defn persist-room-history! [entries]
+  (local-storage-write! room-history-storage-key
+                        (pr-str (dedupe-room-history entries))))
+
+(defn remember-room! [room-id player name]
+  (let [entry {:room-id room-id
+               :player player
+               :name name
+               :updated-at (.now js/Date)}]
+    (persist-room-history! (cons entry (stored-room-history)))))
+
+(declare render-recent-rooms!)
+
+(defn forget-room! [room-id]
+  (persist-room-history!
+   (remove #(same-room-id? room-id (:room-id %)) (stored-room-history)))
+  (when (same-room-id? room-id (stored-room-id))
+    (local-storage-remove! "karbosh-room")
+    (local-storage-remove! "karbosh-player"))
+  (render-recent-rooms!))
+
+(defn save-session! [room-id player name]
+  (local-storage-write! "karbosh-room" room-id)
+  (local-storage-write! "karbosh-player" (kw-name player))
+  (local-storage-write! "karbosh-name" name)
+  (remember-room! room-id player name))
+
 (defn player-name []
   (let [input (el "player-name")
         value (str/trim (.-value input))]
@@ -291,8 +393,8 @@
     (.replaceState js/history nil "" (.-href url))))
 
 (defn clear-session! []
-  (.removeItem js/localStorage "karbosh-room")
-  (.removeItem js/localStorage "karbosh-player"))
+  (local-storage-remove! "karbosh-room")
+  (local-storage-remove! "karbosh-player"))
 
 (defn render-status! []
   (let [{:keys [connected? room-id player error]} @app]
@@ -400,6 +502,56 @@
              :data-public-room room-id}
     "Join"]])
 
+(defn recent-room-time-label [updated-at]
+  (if (and (number? updated-at) (pos? updated-at))
+    (.toLocaleString (js/Date. updated-at))
+    "Recent"))
+
+(defn recent-room-seat-label [{:keys [player name]}]
+  (cond
+    (and player (not (str/blank? name)))
+    (str name " / " (kw-name player))
+
+    player
+    (kw-name player)
+
+    (not (str/blank? name))
+    name
+
+    :else
+    "Choose a seat"))
+
+(defn recent-room-html [{:keys [room-id player name updated-at] :as entry}]
+  [:article {:class "recent-room-row"}
+   [:div
+    [:strong room-id]
+    [:span (recent-room-seat-label entry)]]
+   [:em (recent-room-time-label updated-at)]
+   [:div {:class "recent-room-actions"}
+    (when player
+      [:button {:type "button"
+                :data-recent-resume room-id
+                :data-recent-player (kw-name player)
+                :data-recent-name (or name "")}
+       "Resume"])
+    [:button {:type "button"
+              :data-recent-choose room-id}
+     "Choose Seat"]
+    [:button {:type "button"
+              :class "recent-room-forget"
+              :data-recent-forget room-id}
+     "Forget"]]])
+
+(defn render-recent-rooms! []
+  (when-let [root (el "recent-rooms-root")]
+    (let [rooms (stored-room-history)]
+      (html! root
+             (if (seq rooms)
+               [:div {:class "recent-room-list"}
+                (for [room rooms]
+                  (recent-room-html room))]
+               [:p {:class "recent-rooms-empty"} "No recent rooms."])))))
+
 (defn render-public-rooms! []
   (when-let [root (el "public-rooms-root")]
     (let [{:keys [loading? rooms error]} (:public-rooms @app)]
@@ -417,6 +569,12 @@
 
                  :else
                  [:p {:class "public-rooms-empty"} "No public rooms."])))))
+
+(defn resume-recent-room! [room-id player name]
+  (when-not (str/blank? name)
+    (set! (.-value (el "player-name")) name))
+  (set! (.-value (el "join-room-id")) room-id)
+  (join-room! room-id player))
 
 (defn render-join-modal! []
   (let [{:keys [room-id loading? preview player error]} (:join-modal @app)]
@@ -1263,7 +1421,8 @@
          :error message)
   (render-status!)
   (render-game!)
-  (render-join-modal!))
+  (render-join-modal!)
+  (render-recent-rooms!))
 
 (defn handle-server-message! [raw]
   (let [message (reader/read-string raw)]
@@ -1593,9 +1752,30 @@
     (.addEventListener public-root "click"
                        (fn [event]
                          (let [target (.-target event)]
-                           (when (.hasAttribute target "data-public-room")
+                           (when-let [room-target (closest target "[data-public-room]")]
                              (prepare-shared-room!
-                              (.getAttribute target "data-public-room")))))))
+                              (.getAttribute room-target "data-public-room")))))))
+  (when-let [recent-root (el "recent-rooms-root")]
+    (.addEventListener recent-root "click"
+                       (fn [event]
+                         (let [target (.-target event)
+                               resume-target (closest target "[data-recent-resume]")
+                               choose-target (closest target "[data-recent-choose]")
+                               forget-target (closest target "[data-recent-forget]")]
+                           (cond
+                             resume-target
+                             (resume-recent-room!
+                              (.getAttribute resume-target "data-recent-resume")
+                              (keyword (.getAttribute resume-target "data-recent-player"))
+                              (.getAttribute resume-target "data-recent-name"))
+
+                             choose-target
+                             (prepare-shared-room!
+                              (.getAttribute choose-target "data-recent-choose"))
+
+                             forget-target
+                             (forget-room!
+                              (.getAttribute forget-target "data-recent-forget")))))))
   (.addEventListener (el "copy-link") "click"
                      (fn []
                        (when-let [text (not-empty (.-textContent (el "share-link")))]
@@ -1792,6 +1972,7 @@
   (bind-controls!)
   (render-status!)
   (render-game!)
+  (render-recent-rooms!)
   (render-public-rooms!)
   (load-public-rooms!)
   (js/setInterval load-public-rooms! 8000)
@@ -1801,6 +1982,6 @@
       (restore-saved-room! room)
       (prepare-shared-room! room))
     (when-let [room (stored-room-id)]
-      (restore-saved-room! room))))
+      (set! (.-value (el "join-room-id")) room))))
 
 (set! (.-onload js/window) init!)
