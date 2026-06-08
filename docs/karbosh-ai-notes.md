@@ -20,12 +20,35 @@
   - Trick 2 candidate risks from player1's view:
     `Q♣ 99.8%`, `10♣ 99.9%`, `K♦ 89.6%`, `Q♦ 96.2%`,
     `Q♥ 98.4%`, `10♦ 99.9%`, `9♠ 100%`.
+  - Exact continuation with actual hidden hands and current bot policies:
+    `Q♥` and `9♠` win the trick for team 1; `10♦`, `10♣`, `Q♦`,
+    `K♦`, and `Q♣` lose the trick to team 2.
+  - Single-trick Monte Carlo from the post-trick-1 state, keeping player1 and
+    player6 hands fixed, randomizing player2-player5 hands, and rejecting
+    player5 hands with clubs because player5 threw off on the club-led first
+    trick:
+
+    | Lead | Team 1 trick win rate | Main winners |
+    | --- | ---: | --- |
+    | `9♠` | 36.88% | player2 47.35%, player3 32.62%, player4 15.78% |
+    | `Q♥` | 36.81% | player2 46.26%, player3 31.47%, player4 16.93% |
+    | `10♣` | 33.35% | player2 33.19%, player3 33.35%, player4 33.47% |
+    | `Q♣` | 33.35% | player2 33.19%, player3 33.35%, player4 33.47% |
+    | `10♦` | 1.18% | player2 46.99%, player6 35.10%, player4 16.74% |
+    | `Q♦` | 0.88% | player2 46.99%, player6 34.19%, player4 17.95% |
+    | `K♦` | 0.64% | player2 46.38%, player6 33.19%, player4 19.80% |
+
+    The history-consistent hidden-hand space is still about
+    191,834,371,872,000 ordered deals, so this was sampled rather than
+    exhaustively enumerated.
   - Read: the current preservation lead formula preferred `Q♣` because its
     score-risk value beat the off-suit exits, but this is strategically
     questionable for a defender after taking the first trick in opponent-made
-    trump. Study whether defender lead policy should avoid vulnerable trump
-    leads unless they are safe, intentionally pulling trump, or materially
-    better in rollout/PIMC evaluation.
+    trump. The one-trick sampled result says `Q♣` was materially worse than
+    the best off-suit exits, but not a disaster relative to `10♣`; diamonds
+    were clearly poor exits. Study whether defender lead policy should avoid
+    vulnerable trump leads unless they are safe, intentionally pulling trump,
+    or materially better in rollout/PIMC evaluation.
 
 ## 2026-06-05 Lead Policy
 
