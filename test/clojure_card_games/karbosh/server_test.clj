@@ -380,6 +380,9 @@
                  (room/seat-player :player1 "Dave")
                  (assoc-in [:game :phase] :trick-playing)
                  (assoc-in [:game :trump] :♥)
+                 (assoc-in [:game :initial-hands :player1]
+                           [[:A :♣] [9 :♣] [:J :♦] [:K :♠]
+                            [10 :♥] [:A :♥] [9 :♦] [:Q :♣]])
                  (assoc-in [:game :completed-tricks] [trick])
                  (assoc-in [:game :history]
                            (mapv #(assoc % :type :play-card) trick))
@@ -406,6 +409,8 @@
           (is (re-find #"Hand history" (:body response)))
           (is (re-find #"Starting hands" (:body response)))
           (is (re-find #"starting-hands-strip" (:body response)))
+          (is (< (.indexOf (:body response) "J♦")
+                 (.indexOf (:body response) "A♣")))
           (is (re-find #"Explain" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0\""
                        (:body response)))

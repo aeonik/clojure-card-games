@@ -3,6 +3,7 @@
             [clojure-card-games.karbosh.bot :as bot]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.shared.hand-order :as hand-order]
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.hiccup :as h])
@@ -922,14 +923,17 @@
         [:span (bid-label bid)]])]
     [:p {:class "empty"} "No bids recorded."]))
 
-(defn compact-starting-hands-html [view hands]
+(defn sorted-cards-html [cards trump]
+  (cards-html (hand-order/sorted-hand cards trump)))
+
+(defn compact-starting-hands-html [view hands trump]
   (if (seq hands)
     [:div {:class "starting-hands-strip"}
      (for [{:keys [id]} (:players view)]
        [:div {:class "starting-hand-row"}
-        [:strong (player-label view id)]
+        [:h4 (player-label view id)]
         [:div {:class "starting-hand-cards"}
-         (cards-html (get hands id))]])]
+         (sorted-cards-html (get hands id) trump)]])]
     [:p {:class "empty"} "No starting hands recorded."]))
 
 (defn initial-hands-html [view hands]
@@ -997,7 +1001,7 @@
    (hand-summary-row-html snapshot-base-url hand)
    [:div {:class "hand-summary-hands"}
     [:div {:class "hand-summary-subhead"} "Starting hands"]
-    (compact-starting-hands-html view (:initial-hands hand))]
+    (compact-starting-hands-html view (:initial-hands hand) (:trump hand))]
    (compact-trick-links-html view snapshot-base-url hand)])
 
 (defn hand-summary-list-html [view snapshot-base-url hands]
@@ -1027,7 +1031,7 @@
      (bids-detail-html view hand)]
     [:section
      [:h3 "Starting Hands"]
-     (compact-starting-hands-html view (:initial-hands hand))]]
+     (compact-starting-hands-html view (:initial-hands hand) (:trump hand))]]
    [:h3 "Play by Play"]
    (if (or (seq (:completed-tricks hand))
            (seq (:current-trick hand)))
@@ -1137,9 +1141,10 @@
    ".hand-summary-hands{margin-top:7px}"
    ".hand-summary-subhead,.trick-chip-label{color:rgba(255,255,255,.42);font-size:.56rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
    ".hand-summary-subhead{margin-bottom:4px}"
-   ".hand-summary-card .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px}"
-   ".hand-summary-card .starting-hand-row{grid-template-columns:minmax(58px,84px) 1fr;gap:4px;padding:2px 0}"
-   ".hand-summary-card .starting-hand-row strong{font-size:.62rem}"
+   ".hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px}"
+   ".starting-hand-row{display:block;border-bottom:1px solid rgba(255,255,255,.08);padding:3px 0;min-width:0}"
+   ".starting-hand-row h4{margin:0 0 3px;color:rgba(255,255,255,.62);font-size:.62rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".starting-hand-cards{display:flex;flex-wrap:nowrap;gap:2px;min-width:0}"
    ".hand-summary-card .starting-hands-strip .card{width:20px;min-width:20px;height:28px;border-radius:4px;font-size:.58rem}"
    ".trick-chip-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}"
    ".trick-chip-label{display:inline-flex;align-items:center;padding:0 2px}"
@@ -1148,14 +1153,11 @@
    ".trick-chip strong{color:#f5c85b;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase}"
    ".trick-chip.current strong{color:#6fd0c7}"
    ".starting-hands-strip{display:grid;gap:7px}"
-   ".starting-hand-row{display:grid;grid-template-columns:minmax(84px,112px) 1fr;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0}"
-   ".starting-hand-row strong{color:rgba(255,255,255,.72);font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".starting-hand-cards{display:flex;flex-wrap:wrap;gap:3px}"
    ".starting-hands-strip .card{width:24px;min-width:24px;height:32px;margin:0;padding:0;border-radius:4px;font-size:.68rem}"
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.starting-hand-row{grid-template-columns:1fr;gap:4px}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.hand-summary-card .starting-hand-row{grid-template-columns:minmax(42px,54px) 1fr;gap:2px;padding:1px 0}.hand-summary-card .starting-hand-row strong{font-size:.5rem}.hand-summary-card .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
 
 (declare styles admin-layout-styles admin-card-styles)
 
