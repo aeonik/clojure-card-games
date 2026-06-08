@@ -8,6 +8,25 @@
   - Scenario: Dave/player1 has a hearts Karbosh candidate where discard plus
     partner donations are essential to evaluate the bid correctly.
 
+- `ZXD4P4` hand 11: production room captured on 2026-06-08.
+  - Game seed: `1780918954859`
+  - Hand seed: `-2008906192`
+  - Scenario: clubs are trump, Bender/player6 made `4`, then led `9♣`.
+    Dave/player1 used autoplay, won trick 1 with `J♣`, and then led `Q♣`
+    on trick 2. The lead was beaten by the duplicate `J♣` from
+    Sir Shufflesworth/player4.
+  - Initial player1 hand: `Q♥ 10♦ 10♣ Q♦ J♣ K♦ Q♣ 9♠`.
+  - Trick 1: `9♣ J♣ 10♣ 9♣ J♠ 9♦`; team 1 won.
+  - Trick 2 candidate risks from player1's view:
+    `Q♣ 99.8%`, `10♣ 99.9%`, `K♦ 89.6%`, `Q♦ 96.2%`,
+    `Q♥ 98.4%`, `10♦ 99.9%`, `9♠ 100%`.
+  - Read: the current preservation lead formula preferred `Q♣` because its
+    score-risk value beat the off-suit exits, but this is strategically
+    questionable for a defender after taking the first trick in opponent-made
+    trump. Study whether defender lead policy should avoid vulnerable trump
+    leads unless they are safe, intentionally pulling trump, or materially
+    better in rollout/PIMC evaluation.
+
 ## 2026-06-05 Lead Policy
 
 VQS26P showed a recurring lead-policy weakness: when no card met the safe-lead
