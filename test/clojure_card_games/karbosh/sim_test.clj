@@ -138,11 +138,13 @@
 (deftest personality-profile-selection-test
   (let [profiles (personality/select-profiles :default
                                               [:all-hybrid
-                                               :all-hybrid-ruff-invite])]
-    (is (= [:all-hybrid :all-hybrid-ruff-invite]
+                                               :all-hybrid-ruff-invite
+                                               :all-hybrid-team-ev])]
+    (is (= [:all-hybrid :all-hybrid-ruff-invite :all-hybrid-team-ev]
            (mapv :label profiles)))
     (is (= [[:hybrid :hybrid :hybrid]
-            [:hybrid-ruff-invite :hybrid-ruff-invite :hybrid-ruff-invite]]
+            [:hybrid-ruff-invite :hybrid-ruff-invite :hybrid-ruff-invite]
+            [:hybrid-team-ev :hybrid-team-ev :hybrid-team-ev]]
            (mapv :play-strategies profiles)))))
 
 (deftest personality-tournament-checkpoint-test

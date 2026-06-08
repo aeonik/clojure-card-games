@@ -57,10 +57,14 @@
                      [:hybrid :hybrid :hybrid])
    (strategy-profile :all-hybrid-ruff-invite
                      [:hybrid-ruff-invite :hybrid-ruff-invite :hybrid-ruff-invite])
+   (strategy-profile :all-hybrid-team-ev
+                     [:hybrid-team-ev :hybrid-team-ev :hybrid-team-ev])
    (strategy-profile :mixed-preserve-ruff
                      [:hybrid-preservation :hybrid-ruff-invite :hybrid-ruff-invite])
    (strategy-profile :mixed-aggressive-ruff
                      [:hybrid :hybrid-ruff-invite :hybrid-ruff-invite])
+   (strategy-profile :mixed-team-ev
+                     [:hybrid-team-ev :hybrid-preservation :hybrid-ruff-invite])
    (strategy-profile :defender-exit-mix
                      [:hybrid-defender-exit :hybrid-preservation :hybrid-ruff-invite])])
 

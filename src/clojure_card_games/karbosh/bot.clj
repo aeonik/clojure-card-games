@@ -56,6 +56,13 @@
    :lead-risk-penalty 900
    :win-risk-penalty 700
    :defender-high-trump-preservation-penalty 2000
+   :team-ev-trick-weight 1000
+   :team-ev-partner-ruff-weight 1300
+   :team-ev-opponent-ruff-penalty 900
+   :team-ev-risk-penalty 700
+   :team-ev-high-trump-spend-penalty 650
+   :team-ev-card-spend-rate 0.12
+   :team-ev-safe-card-bonus 150
    :karbosh-lead-risk-tolerance 0.03
    :karbosh-win-risk-tolerance 0.01
    :karbosh-lead-risk-penalty 6500
@@ -984,6 +991,99 @@
   (or (partner-ruff-invite-card game player (unseen-card-counts game player) cards)
       (preservation-probability-lead-card config game player analyses cards)))
 
+(defn total-unseen-count [unseen-counts]
+  (reduce + (vals unseen-counts)))
+
+(defn prob-hand-has-success [successes population-size hand-size]
+  (if (and (pos? successes)
+           (pos? hand-size)
+           (<= hand-size population-size))
+    (probability (analysis/probability-of-any-success successes
+                                                      population-size
+                                                      [hand-size]))
+    0.0))
+
+(defn prob-void-and-trump-for-player
+  [game player unseen-counts voids lead other]
+  (let [trump (:trump game)
+        population-size (total-unseen-count unseen-counts)
+        hand-size (count (get-in game [:players other :hand]))
+        trump-left (unseen-effective-suit-count unseen-counts trump trump)
+        lead-left (unseen-effective-suit-count unseen-counts trump lead)]
+    (cond
+      (or (nil? trump)
+          (= lead trump)
+          (not (pos? hand-size)))
+      0.0
+
+      (known-void? voids other lead)
+      (prob-hand-has-success trump-left population-size hand-size)
+
+      :else
+      (probability
+       (analysis/probability-specific-void-and-trump
+        lead-left
+        trump-left
+        population-size
+        hand-size)))))
+
+(defn combined-probability [probabilities]
+  (analysis/combine-event-probabilities probabilities))
+
+(defn partner-ruff-probability-for-lead [game player unseen-counts lead]
+  (let [voids (known-voids game)]
+    (combined-probability
+     (map #(prob-void-and-trump-for-player game player unseen-counts voids lead %)
+          (players-with-cards game (pending-partners-after game player))))))
+
+(defn opponent-ruff-probability-for-lead [game player unseen-counts lead]
+  (let [voids (known-voids game)]
+    (combined-probability
+     (map #(prob-void-and-trump-for-player game player unseen-counts voids lead %)
+          (players-with-cards game (pending-opponents-after game player))))))
+
+(defn card-spend-cost [config game card]
+  (+ (* (:team-ev-card-spend-rate config) (card-score game card))
+     (if (high-preservation-trump? game card)
+       (:team-ev-high-trump-spend-penalty config)
+       0)))
+
+(defn team-ev-lead-breakdown [config game player analyses unseen-counts card]
+  (let [lead (rules/effective-suit card (:trump game))
+        risk (card-risk analyses card)
+        partner-ruff (partner-ruff-probability-for-lead game player unseen-counts lead)
+        opponent-ruff (opponent-ruff-probability-for-lead game player unseen-counts lead)
+        team-win-prob (min 1.0 (combined-probability [(- 1.0 risk)
+                                                      partner-ruff]))
+        safe? (zero? risk)
+        value (- (+ (* (:team-ev-trick-weight config) team-win-prob)
+                    (* (:team-ev-partner-ruff-weight config) partner-ruff)
+                    (if safe? (:team-ev-safe-card-bonus config) 0))
+                 (* (:team-ev-risk-penalty config) risk)
+                 (* (:team-ev-opponent-ruff-penalty config) opponent-ruff)
+                 (card-spend-cost config game card))]
+    {:card card
+     :lead lead
+     :risk risk
+     :team-win-prob team-win-prob
+     :partner-ruff-prob partner-ruff
+     :opponent-ruff-prob opponent-ruff
+     :spend-cost (card-spend-cost config game card)
+     :value value}))
+
+(defn team-ev-lead-value [config game player analyses unseen-counts card]
+  (:value (team-ev-lead-breakdown config game player analyses unseen-counts card)))
+
+(defn team-ev-probability-lead-card [config game player analyses cards]
+  (let [unseen-counts (unseen-card-counts game player)]
+    (best-lead-by-value #(team-ev-lead-value config
+                                             game
+                                             player
+                                             analyses
+                                             unseen-counts
+                                             %)
+                        cards)))
+
 (defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
     (if (seq trumps)
@@ -1079,6 +1179,12 @@
                                      game
                                      player))
 
+(defn team-ev-probability-card-action [game player]
+  (probability-card-action-with-lead team-ev-probability-lead-card
+                                     preservation-winning-card
+                                     game
+                                     player))
+
 (defn hybrid-threshold-card-action [game player]
   (if (special-contract? (game/current-bid game))
     (card-counting-card-action game player)
@@ -1104,6 +1210,11 @@
     (card-counting-card-action game player)
     (ruff-invite-preservation-card-action game player)))
 
+(defn team-ev-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (team-ev-probability-card-action game player)))
+
 (def play-strategies
   {:card-counting card-counting-card-action
    :probability-threshold threshold-probability-card-action
@@ -1111,11 +1222,13 @@
    :probability-defender-exit defender-exit-probability-card-action
    :probability-preservation preservation-probability-card-action
    :probability-ruff-invite ruff-invite-preservation-card-action
+   :probability-team-ev team-ev-probability-card-action
    :hybrid-threshold hybrid-threshold-card-action
    :hybrid hybrid-card-action
    :hybrid-defender-exit defender-exit-hybrid-card-action
    :hybrid-preservation preservation-hybrid-card-action
-   :hybrid-ruff-invite ruff-invite-hybrid-card-action})
+   :hybrid-ruff-invite ruff-invite-hybrid-card-action
+   :hybrid-team-ev team-ev-hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond
@@ -1134,7 +1247,8 @@
    :hybrid :probability
    :hybrid-defender-exit :probability-defender-exit
    :hybrid-preservation :probability-preservation
-   :hybrid-ruff-invite :probability-ruff-invite})
+   :hybrid-ruff-invite :probability-ruff-invite
+   :hybrid-team-ev :probability-team-ev})
 
 (defn card-engine [game strategy]
   (let [strategy (strategy-key strategy :custom)]
@@ -1199,6 +1313,9 @@
            :hybrid-preservation
            :hybrid-ruff-invite} engine)
         :lead-preserve-high-trump
+
+        (= :probability-team-ev engine)
+        :lead-team-ev
 
         :else
         :lead-risk-adjusted-card)

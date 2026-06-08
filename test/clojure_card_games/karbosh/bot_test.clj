@@ -598,7 +598,9 @@
       (is (= {:type :play-card :card [:J :♥]}
              (bot/card-action game :player1 :hybrid-preservation)))
       (is (= {:type :play-card :card [:Q :♣]}
-             (bot/card-action game :player1 :hybrid-ruff-invite)))))
+             (bot/card-action game :player1 :hybrid-ruff-invite)))
+      (is (= {:type :play-card :card [:Q :♣]}
+             (bot/card-action game :player1 :hybrid-team-ev)))))
 
   (testing "ruff invite waits until every opponent is known void in trump"
     (let [game (with-hidden-hand-sizes
