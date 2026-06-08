@@ -1020,11 +1020,15 @@
 (defn sorted-cards-html [cards trump]
   (cards-html (hand-order/sorted-hand cards trump)))
 
+(defn team-row-players [view]
+  (->> (:players view)
+       (sort-by (juxt :team :id))))
+
 (defn compact-starting-hands-html [view hands trump]
   (if (seq hands)
     [:div {:class "starting-hands-strip"}
-     (for [{:keys [id]} (:players view)]
-       [:div {:class "starting-hand-row"}
+     (for [{:keys [id team]} (team-row-players view)]
+       [:div {:class (str "starting-hand-row team-" team)}
         [:h4 (player-label view id)]
         [:div {:class "starting-hand-cards"}
          (sorted-cards-html (get hands id) trump)]])]
@@ -1444,11 +1448,11 @@
    ".hand-summary-hands{margin-top:7px}"
    ".hand-summary-subhead,.trick-chip-label{color:rgba(255,255,255,.42);font-size:.56rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
    ".hand-summary-subhead{margin-bottom:4px}"
-   ".hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px}"
+   ".hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}"
    ".starting-hand-row{display:block;border-bottom:1px solid rgba(255,255,255,.08);padding:3px 0;min-width:0}"
    ".starting-hand-row h4{margin:0 0 3px;color:rgba(255,255,255,.62);font-size:.62rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
    ".starting-hand-cards{display:flex;flex-wrap:nowrap;gap:2px;min-width:0}"
-   ".hand-summary-card .starting-hands-strip .card{width:20px;min-width:20px;height:28px;border-radius:4px;font-size:.58rem}"
+   ".hand-summary-card .starting-hands-strip .card{width:24px;min-width:24px;height:32px;border-radius:4px;font-size:.68rem}"
    ".trick-chip-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}"
    ".trick-chip-label{display:inline-flex;align-items:center;padding:0 2px}"
    ".trick-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.13);border-radius:5px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.68);font-size:.66rem;line-height:1;padding:5px 6px;text-decoration:none}"
@@ -1469,7 +1473,7 @@
    ".analysis-play strong{color:#f5c85b;font-size:.54rem;letter-spacing:.08em;text-transform:uppercase}"
    ".analysis-table .card,.analysis-mini-trick .card{width:26px;min-width:26px;height:34px;margin:0;border-radius:4px;font-size:.72rem}"
    ".starting-hands-strip{display:grid;gap:7px}"
-   ".starting-hands-strip .card{width:24px;min-width:24px;height:32px;margin:0;padding:0;border-radius:4px;font-size:.68rem}"
+   ".starting-hands-strip .card{width:28px;min-width:28px;height:38px;margin:0;padding:0;border-radius:4px;font-size:.78rem}"
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
