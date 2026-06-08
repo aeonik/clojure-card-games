@@ -94,10 +94,13 @@
 (deftest reloadable-namespaces-order-test
   (let [namespaces (vec server/reloadable-namespaces)
         analysis-index (.indexOf namespaces 'clojure-card-games.karbosh.analysis)
-        bot-index (.indexOf namespaces 'clojure-card-games.karbosh.bot)]
+        bot-index (.indexOf namespaces 'clojure-card-games.karbosh.bot)
+        room-index (.indexOf namespaces 'clojure-card-games.karbosh.room)]
     (is (not= -1 analysis-index))
     (is (not= -1 bot-index))
-    (is (< analysis-index bot-index))))
+    (is (not= -1 room-index))
+    (is (< analysis-index bot-index))
+    (is (< bot-index room-index))))
 
 (deftest admin-basic-auth-test
   (with-redefs [server/admin-user (constantly "admin")

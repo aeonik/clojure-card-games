@@ -31,8 +31,8 @@
     clojure-card-games.karbosh.audit
     clojure-card-games.karbosh.storage
     clojure-card-games.karbosh.analysis
-    clojure-card-games.karbosh.room
     clojure-card-games.karbosh.bot
+    clojure-card-games.karbosh.room
     clojure-card-games.karbosh.admin
     clojure-card-games.karbosh.server])
 
