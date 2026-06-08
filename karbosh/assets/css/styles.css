@@ -630,17 +630,17 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .trick-card.is-winning .card-face {
-  border-color: rgba(246, 211, 100, 0.68);
+  border-color: rgba(246, 211, 100, 0.78);
   box-shadow:
-    0 0 0 0.12rem rgba(246, 211, 100, 0.14),
-    0 0 1.15rem rgba(246, 211, 100, 0.24),
+    0 0 0 0.14rem rgba(246, 211, 100, 0.22),
+    0 0 1.35rem rgba(246, 211, 100, 0.36),
     0 0.35rem 0.8rem rgba(8, 12, 26, 0.22);
 }
 
 .trick-card.is-animating.is-winning .card-face {
   box-shadow:
-    0 0 0 0.14rem rgba(246, 211, 100, 0.16),
-    0 0 1.35rem rgba(246, 211, 100, 0.28),
+    0 0 0 0.16rem rgba(246, 211, 100, 0.24),
+    0 0 1.55rem rgba(246, 211, 100, 0.4),
     0 0.4rem 0.9rem rgba(8, 12, 26, 0.24);
 }
 
@@ -2891,8 +2891,8 @@ input {
 
   body.has-karbosh-game .trick-card.is-winning .card-face {
     box-shadow:
-      0 0 0 0.13rem rgba(246, 211, 100, 0.18),
-      0 0 1.05rem rgba(246, 211, 100, 0.3),
+      0 0 0 0.15rem rgba(246, 211, 100, 0.26),
+      0 0 1.25rem rgba(246, 211, 100, 0.44),
       0 0.25rem 0.6rem rgba(8, 12, 26, 0.22);
   }
 
@@ -3297,8 +3297,8 @@ input {
 
   body.has-karbosh-game .trick-card.is-winning .card-face {
     box-shadow:
-      0 0 0 0.12rem rgba(246, 211, 100, 0.18),
-      0 0 0.95rem rgba(246, 211, 100, 0.32),
+      0 0 0 0.14rem rgba(246, 211, 100, 0.26),
+      0 0 1.15rem rgba(246, 211, 100, 0.46),
       0 0.22rem 0.55rem rgba(8, 12, 26, 0.22);
   }
 
