@@ -829,6 +829,67 @@
       (is (= {:type :play-card :card [:J :♥]}
              (bot/card-action game :player1 :hybrid-ruff-invite)))))
 
+  (testing "ruff invite can use high-discard inference before hard trump voids"
+    (let [soft-void-game (fn [discards]
+                           (with-hidden-hand-sizes
+                             {:phase :trick-playing
+                              :trump :♥
+                              :active-players game/players
+                              :hand-index 2
+                              :bids [{:type :bid
+                                      :player :player1
+                                      :bid-type :bid
+                                      :value 5
+                                      :hand-index 2}]
+                              :players {:player1 {:team 1
+                                                  :hand [[:J :♥]
+                                                         [:Q :♣]
+                                                         [:K :♠]]}
+                                        :player5 {:team 1
+                                                  :hand []}}
+                              :completed-tricks [[{:player :player1
+                                                   :card [9 :♦]}
+                                                  {:player :player2
+                                                   :card (:player2 discards)}
+                                                  {:player :player3
+                                                   :card [10 :♦]}
+                                                  {:player :player4
+                                                   :card (:player4 discards)}
+                                                  {:player :player5
+                                                   :card [:Q :♦]}
+                                                  {:player :player6
+                                                   :card (:player6 discards)}]
+                                                 [{:player :player2
+                                                   :card [:A :♣]}
+                                                  {:player :player3
+                                                   :card [9 :♦]}
+                                                  {:player :player4
+                                                   :card [:K :♣]}
+                                                  {:player :player5
+                                                   :card [10 :♣]}
+                                                  {:player :player6
+                                                   :card [:Q :♣]}
+                                                  {:player :player1
+                                                   :card [9 :♣]}]]
+                              :current-trick []}))
+          high-discard-game (soft-void-game {:player2 [:A :♣]
+                                             :player4 [:A :♠]
+                                             :player6 [:K :♣]})
+          low-discard-game (soft-void-game {:player2 [9 :♣]
+                                            :player4 [9 :♠]
+                                            :player6 [10 :♣]})
+          high-event (bot/card-action high-discard-game
+                                      :player1
+                                      :hybrid-ruff-invite)]
+      (is (= {:type :play-card :card [:Q :♣]} high-event))
+      (is (= :partner-ruff-invite
+             (:reason (bot/explain-card-action high-discard-game
+                                               :player1
+                                               :hybrid-ruff-invite
+                                               high-event))))
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action low-discard-game :player1 :hybrid-ruff-invite)))))
+
   (testing "when following, a bot preserves an unsafe high trump with a partner pending"
     (let [game {:phase :trick-playing
                 :trump :♦
