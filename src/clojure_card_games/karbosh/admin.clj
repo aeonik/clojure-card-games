@@ -230,13 +230,14 @@
 (defn room-winner [room]
   (get-in room [:game :winner]))
 
-(defn historical-room-records [rooms records]
-  (let [live-ids (set (map first (sorted-room-entries rooms)))]
-    (->> records
-         (remove #(contains? live-ids (:room-id %)))
-         (filter #(room-played? (:room %)))
-         (sort-by :logged-at >)
-         vec)))
+(def max-historical-panel-records 10)
+
+(defn historical-room-records [_rooms records]
+  (->> records
+       (filter #(room-played? (:room %)))
+       (sort-by #(or (:logged-at %) 0) >)
+       (take max-historical-panel-records)
+       vec))
 
 (defn historical-stats [records]
   (let [rooms (map room-record-room records)
@@ -244,7 +245,7 @@
         hands (reduce + (map room-hand-count rooms))
         winners (frequencies (keep room-winner games))
         room-count (count rooms)]
-    [{:label "Archived rooms" :value room-count}
+    [{:label "Rooms shown" :value room-count}
      {:label "Completed games" :value (count games)}
      {:label "Total hands" :value hands}
      {:label "Avg hands" :value (if (pos? room-count)
@@ -356,7 +357,7 @@
     [:section {:id "admin-history-panel" :class "panel"}
      [:div {:class "section-heading"}
       [:div
-       [:p "Archive"]
+       [:p "Recent activity"]
        [:h2 "Historical rooms"]]
       [:div {:class "admin-actions"}
        [:a {:href "/karbosh/admin/history"} "View all history"]]]
@@ -368,7 +369,7 @@
        [:h3 "Bid trends"]
        (bid-trends-table records)]
       [:section
-       [:h3 "Browse rooms"]
+       [:h3 "Last 10 rooms"]
        (historical-rooms-table records)]]]))
 
 (defn historical-panel-placeholder []
@@ -1661,7 +1662,7 @@
                               :open-websocket-count open-websocket-count
                               :limits limits
                               :started-at started-at})
-      [:script {:src "/karbosh/assets/js/admin.js?v=20260606-scroll"}]]])))
+      [:script {:src "/karbosh/assets/js/admin.js?v=20260608-history-preserve"}]]])))
 
 (defn render-history [{:keys [rooms records]}]
   (str

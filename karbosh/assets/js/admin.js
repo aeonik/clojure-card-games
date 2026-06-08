@@ -123,6 +123,14 @@
 
     if (current && current.parentNode) {
       var scrollState = captureScrollState(current);
+      var currentHistory = current.querySelector("#admin-history-panel");
+      var nextHistory = next.querySelector("#admin-history-panel");
+
+      if (currentHistory &&
+          nextHistory &&
+          /Historical archive is available/.test(nextHistory.textContent || "")) {
+        nextHistory.parentNode.replaceChild(currentHistory.cloneNode(true), nextHistory);
+      }
 
       current.parentNode.replaceChild(next, current);
       restoreScrollAfterLayout(next, scrollState);

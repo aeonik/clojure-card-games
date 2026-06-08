@@ -1074,6 +1074,22 @@
     (is (re-find #"<main id=\"admin-main\">" html))
     (is (re-find #"data-delete-room=\"ABC123\"" html))))
 
+(deftest admin-history-panel-keeps-latest-played-rooms-test
+  (let [records (mapv (fn [i]
+                        (let [room-id (format "ROOM%02d" i)]
+                          {:room-id room-id
+                           :logged-at i
+                           :type :room-durable
+                           :room (played-room (room/new-room room-id i))}))
+                      (range 12))
+        active-room (connected-room (played-room (room/new-room "ROOM11" 11)))
+        latest (admin/historical-room-records {"ROOM11" active-room} records)]
+    (is (= 10 (count latest)))
+    (is (= "ROOM11" (:room-id (first latest))))
+    (is (some #(= "ROOM11" (:room-id %)) latest))
+    (is (not-any? #(= "ROOM00" (:room-id %)) latest))
+    (is (not-any? #(= "ROOM01" (:room-id %)) latest))))
+
 (deftest admin-dashboard-stream-html-skips-archive-scan-test
   (with-redefs [server/historical-room-records
                 (fn []
@@ -1099,7 +1115,7 @@
     (is (not (re-find #"admin/delete-room\?room=" html)))
     (is (re-find #"data-delete-room=\"ABC123\"" html))
     (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot\"" html))
-    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260606-scroll\"" html))
+    (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260608-history-preserve\"" html))
     (is (re-find #"class=\"admin-table\"" html))
     (is (re-find #"data-label=\"Room\"" html))
     (is (re-find #"\.admin-table\{display:table" html))
