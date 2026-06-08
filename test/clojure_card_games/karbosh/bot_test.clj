@@ -311,7 +311,7 @@
       (is (= {:type :play-card :card [:A :♠]}
              (bot/card-action game :player4 :card-counting)))))
 
-  (testing "strategic ditching preserves singleton high cards below ace"
+  (testing "strategic ditching preserves unique future suit equity"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing
                   :trump :♣
@@ -319,7 +319,18 @@
                   :players {:player4 {:team 2
                                       :hand [[:K :♦] [:A :♠] [:A :♠]]}}
                   :current-trick [{:player :player1 :card [:A :♥]}
-                                  {:player :player3 :card [:J :♣]}]})]
+                                  {:player :player3 :card [:J :♣]}]})
+          unseen-counts (bot/unseen-card-counts game :player4)]
+      (is (pos? (bot/future-suit-equity-loss
+                  game
+                  :player4
+                  unseen-counts
+                  [:K :♦])))
+      (is (zero? (bot/future-suit-equity-loss
+                   game
+                   :player4
+                   unseen-counts
+                   [:A :♠])))
       (is (= {:type :play-card :card [:A :♠]}
              (bot/card-action game :player4 :hybrid)))
       (is (= {:type :play-card :card [:A :♠]}
