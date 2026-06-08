@@ -1089,6 +1089,17 @@
                (not off-aces))
       (lowest-card game non-trumps))))
 
+(declare lower-preservation-winners)
+
+(defn preservation-trump-lead-card [config game analyses cards]
+  (when (and (seq cards)
+             (every? #(trump-card? (:trump game) %) cards))
+    (when-let [lower-winners (seq (lower-preservation-winners config
+                                                              game
+                                                              analyses
+                                                              cards))]
+      (lowest-card game lower-winners))))
+
 (defn probability-lead-card-with-candidates
   [candidate-fn config game player analyses cards]
   (let [priority (priority-lead-card game player cards)
@@ -1142,6 +1153,7 @@
   (let [priority (priority-lead-card game player cards)
         safe (safe-cards config analyses :lead-risk-tolerance cards)
         defender-low-exit (defender-low-exit-card game player cards)
+        trump-lead (preservation-trump-lead-card config game analyses cards)
         fallback-cards (risk-adjusted-lead-candidates game player cards)
         context (lead-context game player)]
     (cond
@@ -1153,6 +1165,9 @@
 
       defender-low-exit
       defender-low-exit
+
+      trump-lead
+      trump-lead
 
       :else
       (best-lead-by-value #(preservation-lead-value config
@@ -1493,7 +1508,8 @@
                                                    analyses
                                                    winning-cards)
         ruff-invite (partner-ruff-invite-card game player unseen-counts cards)
-        defender-low-exit (defender-low-exit-card game player cards)]
+        defender-low-exit (defender-low-exit-card game player cards)
+        trump-lead (preservation-trump-lead-card config game analyses cards)]
     (cond
       leading?
       (cond
@@ -1502,6 +1518,9 @@
 
         (= card defender-low-exit)
         :defender-low-exit
+
+        (= card trump-lead)
+        :lead-preserve-high-trump-winner
 
         (and (special-contract-caller? game player)
              (trump-card? (:trump game) card))

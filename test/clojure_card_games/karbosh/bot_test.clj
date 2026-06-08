@@ -547,6 +547,75 @@
                        :hybrid-ruff-invite
                        event))))))
 
+  (testing "preservation policy leads lower trump before an unsafe left bower"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :hand-index 11
+                :bids [{:type :bid
+                        :player :player1
+                        :bid-type :bid
+                        :value 5
+                        :hand-index 11}]
+                :players {:player1 {:team 1
+                                    :hand [[:Q :♣] [:J :♠]]}
+                          :player2 {:team 2
+                                    :hand [[:Q :♠] [:A :♣]]}
+                          :player3 {:team 1
+                                    :hand [[:J :♠] [:A :♥]]}
+                          :player4 {:team 2
+                                    :hand [[:A :♠] [:K :♣]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♦] [:Q :♠]]}
+                          :player6 {:team 2
+                                    :hand [[:A :♣] [:J :♣]]}}
+                :completed-tricks [[{:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [10 :♣]}
+                                    {:player :player3 :card [9 :♣]}
+                                    {:player :player4 :card [9 :♣]}
+                                    {:player :player5 :card [:J :♥]}
+                                    {:player :player6 :card [:K :♣]}]
+                                   [{:player :player1 :card [:A :♦]}
+                                    {:player :player2 :card [:J :♦]}
+                                    {:player :player3 :card [9 :♦]}
+                                    {:player :player4 :card [:J :♦]}
+                                    {:player :player5 :card [10 :♦]}
+                                    {:player :player6 :card [9 :♦]}]
+                                   [{:player :player1 :card [:A :♥]}
+                                    {:player :player2 :card [:K :♥]}
+                                    {:player :player3 :card [10 :♥]}
+                                    {:player :player4 :card [9 :♥]}
+                                    {:player :player5 :card [9 :♠]}
+                                    {:player :player6 :card [10 :♥]}]
+                                   [{:player :player1 :card [9 :♥]}
+                                    {:player :player2 :card [10 :♣]}
+                                    {:player :player3 :card [:K :♥]}
+                                    {:player :player4 :card [:J :♥]}
+                                    {:player :player5 :card [10 :♠]}
+                                    {:player :player6 :card [:Q :♥]}]
+                                   [{:player :player2 :card [:A :♠]}
+                                    {:player :player3 :card [:K :♠]}
+                                    {:player :player4 :card [:K :♠]}
+                                    {:player :player5 :card [10 :♠]}
+                                    {:player :player6 :card [10 :♦]}
+                                    {:player :player1 :card [9 :♠]}]
+                                   [{:player :player2 :card [:A :♦]}
+                                    {:player :player3 :card [:K :♦]}
+                                    {:player :player4 :card [:Q :♦]}
+                                    {:player :player5 :card [:Q :♦]}
+                                    {:player :player6 :card [:Q :♥]}
+                                    {:player :player1 :card [:Q :♣]}]]
+                :tricks-this-hand {1 4 2 2}
+                :current-trick []}
+          event (bot/card-action game :player1 :hybrid-ruff-invite)]
+      (is (= {:type :play-card :card [:Q :♣]} event))
+      (is (= :lead-preserve-high-trump-winner
+             (:reason (bot/explain-card-action
+                       game
+                       :player1
+                       :hybrid-ruff-invite
+                       event))))))
+
   (testing "defenders lead an off-suit ace before an unsafe left bower"
     (let [game {:phase :trick-playing
                 :trump :♥
