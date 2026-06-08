@@ -622,6 +622,8 @@ body:not(.has-karbosh-game) .meta-grid,
 .trick-card.is-animating {
   z-index: 9;
   pointer-events: none;
+  backface-visibility: hidden;
+  will-change: transform;
   animation: deal-to-trick-slot var(--play-card-animation-ms) cubic-bezier(0.18, 0.82, 0.24, 1) both;
 }
 
@@ -639,9 +641,14 @@ body:not(.has-karbosh-game) .meta-grid,
 
 .trick-card.is-animating.is-winning .card-face {
   box-shadow:
-    0 0 0 0.16rem rgba(246, 211, 100, 0.24),
-    0 0 1.55rem rgba(246, 211, 100, 0.4),
+    0 0 0 0.08rem rgba(246, 211, 100, 0.24),
     0 0.4rem 0.9rem rgba(8, 12, 26, 0.24);
+}
+
+body.karbosh-fast-mode .trick-card.is-animating.is-winning .card-face {
+  box-shadow:
+    0 0 0 0.07rem rgba(246, 211, 100, 0.22),
+    0 0.3rem 0.65rem rgba(8, 12, 26, 0.22);
 }
 
 .player-seat {
