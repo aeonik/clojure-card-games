@@ -374,7 +374,12 @@
                                    :prob-higher-follow 0.2
                                    :higher-unseen 2
                                    :higher-follow-unseen 1
-                                   :higher-trump-unseen 0}}}
+                                   :higher-trump-unseen 0}}
+            :candidates [{:card [:A :♥]
+                          :score 500
+                          :risk 0.05
+                          :good? true
+                          :winning? true}]}
         trick (update completed-trick 0 assoc :ai ai)
         room (-> (room/new-room "ABC123" 9)
                  (room/seat-player :player1 "Dave")
@@ -428,7 +433,10 @@
           (is (re-find #"Hybrid ruff invite" (:body detail-response)))
           (is (re-find #"Lead safe card" (:body detail-response)))
           (is (re-find #"P beat" (:body detail-response)))
-          (is (re-find #"0.250" (:body detail-response)))
+          (is (re-find #"Can be beaten" (:body detail-response)))
+          (is (re-find #"Candidate cards" (:body detail-response)))
+          (is (re-find #"25.0%" (:body detail-response)))
+          (is (re-find #"5.0%" (:body detail-response)))
           (is (re-find #"Starting Hands" (:body detail-response)))
           (is (re-find #"starting-hands-strip" (:body detail-response)))
           (is (re-find #"starting-hand-row" (:body detail-response)))
