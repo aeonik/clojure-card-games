@@ -3586,10 +3586,24 @@ input {
 }
 
 @media screen and (max-width: 680px) {
+  body.has-karbosh-game .hand-panel.is-karbosh-donation {
+    display: grid;
+    gap: 0.22rem;
+    overflow: hidden;
+  }
+
+  body.has-karbosh-game .hand-panel.is-karbosh-donation .hand-heading {
+    margin-bottom: 0;
+  }
+
+  body.has-karbosh-game .hand-panel.is-karbosh-donation .hand-heading span {
+    display: none;
+  }
+
   body.has-karbosh-game .hand-phase-callout {
     gap: 0.22rem 0.45rem;
-    margin: 0 0 0.34rem;
-    padding: 0.42rem 0.52rem;
+    margin: 0;
+    padding: 0.34rem 0.48rem;
   }
 
   body.has-karbosh-game .hand-phase-callout-label {
@@ -3610,15 +3624,20 @@ input {
   }
 
   body.has-karbosh-game .hand-row.is-donation-pick {
-    gap: 0.42rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-items: center;
+    gap: 0.24rem;
+    overflow: visible;
+    padding: 0;
   }
 
   body.has-karbosh-game .hand-row.is-donation-pick .card-button {
-    flex: 0 0 2.75rem;
-    width: 2.75rem;
-    min-width: 2.75rem;
-    height: 3.55rem;
-    font-size: 1.02rem;
+    flex: 0 0 auto;
+    width: clamp(2.25rem, 15vw, 2.8rem);
+    min-width: 0;
+    height: clamp(2.9rem, 20vw, 3.55rem);
+    font-size: clamp(0.82rem, 3.7vw, 1rem);
   }
 }
 
