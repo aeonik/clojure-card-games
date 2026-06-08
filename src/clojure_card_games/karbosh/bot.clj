@@ -520,7 +520,7 @@
   {:type :trump-selection
    :suit (best-trump (get-in game [:players player :hand]))})
 
-(declare highest-card lowest-card)
+(declare ditch-card highest-card lowest-card)
 
 (defn donate-action [game player]
   (when-let [card (highest-card game (get-in game [:players player :hand]))]
@@ -707,13 +707,77 @@
 (defn partner-preserving-card [game player unseen-counts cards]
   (let [non-overtakers (remove #(wins-trick? game player %) cards)]
     (or (partner-protecting-card game player unseen-counts cards)
-        (lowest-card game (or (seq non-overtakers) cards)))))
+        (ditch-card game player unseen-counts (or (seq non-overtakers) cards)))))
 
 (defn lowest-card [game cards]
   (first (sort-by #(card-score game %) cards)))
 
 (defn highest-card [game cards]
   (first (sort-by #(card-score game %) > cards)))
+
+(defn card-effective-suit [game card]
+  (rules/effective-suit card (:trump game)))
+
+(defn potential-card-score [game card]
+  (rules/card-value card (:trump game) (card-effective-suit game card)))
+
+(defn in-suit-control-card? [game unseen-counts card]
+  (not (can-be-beaten-in-suit-by? game
+                                  unseen-counts
+                                  card
+                                  (card-effective-suit game card))))
+
+(defn remaining-hand-after [game player card]
+  (remove-first-card (get-in game [:players player :hand]) card))
+
+(defn suit-counts [game hand]
+  (frequencies (map #(card-effective-suit game %) hand)))
+
+(defn same-suit-control-after-discard? [game player unseen-counts card]
+  (let [suit (card-effective-suit game card)
+        score (potential-card-score game card)]
+    (some #(and (= suit (card-effective-suit game %))
+                (>= (potential-card-score game %) score)
+                (in-suit-control-card? game unseen-counts %))
+          (remaining-hand-after game player card))))
+
+(defn ditch-card-cost [game player unseen-counts cards card]
+  (let [trump (:trump game)
+        hand (get-in game [:players player :hand])
+        counts (suit-counts game hand)
+        suit (card-effective-suit game card)
+        suit-count (get counts suit 0)
+        remaining-suit-count (max 0 (dec suit-count))
+        trump? (trump-card? trump card)
+        has-trump? (some #(trump-card? trump %) hand)
+        non-trump-legal? (some #(not (trump-card? trump %)) cards)
+        control? (in-suit-control-card? game unseen-counts card)
+        last-control? (and control?
+                           (not (same-suit-control-after-discard?
+                                  game
+                                  player
+                                  unseen-counts
+                                  card)))
+        short-suit-bonus (if (and has-trump? (not trump?))
+                           (case remaining-suit-count
+                             0 600
+                             1 250
+                             0)
+                           0)]
+    (- (+ (potential-card-score game card)
+          (if (and trump? non-trump-legal?) 5000 0)
+          (if last-control? 3000 0)
+          (if (and (off-ace? trump card) last-control?) 1200 0)
+          (* 8 suit-count))
+       short-suit-bonus)))
+
+(defn ditch-card
+  "Choose a card to throw away when this play is not trying to win the trick.
+
+  The ranking preserves trump and singleton suit controls, while using low
+  off-suit cards to clear suits when the player has trump left for future ruffs."
+  [game player unseen-counts cards]
+  (first (sort-by #(ditch-card-cost game player unseen-counts cards %) cards)))
 
 (defn trick-known-voids [trump trick]
   (let [lead (rules/trick-lead trick trump)]
@@ -806,7 +870,7 @@
                (lowest-card game winning-cards)
 
                :else
-               (lowest-card game cards))]
+               (ditch-card game player unseen-counts cards))]
     (when card
       {:type :play-card
        :card card})))
@@ -1151,7 +1215,7 @@
                 (winning-card-fn config game player analyses cards winning-cards)
 
                 :else
-                (lowest-card game cards))]
+                (ditch-card game player unseen-counts cards))]
      (when card
        {:type :play-card
         :card card}))))
@@ -1332,7 +1396,9 @@
       :risk-adjusted-winning-card
 
       :else
-      :cannot-win-lowest-card)))
+      (if (= card (ditch-card game player unseen-counts cards))
+        :strategic-ditch
+        :cannot-win-lowest-card))))
 
 (defn explain-card-action [game player strategy event]
   (let [strategy (strategy-key strategy :custom)

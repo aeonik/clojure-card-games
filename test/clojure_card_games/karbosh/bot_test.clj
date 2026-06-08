@@ -283,6 +283,34 @@
       (is (= {:type :play-card :card [9 :♦]}
              (bot/card-action game :player4)))))
 
+  (testing "when a bot cannot win with trump left, it ditches low singletons to short-suit"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♣
+                  :active-players game/players
+                  :players {:player4 {:team 2
+                                      :hand [[9 :♦] [10 :♦] [9 :♠] [9 :♣]]}}
+                  :current-trick [{:player :player1 :card [:A :♥]}
+                                  {:player :player3 :card [:J :♣]}]})]
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player4 :hybrid)))
+      (is (= {:type :play-card :card [9 :♠]}
+             (bot/card-action game :player4 :card-counting)))))
+
+  (testing "strategic ditching preserves singleton off-suit controls"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♣
+                  :active-players game/players
+                  :players {:player4 {:team 2
+                                      :hand [[:A :♦] [:A :♠] [:A :♠]]}}
+                  :current-trick [{:player :player1 :card [:A :♥]}
+                                  {:player :player3 :card [:J :♣]}]})]
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player4 :hybrid)))
+      (is (= {:type :play-card :card [:A :♠]}
+             (bot/card-action game :player4 :card-counting)))))
+
   (testing "when the cheap winner is vulnerable, a bot secures the trick"
     (let [game (with-hidden-hand-sizes
                  {:players {:player1 {:team 1}
