@@ -10,6 +10,11 @@
 (def ruff-invite-bot-play-strategy :hybrid-ruff-invite)
 (def default-auto-play-strategy ruff-invite-bot-play-strategy)
 
+(def classic-ditch-bot-names
+  #{"Bid Zeppelin"
+    "C-3P-Oh No"
+    "Trick-182"})
+
 (def aggressive-bot-names
   #{"Cardi-Bot"
     "Optimus Prime Suit"
@@ -54,9 +59,17 @@
           :ruff-invite ruff-invite-bot-play-strategy
           default-bot-play-strategy))))
 
+(defn persona-ditch-policy [persona]
+  (or (:ditch-policy persona)
+      (if (contains? classic-ditch-bot-names (:name persona))
+        bot/classic-ditch-policy
+        bot/default-ditch-policy)))
+
 (defn normalize-bot-persona [persona]
   (let [persona (assoc persona :style (persona-style persona))]
-    (assoc persona :play-strategy (persona-play-strategy persona))))
+    (assoc persona
+           :play-strategy (persona-play-strategy persona)
+           :ditch-policy (persona-ditch-policy persona))))
 
 (def bot-personas
   (mapv
@@ -197,6 +210,7 @@
                 :bot? true
                 :persona persona
                 :play-strategy (:play-strategy persona)
+                :ditch-policy (:ditch-policy persona)
                 :style (:style persona)}))))
 
 (defn bot-player? [room player]
@@ -207,6 +221,15 @@
       (some-> (get-in room [:seats player :persona])
               persona-play-strategy)
       bot/default-play-strategy))
+
+(defn bot-ditch-policy [room player]
+  (or (get-in room [:seats player :ditch-policy])
+      (some-> (get-in room [:seats player :persona])
+              persona-ditch-policy)
+      bot/default-ditch-policy))
+
+(defn bot-play-config [room player]
+  (assoc bot/default-play-config :ditch-policy (bot-ditch-policy room player)))
 
 (defn ensure-bot-personas [room]
   (reduce (fn [room player]
@@ -227,7 +250,10 @@
                                (assoc :style (:style persona))
 
                                (nil? (:play-strategy seat))
-                               (assoc :play-strategy (:play-strategy persona))))))))
+                               (assoc :play-strategy (:play-strategy persona))
+
+                               (nil? (:ditch-policy seat))
+                               (assoc :ditch-policy (:ditch-policy persona))))))))
           room
           game/players))
 
@@ -400,7 +426,8 @@
     (bot/action game player)))
 
 (defn bot-action [room player]
-  (binding [bot/*play-strategy* (bot-play-strategy room player)]
+  (binding [bot/*play-strategy* (bot-play-strategy room player)
+            bot/*play-config* (bot-play-config room player)]
     (explained-bot-action (:game room) player)))
 
 (defn apply-bot-event [room player event]
@@ -418,7 +445,8 @@
     (when-not (actionable-phases (:phase game))
       (throw (ex-info "Auto-play is not available in this phase"
                       {:phase (:phase game)})))
-    (if-let [event (binding [bot/*play-strategy* default-auto-play-strategy]
+    (if-let [event (binding [bot/*play-strategy* default-auto-play-strategy
+                             bot/*play-config* bot/default-play-config]
                      (explained-bot-action game player))]
       (apply-bot-event room player event)
       (throw (ex-info "Auto-play could not choose an action"

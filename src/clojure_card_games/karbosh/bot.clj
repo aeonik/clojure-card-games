@@ -50,6 +50,10 @@
 
 (def ^:dynamic *bid-strategy* default-bid-strategy)
 
+(def default-ditch-policy :future-suit-equity)
+(def classic-ditch-policy :classic)
+(def ditch-policies #{default-ditch-policy classic-ditch-policy})
+
 (def classic-play-config
   {:lead-risk-tolerance 0.32
    :win-risk-tolerance 0.22
@@ -63,6 +67,7 @@
    :team-ev-high-trump-spend-penalty 650
    :team-ev-card-spend-rate 0.12
    :team-ev-safe-card-bonus 150
+   :ditch-policy default-ditch-policy
    :ditch-future-suit-equity-weight 50
    :karbosh-lead-risk-tolerance 0.03
    :karbosh-win-risk-tolerance 0.01
@@ -802,6 +807,12 @@
             unseen-counts
             card))))
 
+(defn ditch-future-suit-equity-weight [config]
+  (case (:ditch-policy config default-ditch-policy)
+    :classic 0
+    :future-suit-equity (:ditch-future-suit-equity-weight config 50)
+    (:ditch-future-suit-equity-weight config 50)))
+
 (defn ditch-card-cost [config game player unseen-counts cards card]
   (let [trump (:trump game)
         hand (get-in game [:players player :hand])
@@ -833,7 +844,7 @@
     (- (+ (potential-card-score game card)
           (if (and trump? non-trump-legal?) 5000 0)
           (if last-control? 3000 0)
-          (* (:ditch-future-suit-equity-weight config 50)
+          (* (ditch-future-suit-equity-weight config)
              future-equity-loss)
           (* 8 suit-count))
        short-suit-bonus)))
@@ -1483,6 +1494,7 @@
      :phase :trick-playing
      :policy strategy
      :engine engine
+     :ditch-policy (:ditch-policy *play-config* default-ditch-policy)
      :reason (card-reason game player engine cards analyses card)
      :legal-count (count cards)
      :selected (candidate-summary game player analyses card)

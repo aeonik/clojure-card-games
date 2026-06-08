@@ -19,7 +19,8 @@
                  :catchphrase "The adorable card-dealing bot."}
         normalized (assoc persona
                           :style :preservation
-                          :play-strategy :hybrid-preservation)
+                          :play-strategy :hybrid-preservation
+                          :ditch-policy :future-suit-equity)
         state (room/seat-bot (room/new-room "ABC123" 9) :player1 persona)]
     (is (= normalized (get-in state [:seats :player1 :persona])))
     (is (= "Deal-E" (get-in state [:seats :player1 :name])))
@@ -37,7 +38,8 @@
             :icon "BG"
             :catchphrase "Oops! I Bid It Again"
             :style :preservation
-            :play-strategy :hybrid-preservation}
+            :play-strategy :hybrid-preservation
+            :ditch-policy :future-suit-equity}
            bidney))
     (is (not (contains? names "Bidney Spears")))
     (is (not (contains? names "Bitney Queers")))))
@@ -51,6 +53,12 @@
                           room/bot-personas)
         hal-52 (some #(when (= "HAL 52" (:name %)) %)
                      room/bot-personas)
+        c-3p-oh-no (some #(when (= "C-3P-Oh No" (:name %)) %)
+                         room/bot-personas)
+        bid-zeppelin (some #(when (= "Bid Zeppelin" (:name %)) %)
+                           room/bot-personas)
+        trick-182 (some #(when (= "Trick-182" (:name %)) %)
+                        room/bot-personas)
         tuned (room/normalize-bot-persona
                {:name "Deal-E"
                 :icon "DE"
@@ -67,6 +75,16 @@
     (is (= :hybrid-ruff-invite (:play-strategy heart-vader)))
     (is (= :preservation (:style hal-52)))
     (is (= :hybrid-ruff-invite (:play-strategy hal-52)))
+    (is (= :future-suit-equity (:ditch-policy hal-52)))
+    (is (= :preservation (:style c-3p-oh-no)))
+    (is (= :hybrid-preservation (:play-strategy c-3p-oh-no)))
+    (is (= :classic (:ditch-policy c-3p-oh-no)))
+    (is (= :aggressive (:style bid-zeppelin)))
+    (is (= :hybrid (:play-strategy bid-zeppelin)))
+    (is (= :classic (:ditch-policy bid-zeppelin)))
+    (is (= :preservation (:style trick-182)))
+    (is (= :hybrid-ruff-invite (:play-strategy trick-182)))
+    (is (= :classic (:ditch-policy trick-182)))
     (is (= :aggressive (:style tuned)))
     (is (= :hybrid (:play-strategy tuned)))))
 
@@ -79,10 +97,13 @@
                   (room/seat-bot :player2 aggressive)
                   (room/seat-bot :player3 preservation))]
     (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
+    (is (= :future-suit-equity (get-in state [:seats :player2 :ditch-policy])))
     (is (= :aggressive (get-in state [:seats :player2 :style])))
     (is (= :hybrid-preservation (get-in state [:seats :player3 :play-strategy])))
+    (is (= :future-suit-equity (get-in state [:seats :player3 :ditch-policy])))
     (is (= :preservation (get-in state [:seats :player3 :style])))
     (is (= :hybrid (room/bot-play-strategy state :player2)))
+    (is (= :future-suit-equity (room/bot-ditch-policy state :player2)))
     (is (= :hybrid-preservation (room/bot-play-strategy state :player3)))))
 
 (deftest bot-turn-binds-seat-play-strategy
@@ -94,10 +115,13 @@
                   (assoc-in [:game :current-player] :player2))]
     (with-redefs [bot/explained-action (fn [_ _]
                                          {:type :observed
-                                          :play-strategy bot/*play-strategy*})]
+                                          :play-strategy bot/*play-strategy*
+                                          :ditch-policy (:ditch-policy
+                                                         bot/*play-config*)})]
       (is (= {:player :player2
               :event {:type :observed
-                      :play-strategy :hybrid}}
+                      :play-strategy :hybrid
+                      :ditch-policy :future-suit-equity}}
              (room/bot-turn state))))))
 
 (deftest fill-bots-samples-distinct-personas
@@ -115,6 +139,7 @@
                   (room/ensure-bot-personas))]
     (is (some? (get-in state [:seats :player2 :persona])))
     (is (some? (get-in state [:seats :player2 :play-strategy])))
+    (is (some? (get-in state [:seats :player2 :ditch-policy])))
     (is (some? (get-in state [:seats :player2 :style])))
     (is (not= "Bot 2" (get-in state [:seats :player2 :name])))))
 
@@ -130,6 +155,8 @@
                   (room/ensure-bot-personas))]
     (is (= :aggressive (get-in state [:seats :player2 :style])))
     (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
+    (is (= :future-suit-equity
+           (get-in state [:seats :player2 :ditch-policy])))
     (is (= :hybrid (room/bot-play-strategy state :player2)))))
 
 (deftest legacy-ruff-invite-bot-personas-get-strategy-metadata
@@ -145,6 +172,8 @@
     (is (= :aggressive (get-in state [:seats :player2 :style])))
     (is (= :hybrid-ruff-invite
            (get-in state [:seats :player2 :play-strategy])))
+    (is (= :future-suit-equity
+           (get-in state [:seats :player2 :ditch-policy])))
     (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
 
 (deftest legacy-preservation-ruff-invite-bot-personas-get-strategy-metadata
@@ -160,6 +189,8 @@
     (is (= :preservation (get-in state [:seats :player2 :style])))
     (is (= :hybrid-ruff-invite
            (get-in state [:seats :player2 :play-strategy])))
+    (is (= :future-suit-equity
+           (get-in state [:seats :player2 :ditch-policy])))
     (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
 
 (deftest room-visibility-defaults-to-private

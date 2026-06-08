@@ -450,6 +450,11 @@
       (some-> (:persona seat) room/persona-play-strategy)
       (room/persona-play-strategy {:name (:name seat)})))
 
+(defn bot-seat-ditch-policy [seat]
+  (or (:ditch-policy seat)
+      (some-> (:persona seat) room/persona-ditch-policy)
+      (room/persona-ditch-policy {:name (:name seat)})))
+
 (defn bot-seat-name [player seat]
   (or (get-in seat [:persona :name])
       (:name seat)
@@ -470,6 +475,7 @@
       :name (bot-seat-name player seat)
       :style (bot-seat-style seat)
       :play-strategy (bot-seat-play-strategy seat)
+      :ditch-policy (bot-seat-ditch-policy seat)
       :team team
       :won? (= team winner)})))
 
@@ -498,6 +504,13 @@
 (defn known-play-strategies []
   (->> (concat (keys bot/play-strategies)
                (keep :play-strategy room/bot-personas))
+       set
+       (sort-by kw-label)
+       vec))
+
+(defn known-ditch-policies []
+  (->> (concat bot/ditch-policies
+               (keep :ditch-policy room/bot-personas))
        set
        (sort-by kw-label)
        vec))
@@ -532,9 +545,39 @@
            (table-cell "Win rate" win-rate)])]]
       [:p {:class "empty"} "No completed bot outcomes yet."])))
 
+(defn bot-ditch-policy-rows [outcomes]
+  (let [groups (bot-outcome-groups :ditch-policy outcomes)
+        by-key (into {} (map (juxt :key identity) groups))]
+    (mapv (fn [policy]
+            (or (get by-key policy)
+                {:key policy
+                 :appearances 0
+                 :wins 0
+                 :win-rate "--"}))
+          (known-ditch-policies))))
+
+(defn bot-ditch-policy-table [records]
+  (let [groups (bot-ditch-policy-rows (bot-outcomes records))]
+    (if (seq groups)
+      [:table {:class "admin-table"}
+       [:thead
+        [:tr
+         [:th "Ditch policy"]
+         [:th "Seats"]
+         [:th "Wins"]
+         [:th "Win rate"]]]
+       [:tbody
+        (for [{:keys [key appearances wins win-rate]} groups]
+          [:tr
+           (table-cell "Ditch policy" (kw-label key))
+           (table-cell "Seats" appearances)
+           (table-cell "Wins" wins)
+           (table-cell "Win rate" win-rate)])]]
+      [:p {:class "empty"} "No completed bot outcomes yet."])))
+
 (defn bot-persona-table [records]
   (let [groups (bot-outcome-groups
-                (juxt :name :style :play-strategy)
+                (juxt :name :style :play-strategy :ditch-policy)
                 (bot-outcomes records))]
     (if (seq groups)
       [:table {:class "admin-table"}
@@ -543,16 +586,18 @@
          [:th "Bot"]
          [:th "Style"]
          [:th "Strategy"]
+         [:th "Ditch"]
          [:th "Seats"]
          [:th "Wins"]
          [:th "Win rate"]]]
        [:tbody
         (for [{:keys [key appearances wins win-rate]} groups
-              :let [[name style play-strategy] key]]
+              :let [[name style play-strategy ditch-policy] key]]
           [:tr
            (table-cell "Bot" name)
            (table-cell "Style" (kw-label style))
            (table-cell "Strategy" (kw-label play-strategy))
+           (table-cell "Ditch" (kw-label ditch-policy))
            (table-cell "Seats" appearances)
            (table-cell "Wins" wins)
            (table-cell "Win rate" win-rate)])]]
@@ -625,6 +670,9 @@
        [:section
         [:h3 "Bot strategies"]
         (bot-strategy-table records)]
+       [:section
+        [:h3 "Bot ditch policies"]
+        (bot-ditch-policy-table records)]
        [:section
         [:h3 "Bot personas"]
         (bot-persona-table records)]]
