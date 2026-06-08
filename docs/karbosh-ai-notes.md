@@ -80,7 +80,7 @@ trump but can prove a partner ruff is available:
 
 - All opponents with cards left are known void in trump from prior play.
 - Unseen trump still exists, so with opponents void it must belong to partners.
-- At least one partner is known void in the off-suit being led.
+- Every partner with cards left is known void in the off-suit being led.
 - The leader has a secure trump winner available, but leads the lowest card in
   the partner-void off-suit instead.
 
@@ -91,11 +91,18 @@ The tactic is available as:
 
 Default remains `:hybrid-preservation`.
 
+Mixed live bot assignment:
+
+- Aggressive-style ruff invite bots: Bender the Rules, Heart Vader, Spade
+  Invader, The Notorious R.O.B., Botzilla.
+- Preservation-style ruff invite bots: Trick-182, HAL 52, Queen Latifah-Bot,
+  The Great Cardini, Tony Starkboard, Cache Money, Decks Machina.
+
 Seeded opportunity scan with default play, 500 games:
 
 | Games | Opportunities | Games with any | Avg per game |
 | ---: | ---: | ---: | ---: |
-| 500 | 9 | 9 | 0.018 |
+| 500 | 1 | 1 | 0.002 |
 
 Fair head-to-head play-policy matchup, same 500 seeds with team assignments
 swapped for 1,000 games:
@@ -105,6 +112,15 @@ swapped for 1,000 games:
 | Default `:hybrid-preservation` | 500 | 50.0% |
 | Ruff invite `:hybrid-ruff-invite` | 500 | 50.0% |
 
-Read: the tactic is coherent and test-covered, but it is extremely rare under
-current inference rules and has no measurable win-rate edge in this sample. Keep
-it pluggable; do not make it default.
+Score quality in the same 1,000-game matchup:
+
+| Policy | Avg final score | Avg score diff |
+| --- | ---: | ---: |
+| Default `:hybrid-preservation` | 39.682 | -0.001 |
+| Ruff invite `:hybrid-ruff-invite` | 39.683 | +0.001 |
+
+Read: after tightening the requirement so both partners are known void in the
+led suit, the tactic appears almost never under current inference rules. It has
+no measurable win-rate edge and only a negligible score-differential edge in
+this sample. Keep it pluggable and assign it to a mixed set of live bot personas
+for long-run tracking; do not make it global default yet.

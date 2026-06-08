@@ -47,6 +47,10 @@
                      room/bot-personas)
         trumpelstiltskin (some #(when (= "Trumpelstiltskin" (:name %)) %)
                                room/bot-personas)
+        heart-vader (some #(when (= "Heart Vader" (:name %)) %)
+                          room/bot-personas)
+        hal-52 (some #(when (= "HAL 52" (:name %)) %)
+                     room/bot-personas)
         tuned (room/normalize-bot-persona
                {:name "Deal-E"
                 :icon "DE"
@@ -58,6 +62,10 @@
     (is (= :hybrid-preservation (:play-strategy deal-e)))
     (is (= :aggressive (:style trumpelstiltskin)))
     (is (= :hybrid (:play-strategy trumpelstiltskin)))
+    (is (= :aggressive (:style heart-vader)))
+    (is (= :hybrid-ruff-invite (:play-strategy heart-vader)))
+    (is (= :preservation (:style hal-52)))
+    (is (= :hybrid-ruff-invite (:play-strategy hal-52)))
     (is (= :aggressive (:style tuned)))
     (is (= :hybrid (:play-strategy tuned)))))
 
@@ -122,6 +130,36 @@
     (is (= :aggressive (get-in state [:seats :player2 :style])))
     (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
     (is (= :hybrid (room/bot-play-strategy state :player2)))))
+
+(deftest legacy-ruff-invite-bot-personas-get-strategy-metadata
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (assoc-in [:seats :player2]
+                            {:name "Bender the Rules"
+                             :connected? true
+                             :bot? true
+                             :persona {:name "Bender the Rules"
+                                       :icon "BR"
+                                       :catchphrase "Absolutely cheats, somehow legally."}})
+                  (room/ensure-bot-personas))]
+    (is (= :aggressive (get-in state [:seats :player2 :style])))
+    (is (= :hybrid-ruff-invite
+           (get-in state [:seats :player2 :play-strategy])))
+    (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
+
+(deftest legacy-preservation-ruff-invite-bot-personas-get-strategy-metadata
+  (let [state (-> (room/new-room "ABC123" 9)
+                  (assoc-in [:seats :player2]
+                            {:name "HAL 52"
+                             :connected? true
+                             :bot? true
+                             :persona {:name "HAL 52"
+                                       :icon "52"
+                                       :catchphrase "Calm voice, murders your strategy."}})
+                  (room/ensure-bot-personas))]
+    (is (= :preservation (get-in state [:seats :player2 :style])))
+    (is (= :hybrid-ruff-invite
+           (get-in state [:seats :player2 :play-strategy])))
+    (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
 
 (deftest room-visibility-defaults-to-private
   (is (false? (:public? (room/new-room "ABC123" 9))))

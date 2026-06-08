@@ -7,6 +7,7 @@
 
 (def default-bot-play-strategy :hybrid-preservation)
 (def aggressive-bot-play-strategy :hybrid)
+(def ruff-invite-bot-play-strategy :hybrid-ruff-invite)
 
 (def aggressive-bot-names
   #{"Cardi-Bot"
@@ -23,6 +24,20 @@
     "Botzilla"
     "Shufflin' Around and Find Out"})
 
+(def ruff-invite-bot-names
+  #{"Bender the Rules"
+    "Trick-182"
+    "HAL 52"
+    "Queen Latifah-Bot"
+    "Heart Vader"
+    "The Great Cardini"
+    "Spade Invader"
+    "Tony Starkboard"
+    "Cache Money"
+    "The Notorious R.O.B."
+    "Botzilla"
+    "Decks Machina"})
+
 (defn persona-style [persona]
   (or (:style persona)
       (if (contains? aggressive-bot-names (:name persona))
@@ -31,9 +46,12 @@
 
 (defn persona-play-strategy [persona]
   (or (:play-strategy persona)
-      (case (persona-style persona)
-        :aggressive aggressive-bot-play-strategy
-        default-bot-play-strategy)))
+      (if (contains? ruff-invite-bot-names (:name persona))
+        ruff-invite-bot-play-strategy
+        (case (persona-style persona)
+          :aggressive aggressive-bot-play-strategy
+          :ruff-invite ruff-invite-bot-play-strategy
+          default-bot-play-strategy))))
 
 (defn normalize-bot-persona [persona]
   (let [persona (assoc persona :style (persona-style persona))]

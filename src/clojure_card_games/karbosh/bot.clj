@@ -744,10 +744,10 @@
            game
            (remove #(same-team? game player %) (game/trick-players game)))))
 
-(defn partner-known-void-in-suit? [game voids player suit]
-  (boolean
-   (some #(known-void? voids % suit)
-         (players-with-cards game (game/partner-players game player)))))
+(defn partners-known-void-in-suit? [game voids player suit]
+  (let [partners (players-with-cards game (game/partner-players game player))]
+    (and (seq partners)
+         (every? #(known-void? voids % suit) partners))))
 
 (defn partner-ruff-invite-card [game player unseen-counts cards]
   (let [trump (:trump game)
@@ -755,7 +755,7 @@
         secure-trump (secure-trump-lead-card game unseen-counts cards)
         unseen-trumps (unseen-effective-suit-count unseen-counts trump trump)
         off-suit-cards (remove #(trump-card? trump %) cards)
-        partner-void-cards (filter #(partner-known-void-in-suit?
+        partner-void-cards (filter #(partners-known-void-in-suit?
                                       game
                                       voids
                                       player

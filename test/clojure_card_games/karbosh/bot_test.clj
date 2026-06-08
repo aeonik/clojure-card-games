@@ -591,7 +591,7 @@
                                      [{:player :player2 :card [:A :♣]}
                                       {:player :player3 :card [9 :♦]}
                                       {:player :player4 :card [:K :♣]}
-                                      {:player :player5 :card [:Q :♣]}
+                                      {:player :player5 :card [:Q :♦]}
                                       {:player :player6 :card [9 :♣]}
                                       {:player :player1 :card [10 :♣]}]]
                   :current-trick []})]
@@ -622,7 +622,7 @@
                                      [{:player :player2 :card [:A :♣]}
                                       {:player :player3 :card [9 :♦]}
                                       {:player :player4 :card [:K :♣]}
-                                      {:player :player5 :card [:Q :♣]}
+                                      {:player :player5 :card [:Q :♦]}
                                       {:player :player6 :card [9 :♣]}
                                       {:player :player1 :card [10 :♣]}]]
                   :current-trick []})]
