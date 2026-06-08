@@ -851,24 +851,40 @@
        (sort-by (comp str :player))
        vec))
 
-(defn freq-label [m]
+(defn freq-items [m]
   (->> m
        (remove (comp nil? key))
        (map (fn [[k n]]
-              (str (kw-label k) " x" n)))
-       (str/join ", ")))
+              {:label (kw-label k)
+               :count n}))
+       (sort-by (juxt (comp - :count) :label))))
+
+(defn freq-chips-html [m]
+  (let [items (freq-items m)]
+    (if (seq items)
+      [:div {:class "ai-policy-chips"}
+       (for [{:keys [label count]} items]
+         [:span {:class "ai-policy-chip"}
+          [:span label]
+          [:strong (str "x" count)]])]
+      [:span {:class "empty"} "--"])))
 
 (defn ai-policy-summary-html [view hand]
   (let [rows (ai-policy-summary (ai-events hand))]
     (when (seq rows)
       [:section {:class "ai-policy-summary"}
        [:h3 "AI Policies"]
-       [:ol {:class "compact-list"}
+       [:div {:class "ai-policy-grid"}
         (for [{:keys [player policies engines]} rows]
-          [:li
-           [:span (player-label view player)]
-           [:strong (freq-label policies)]
-           [:em (str " / " (freq-label engines))]])]])))
+          [:article {:class "ai-policy-card"}
+           [:h4 (player-label view player)]
+           [:div {:class "ai-policy-columns"}
+            [:div
+             [:span {:class "ai-subhead"} "Policies"]
+             (freq-chips-html policies)]
+            [:div
+             [:span {:class "ai-subhead"} "Engines"]
+             (freq-chips-html engines)]]])]])))
 
 (defn ai-decision-row-html [view event]
   (let [{:keys [policy engine reason selected]} (:ai event)
@@ -1133,6 +1149,14 @@
    ".trick-card .play-player{color:rgba(255,255,255,.68);font-size:.72rem;font-weight:800;line-height:1.1;margin-bottom:5px}"
    ".trick-card strong{display:block;color:#f5c85b;font-size:.58rem;letter-spacing:.1em;line-height:1.1;margin-top:4px;text-transform:uppercase}"
    ".ai-policy-summary{margin:0 0 12px}"
+   ".ai-policy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:7px}"
+   ".ai-policy-card{border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(0,0,0,.13);padding:8px;min-width:0}"
+   ".ai-policy-card h4{margin:0 0 7px;color:white;font-size:.72rem;font-weight:900;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".ai-policy-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;min-width:0}"
+   ".ai-policy-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-width:0}"
+   ".ai-policy-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(255,255,255,.045);color:rgba(255,255,255,.76);font-size:.58rem;font-weight:800;line-height:1.05;padding:4px 6px}"
+   ".ai-policy-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".ai-policy-chip strong{color:#f5c85b;font-size:.54rem;letter-spacing:.04em}"
    ".ai-decision{margin-top:7px;border:1px solid rgba(111,208,199,.16);border-radius:6px;background:rgba(10,16,28,.52);overflow:hidden}"
    ".ai-decision[open]{border-color:rgba(111,208,199,.36);box-shadow:0 0 0 1px rgba(111,208,199,.05)}"
    ".ai-decision summary{cursor:pointer;list-style:none;color:rgba(255,255,255,.74);font-size:.62rem;font-weight:700;line-height:1.2}"
@@ -1191,7 +1215,7 @@
    ".starting-hands-strip .empty{font-size:.72rem}"
    ".initial-hands{margin-top:14px}"
    ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.trick-detail{padding:7px}.trick-detail .trick{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.trick-detail .trick-card{padding:5px}.trick-card .play-player{font-size:.6rem;margin-bottom:3px}.trick-card strong{font-size:.48rem}.ai-decision{margin-top:5px;border-radius:5px}.ai-decision-summary{gap:4px;padding:5px}.ai-badge{min-width:22px;font-size:.46rem}.ai-summary-text strong{font-size:.55rem}.ai-summary-text em{font-size:.48rem}.ai-decision-body{gap:5px;padding:5px;font-size:.56rem}.ai-facts{grid-template-columns:1fr;gap:4px}.ai-fact,.ai-hypergeom div{padding:4px}.ai-fact>span,.ai-subhead,.ai-hypergeom dt{font-size:.45rem;letter-spacing:.04em}.ai-fact>strong,.ai-hypergeom dd{font-size:.56rem}.ai-selected{gap:3px}.ai-selected .card{width:20px;min-width:20px;height:28px;font-size:.58rem}.ai-pill{font-size:.46rem;padding:2px 4px}.ai-hypergeom{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.ai-candidates{gap:3px}.ai-candidate{gap:3px;padding:2px}.ai-candidate .card{width:18px;min-width:18px;height:25px;font-size:.54rem}.ai-candidate small{font-size:.46rem}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
+   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:2px}.trick-detail{padding:7px}.trick-detail .trick{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.trick-detail .trick-card{padding:5px}.trick-card .play-player{font-size:.6rem;margin-bottom:3px}.trick-card strong{font-size:.48rem}.ai-policy-grid{grid-template-columns:1fr;gap:5px}.ai-policy-card{padding:6px}.ai-policy-card h4{font-size:.62rem;margin-bottom:5px}.ai-policy-columns{gap:5px}.ai-policy-chip{font-size:.5rem;padding:3px 5px}.ai-policy-chip strong{font-size:.48rem}.ai-decision{margin-top:5px;border-radius:5px}.ai-decision-summary{gap:4px;padding:5px}.ai-badge{min-width:22px;font-size:.46rem}.ai-summary-text strong{font-size:.55rem}.ai-summary-text em{font-size:.48rem}.ai-decision-body{gap:5px;padding:5px;font-size:.56rem}.ai-facts{grid-template-columns:1fr;gap:4px}.ai-fact,.ai-hypergeom div{padding:4px}.ai-fact>span,.ai-subhead,.ai-hypergeom dt{font-size:.45rem;letter-spacing:.04em}.ai-fact>strong,.ai-hypergeom dd{font-size:.56rem}.ai-selected{gap:3px}.ai-selected .card{width:20px;min-width:20px;height:28px;font-size:.58rem}.ai-pill{font-size:.46rem;padding:2px 4px}.ai-hypergeom{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.ai-candidates{gap:3px}.ai-candidate{gap:3px;padding:2px}.ai-candidate .card{width:18px;min-width:18px;height:25px;font-size:.54rem}.ai-candidate small{font-size:.46rem}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
 
 (declare styles admin-layout-styles admin-card-styles)
 
