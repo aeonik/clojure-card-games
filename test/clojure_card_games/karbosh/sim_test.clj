@@ -1,7 +1,8 @@
 (ns clojure-card-games.karbosh.sim-test
   (:require [clojure.test :refer [deftest is]]
             [clojure-card-games.karbosh.bot :as bot]
-            [clojure-card-games.karbosh.sim :as sim]))
+            [clojure-card-games.karbosh.sim :as sim]
+            [clojure-card-games.karbosh.sim.personality :as personality]))
 
 (deftest max-hands-guard-test
   (let [state (sim/run-game 1 {:max-hands 1})]
@@ -133,3 +134,31 @@
   (is (true? (sim/convergence-reached?
               {:min-games 4 :epsilon 0.01}
               {:games 4 :max-abs-derivative 0.005}))))
+
+(deftest personality-profile-selection-test
+  (let [profiles (personality/select-profiles :default
+                                              [:all-hybrid
+                                               :all-hybrid-ruff-invite])]
+    (is (= [:all-hybrid :all-hybrid-ruff-invite]
+           (mapv :label profiles)))
+    (is (= [[:hybrid :hybrid :hybrid]
+            [:hybrid-ruff-invite :hybrid-ruff-invite :hybrid-ruff-invite]]
+           (mapv :play-strategies profiles)))))
+
+(deftest personality-tournament-checkpoint-test
+  (let [profiles (personality/select-profiles :default
+                                              [:all-hybrid
+                                               :all-hybrid-ruff-invite])
+        step (first (personality/tournament-steps
+                     profiles
+                     [1]
+                     {:max-hands 1
+                      :min-score -100}
+                     {:checkpoint-seeds 1}))]
+    (is (= 1 (:checkpoint step)))
+    (is (= 2 (:games step)))
+    (is (= #{:all-hybrid :all-hybrid-ruff-invite}
+           (set (map :label (:rankings step)))))
+    (is (= {:unresolved 2}
+           (-> step :matchups first :wins)))
+    (is (contains? step :max-abs-derivative))))

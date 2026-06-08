@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.admin
   (:require [clojure.string :as str]
+            [clojure-card-games.karbosh.bot :as bot]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
@@ -476,8 +477,26 @@
                       (comp str :key)))
        vec))
 
+(defn known-play-strategies []
+  (->> (concat (keys bot/play-strategies)
+               (keep :play-strategy room/bot-personas))
+       set
+       (sort-by kw-label)
+       vec))
+
+(defn bot-strategy-rows [outcomes]
+  (let [groups (bot-outcome-groups :play-strategy outcomes)
+        by-key (into {} (map (juxt :key identity) groups))]
+    (mapv (fn [strategy]
+            (or (get by-key strategy)
+                {:key strategy
+                 :appearances 0
+                 :wins 0
+                 :win-rate "--"}))
+          (known-play-strategies))))
+
 (defn bot-strategy-table [records]
-  (let [groups (bot-outcome-groups :play-strategy (bot-outcomes records))]
+  (let [groups (bot-strategy-rows (bot-outcomes records))]
     (if (seq groups)
       [:table {:class "admin-table"}
        [:thead
