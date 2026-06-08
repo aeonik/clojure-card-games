@@ -470,6 +470,8 @@
           (is (re-find #"5.0%" (:body detail-response)))
           (is (re-find #"Starting Hands" (:body detail-response)))
           (is (re-find #"starting-hands-strip" (:body detail-response)))
+          (is (.contains (:body detail-response)
+                         ".hand-detail .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}"))
           (is (re-find #"starting-hand-row" (:body detail-response)))
           (is (re-find #"Analyze" (:body detail-response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0/tricks/0/analysis\""

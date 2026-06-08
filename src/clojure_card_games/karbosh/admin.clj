@@ -1541,6 +1541,7 @@
    ".hand-summary-subhead,.trick-chip-label{color:rgba(255,255,255,.42);font-size:.56rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
    ".hand-summary-subhead{margin-bottom:4px}"
    ".hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}"
+   ".hand-detail .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}"
    ".starting-hand-row{display:block;border-bottom:1px solid rgba(255,255,255,.08);padding:3px 0;min-width:0}"
    ".starting-hand-row h4{margin:0 0 3px;color:rgba(255,255,255,.62);font-size:.62rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
    ".starting-hand-cards{display:flex;flex-wrap:nowrap;gap:2px;min-width:0}"
