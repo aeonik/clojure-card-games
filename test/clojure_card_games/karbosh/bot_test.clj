@@ -496,6 +496,57 @@
       (is (= {:type :play-card :card [9 :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
+  (testing "preservation policy spends lower trump before an unsafe left bower"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :hand-index 8
+                :bids [{:type :bid
+                        :player :player6
+                        :bid-type :bid
+                        :value 4
+                        :hand-index 8}]
+                :players {:player1 {:team 1
+                                    :hand [[:Q :♥] [:A :♥] [:A :♦]
+                                           [:J :♠] [:Q :♣] [:Q :♦]]}
+                          :player2 {:team 2
+                                    :hand [[:Q :♠] [9 :♦] [9 :♦]
+                                           [9 :♥] [:J :♦] [:K :♥]]}
+                          :player3 {:team 1
+                                    :hand [[:Q :♠] [:K :♦] [:Q :♥]
+                                           [10 :♥] [10 :♦] [:J :♠]]}
+                          :player4 {:team 2
+                                    :hand [[:K :♣] [:K :♠] [:A :♦]
+                                           [:Q :♦] [9 :♥] [:J :♥]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♠] [:A :♥] [:J :♦]
+                                           [10 :♥] [:J :♣]]}
+                          :player6 {:team 2
+                                    :hand [[:K :♦] [:K :♥] [:K :♣]
+                                           [:J :♥] [:Q :♣]]}}
+                :completed-tricks [[{:player :player6 :card [:J :♣]}
+                                    {:player :player1 :card [10 :♣]}
+                                    {:player :player2 :card [10 :♣]}
+                                    {:player :player3 :card [:A :♣]}
+                                    {:player :player4 :card [9 :♣]}
+                                    {:player :player5 :card [:A :♣]}]
+                                   [{:player :player6 :card [:A :♠]}
+                                    {:player :player1 :card [:A :♠]}
+                                    {:player :player2 :card [9 :♠]}
+                                    {:player :player3 :card [9 :♠]}
+                                    {:player :player4 :card [10 :♠]}
+                                    {:player :player5 :card [10 :♠]}]]
+                :tricks-this-hand {1 0 2 2}
+                :current-trick [{:player :player6 :card [9 :♣]}]}
+          event (bot/card-action game :player1 :hybrid-ruff-invite)]
+      (is (= {:type :play-card :card [:Q :♣]} event))
+      (is (= :preserve-high-trump-winner
+             (:reason (bot/explain-card-action
+                       game
+                       :player1
+                       :hybrid-ruff-invite
+                       event))))))
+
   (testing "defenders lead an off-suit ace before an unsafe left bower"
     (let [game {:phase :trick-playing
                 :trump :♥

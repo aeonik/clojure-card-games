@@ -1279,13 +1279,30 @@
        (> (card-risk analyses card)
           (:win-risk-tolerance config))))
 
+(defn lower-preservation-winners [config game analyses winning-cards]
+  (let [unsafe-highs (filter #(unsafe-high-trump-winner?
+                                config
+                                game
+                                analyses
+                                %)
+                             winning-cards)]
+    (when (seq unsafe-highs)
+      (seq (remove #(some #{%} unsafe-highs) winning-cards)))))
+
 (defn preservation-winning-card
   [config game player analyses cards winning-cards]
   (let [safe (safe-cards config analyses :win-risk-tolerance winning-cards)
+        lower-winners (lower-preservation-winners config
+                                                  game
+                                                  analyses
+                                                  winning-cards)
         non-winning (seq (remove #(wins-trick? game player %) cards))]
     (cond
       (seq safe)
       (lowest-card game safe)
+
+      lower-winners
+      (lowest-card game lower-winners)
 
       (and non-winning
            (seq (pending-partners-after game player))
@@ -1470,6 +1487,11 @@
         good? (zero? selected-risk)
         config (context-play-config *play-config* game player)
         unseen-counts (unseen-card-counts game player)
+        winning-cards (filter #(wins-trick? game player %) cards)
+        lower-winners (lower-preservation-winners config
+                                                   game
+                                                   analyses
+                                                   winning-cards)
         ruff-invite (partner-ruff-invite-card game player unseen-counts cards)
         defender-low-exit (defender-low-exit-card game player cards)]
     (cond
@@ -1507,6 +1529,11 @@
 
       (and winning? good?)
       :secure-winning-card
+
+      (and winning?
+           (seq lower-winners)
+           (= card (lowest-card game lower-winners)))
+      :preserve-high-trump-winner
 
       winning?
       :risk-adjusted-winning-card
