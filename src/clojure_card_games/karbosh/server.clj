@@ -62,7 +62,7 @@
   (Long/parseLong (or (System/getenv "KARBOSH_MAX_WEBSOCKET_CONNECTIONS") "256")))
 
 (defn idle-room-ms []
-  (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_MS") "14400000")))
+  (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_MS") "300000")))
 
 (defn idle-room-sweep-ms []
   (Long/parseLong (or (System/getenv "KARBOSH_IDLE_ROOM_SWEEP_MS") "60000")))
@@ -667,7 +667,9 @@
 (defn public-room-summaries [rooms]
   (->> rooms
        vals
-       (filter #(and (map? %) (:public? %)))
+       (filter #(and (map? %)
+                     (:public? %)
+                     (seq (:connections %))))
        (sort-by :created-at)
        (mapv public-room-summary)))
 

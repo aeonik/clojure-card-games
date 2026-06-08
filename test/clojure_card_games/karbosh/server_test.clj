@@ -53,6 +53,9 @@
 (defn played-room [room]
   (assoc-in room [:game :hand-history] [{:hand-index 0}]))
 
+(defn connected-room [room]
+  (room/add-connection room :conn :player1 nil))
+
 (use-fixtures
   :each
   (fn [test]
@@ -520,7 +523,7 @@
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
                                    "host" "dc3systems.com"}})]
           (is (= 200 (:status response)))
-          (is (re-find #"No rooms are currently running" (:body response)))
+          (is (re-find #"No rooms are currently active" (:body response)))
           (is (re-find #"Historical rooms" (:body response)))
           (is (re-find #"OLD123" (:body response)))
           (is (re-find #"Bid trends" (:body response)))
@@ -649,10 +652,16 @@
   (let [old-rooms @server/rooms
         public-room (-> (room/new-room "PUB123" 9 true)
                         (room/seat-player :player1 "Dave")
-                        (room/seat-bot :player2))
-        private-room (room/new-room "PRIVATE" 10 false)]
+                        (room/seat-bot :player2)
+                        connected-room)
+        idle-public-room (-> (room/new-room "IDLE12" 11 true)
+                             (room/seat-player :player1 "Idle"))
+        private-room (-> (room/new-room "PRIVATE" 10 false)
+                         (room/seat-player :player1 "Private")
+                         connected-room)]
     (try
       (reset! server/rooms {"PUB123" public-room
+                            "IDLE12" idle-public-room
                             "PRIVATE" private-room})
       (let [response (server/handler {:request-method :get
                                       :uri "/karbosh/api/public-rooms"})
@@ -662,6 +671,7 @@
         (is (:ok body))
         (is (= ["PUB123"] (mapv :room-id rooms)))
         (is (= 1 (:player-count (first rooms))))
+        (is (= 1 (:connected-count (first rooms))))
         (is (= 5 (:available-count (first rooms))))
         (is (not (contains? (first rooms) :players)))
         (is (not (contains? (first rooms) :hands))))
@@ -911,7 +921,8 @@
 
 (deftest admin-dashboard-ignores-stale-room-entries-test
   (let [html (admin/render-dashboard
-              {:rooms {"STALE" nil}
+              {:rooms {"STALE" nil
+                       "IDLE12" (room/new-room "IDLE12" 9)}
                :metrics {:started-at 1000}
                :pending-bot-count 0
                :open-websocket-count 0
@@ -921,11 +932,15 @@
                         :max-message-bytes 8192}
                :started-at 1000})]
     (is (string? html))
-    (is (re-find #"No rooms are currently running" html))))
+    (is (re-find #"No rooms are currently active" html))
+    (is (not (re-find #"data-delete-room=\"IDLE12\"" html)))
+    (is (re-find #"Active rooms" html))
+    (is (re-find #"Loaded room cache" html))
+    (is (re-find #"Idle unload" html))))
 
 (deftest admin-dashboard-main-html-renders-websocket-payload-test
   (let [html (admin/render-dashboard-main-html
-              {:rooms {"ABC123" (room/new-room "ABC123" 9)}
+              {:rooms {"ABC123" (connected-room (room/new-room "ABC123" 9))}
                :metrics {:started-at 1000}
                :pending-bot-count 0
                :open-websocket-count 0
@@ -933,7 +948,7 @@
                         :max-room-connections 24
                         :max-websocket-connections 256
                         :max-message-bytes 8192
-                        :idle-room-ms 14400000}
+                        :idle-room-ms 300000}
                :started-at 1000})]
     (is (string? html))
     (is (re-find #"<main id=\"admin-main\">" html))
@@ -951,7 +966,7 @@
 
 (deftest admin-dashboard-renders-delete-room-form-test
   (let [html (admin/render-dashboard
-              {:rooms {"ABC123" (room/new-room "ABC123" 9)}
+              {:rooms {"ABC123" (connected-room (room/new-room "ABC123" 9))}
                :metrics {:started-at 1000}
                :pending-bot-count 0
                :open-websocket-count 0
@@ -959,7 +974,7 @@
                         :max-room-connections 24
                         :max-websocket-connections 256
                         :max-message-bytes 8192
-                        :idle-room-ms 14400000}
+                        :idle-room-ms 300000}
                :started-at 1000})]
     (is (not (re-find #"admin/delete-room\?room=" html)))
     (is (re-find #"data-delete-room=\"ABC123\"" html))

@@ -95,12 +95,16 @@
        (:created-at room)
        (:game room)))
 
+(defn active-room-entry? [[_ room :as entry]]
+  (and (live-room-entry? entry)
+       (seq (:connections room))))
+
 (defn sorted-room-entries [rooms]
-  (sort-by (comp :created-at val) (filter live-room-entry? rooms)))
+  (sort-by (comp :created-at val) (filter active-room-entry? rooms)))
 
 (defn live-room [rooms room-id]
   (let [room (get rooms room-id)]
-    (when (live-room-entry? [room-id room])
+    (when (active-room-entry? [room-id room])
       room)))
 
 (defn runtime-stats [{:keys [rooms
@@ -110,7 +114,8 @@
                              limits
                              started-at
                              now]}]
-  (let [room-entries (filter live-room-entry? rooms)
+  (let [loaded-room-entries (filter live-room-entry? rooms)
+        active-room-entries (filter active-room-entry? rooms)
         runtime (Runtime/getRuntime)
         used (- (.totalMemory runtime) (.freeMemory runtime))
         room-updates (get metrics :room-updates 0)
@@ -118,16 +123,20 @@
         avg-update-ms (if (pos? room-updates)
                         (/ total-ns room-updates 1000000.0)
                         0.0)
-        connections (reduce + (map #(count (:connections %)) (map val room-entries)))]
+        connections (reduce + (map #(count (:connections %))
+                                   (map val loaded-room-entries)))]
     [{:label "Uptime" :value (duration-label (- now started-at))}
-     {:label "Rooms" :value (count room-entries)}
-     {:label "Max rooms" :value (or (:max-rooms limits) "--")}
+     {:label "Active rooms" :value (count active-room-entries)}
+     {:label "Loaded room cache" :value (count loaded-room-entries)}
+     {:label "Idle loaded" :value (- (count loaded-room-entries)
+                                     (count active-room-entries))}
+     {:label "Max loaded rooms" :value (or (:max-rooms limits) "--")}
      {:label "Connections" :value connections}
      {:label "Open websockets" :value (or open-websocket-count 0)}
      {:label "Max websockets" :value (or (:max-websocket-connections limits) "--")}
      {:label "Max room conns" :value (or (:max-room-connections limits) "--")}
      {:label "Max message" :value (bytes-label (or (:max-message-bytes limits) 0))}
-     {:label "Idle timeout" :value (duration-label (or (:idle-room-ms limits) 0))}
+     {:label "Idle unload" :value (duration-label (or (:idle-room-ms limits) 0))}
      {:label "Pending bot timers" :value pending-bot-count}
      {:label "Inbound messages" :value (get metrics :incoming-messages 0)}
      {:label "Inbound bytes" :value (bytes-label (get metrics :incoming-bytes 0))}
@@ -185,7 +194,7 @@
        [:th "Actions"]]]
      [:tbody (for [entry (sorted-room-entries rooms)]
                (room-summary-row now selected-id entry))]]
-    [:p {:class "empty"} "No rooms are currently running."]))
+    [:p {:class "empty"} "No rooms are currently active."]))
 
 (defn room-record-room [record]
   (:room record))
@@ -945,7 +954,7 @@
       [:div {:class "section-heading"}
        [:div
         [:p "Tracking"]
-        [:h2 "Running rooms"]]]
+        [:h2 "Active rooms"]]]
       (rooms-table rooms selected-id now)]
 
      (if (false? include-historical?)
