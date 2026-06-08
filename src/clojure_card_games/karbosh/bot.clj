@@ -741,6 +741,22 @@
                 (in-suit-control-card? game unseen-counts %))
           (remaining-hand-after game player card))))
 
+(defn high-off-suit-card? [game card]
+  (and (not (trump-card? (:trump game) card))
+       (>= (potential-card-score game card) 70)))
+
+(defn same-suit-high-after-discard? [game player card]
+  (let [suit (card-effective-suit game card)
+        score (potential-card-score game card)]
+    (some #(and (= suit (card-effective-suit game %))
+                (>= (potential-card-score game %) score)
+                (high-off-suit-card? game %))
+          (remaining-hand-after game player card))))
+
+(defn singleton-high-card? [game player card]
+  (and (high-off-suit-card? game card)
+       (not (same-suit-high-after-discard? game player card))))
+
 (defn ditch-card-cost [game player unseen-counts cards card]
   (let [trump (:trump game)
         hand (get-in game [:players player :hand])
@@ -758,6 +774,7 @@
                                   player
                                   unseen-counts
                                   card)))
+        singleton-high? (singleton-high-card? game player card)
         short-suit-bonus (if (and has-trump? (not trump?))
                            (case remaining-suit-count
                              0 600
@@ -767,15 +784,16 @@
     (- (+ (potential-card-score game card)
           (if (and trump? non-trump-legal?) 5000 0)
           (if last-control? 3000 0)
-          (if (and (off-ace? trump card) last-control?) 1200 0)
+          (if singleton-high? 1200 0)
           (* 8 suit-count))
        short-suit-bonus)))
 
 (defn ditch-card
   "Choose a card to throw away when this play is not trying to win the trick.
 
-  The ranking preserves trump and singleton suit controls, while using low
-  off-suit cards to clear suits when the player has trump left for future ruffs."
+  The ranking preserves trump, singleton suit controls, and singleton high
+  off-suit cards, while using low off-suit cards to clear suits when the player
+  has trump left for future ruffs."
   [game player unseen-counts cards]
   (first (sort-by #(ditch-card-cost game player unseen-counts cards %) cards)))
 
