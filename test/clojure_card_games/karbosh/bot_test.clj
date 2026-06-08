@@ -569,6 +569,66 @@
       (is (= {:type :play-card :card [:K :♥]}
              (bot/card-action game :player4 :hybrid-preservation)))))
 
+  (testing "ruff invite strategy can lead a partner-void suit over a good trump"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♥
+                  :active-players game/players
+                  :hand-index 2
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 2}]
+                  :players {:player1 {:team 1
+                                      :hand [[:J :♥] [:J :♥] [:Q :♣] [:K :♠]]}}
+                  :completed-tricks [[{:player :player3 :card [:A :♥]}
+                                      {:player :player4 :card [9 :♣]}
+                                      {:player :player5 :card [:K :♥]}
+                                      {:player :player6 :card [10 :♣]}
+                                      {:player :player1 :card [9 :♥]}
+                                      {:player :player2 :card [10 :♠]}]
+                                     [{:player :player2 :card [:A :♣]}
+                                      {:player :player3 :card [9 :♦]}
+                                      {:player :player4 :card [:K :♣]}
+                                      {:player :player5 :card [:Q :♣]}
+                                      {:player :player6 :card [9 :♣]}
+                                      {:player :player1 :card [10 :♣]}]]
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action game :player1 :hybrid-preservation)))
+      (is (= {:type :play-card :card [:Q :♣]}
+             (bot/card-action game :player1 :hybrid-ruff-invite)))))
+
+  (testing "ruff invite waits until every opponent is known void in trump"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♥
+                  :active-players game/players
+                  :hand-index 2
+                  :bids [{:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 2}]
+                  :players {:player1 {:team 1
+                                      :hand [[:J :♥] [:J :♥] [:Q :♣] [:K :♠]]}}
+                  :completed-tricks [[{:player :player3 :card [:A :♥]}
+                                      {:player :player4 :card [9 :♣]}
+                                      {:player :player5 :card [:K :♥]}
+                                      {:player :player6 :card [10 :♣]}
+                                      {:player :player1 :card [9 :♥]}
+                                      {:player :player2 :card [10 :♥]}]
+                                     [{:player :player2 :card [:A :♣]}
+                                      {:player :player3 :card [9 :♦]}
+                                      {:player :player4 :card [:K :♣]}
+                                      {:player :player5 :card [:Q :♣]}
+                                      {:player :player6 :card [9 :♣]}
+                                      {:player :player1 :card [10 :♣]}]]
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action game :player1 :hybrid-ruff-invite)))))
+
   (testing "when following, a bot preserves an unsafe high trump with a partner pending"
     (let [game {:phase :trick-playing
                 :trump :♦

@@ -708,6 +708,66 @@
 (defn highest-card [game cards]
   (first (sort-by #(card-score game %) > cards)))
 
+(defn trick-known-voids [trump trick]
+  (let [lead (rules/trick-lead trick trump)]
+    (when lead
+      (keep (fn [{:keys [player card]}]
+              (when (not= lead (rules/effective-suit card trump))
+                [player lead]))
+            trick))))
+
+(defn known-voids [game]
+  (let [trump (:trump game)]
+    (reduce (fn [voids [player suit]]
+              (update voids player (fnil conj #{}) suit))
+            {}
+            (mapcat #(trick-known-voids trump %)
+                    (:completed-tricks game)))))
+
+(defn known-void? [voids player suit]
+  (contains? (get voids player #{}) suit))
+
+(defn players-with-cards [game players]
+  (filter #(pos? (count (get-in game [:players % :hand]))) players))
+
+(defn unseen-effective-suit-count [unseen-counts trump suit]
+  (reduce-kv (fn [n card count]
+               (if (= suit (rules/effective-suit card trump))
+                 (+ n count)
+                 n))
+             0
+             unseen-counts))
+
+(defn opponents-known-void-in-suit? [game voids player suit]
+  (every? #(known-void? voids % suit)
+          (players-with-cards
+           game
+           (remove #(same-team? game player %) (game/trick-players game)))))
+
+(defn partner-known-void-in-suit? [game voids player suit]
+  (boolean
+   (some #(known-void? voids % suit)
+         (players-with-cards game (game/partner-players game player)))))
+
+(defn partner-ruff-invite-card [game player unseen-counts cards]
+  (let [trump (:trump game)
+        voids (known-voids game)
+        secure-trump (secure-trump-lead-card game unseen-counts cards)
+        unseen-trumps (unseen-effective-suit-count unseen-counts trump trump)
+        off-suit-cards (remove #(trump-card? trump %) cards)
+        partner-void-cards (filter #(partner-known-void-in-suit?
+                                      game
+                                      voids
+                                      player
+                                      (rules/effective-suit % trump))
+                                   off-suit-cards)]
+    (when (and trump
+               secure-trump
+               (pos? unseen-trumps)
+               (opponents-known-void-in-suit? game voids player trump)
+               (seq partner-void-cards))
+      (lowest-card game partner-void-cards))))
+
 (defn card-counting-card-action [game player]
   (let [cards (vec (legal-cards game player))
         winner (current-trick-winner game)
@@ -917,6 +977,10 @@
                                                     %)
                           fallback-cards))))
 
+(defn ruff-invite-preservation-lead-card [config game player analyses cards]
+  (or (partner-ruff-invite-card game player (unseen-card-counts game player) cards)
+      (preservation-probability-lead-card config game player analyses cards)))
+
 (defn karbosh-caller-lead-card [config game player analyses cards]
   (let [trumps (filter #(trump-card? (:trump game) %) cards)]
     (if (seq trumps)
@@ -1006,6 +1070,12 @@
                                      game
                                      player))
 
+(defn ruff-invite-preservation-card-action [game player]
+  (probability-card-action-with-lead ruff-invite-preservation-lead-card
+                                     preservation-winning-card
+                                     game
+                                     player))
+
 (defn hybrid-threshold-card-action [game player]
   (if (special-contract? (game/current-bid game))
     (card-counting-card-action game player)
@@ -1026,16 +1096,23 @@
     (card-counting-card-action game player)
     (preservation-probability-card-action game player)))
 
+(defn ruff-invite-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (ruff-invite-preservation-card-action game player)))
+
 (def play-strategies
   {:card-counting card-counting-card-action
    :probability-threshold threshold-probability-card-action
    :probability probability-card-action
    :probability-defender-exit defender-exit-probability-card-action
    :probability-preservation preservation-probability-card-action
+   :probability-ruff-invite ruff-invite-preservation-card-action
    :hybrid-threshold hybrid-threshold-card-action
    :hybrid hybrid-card-action
    :hybrid-defender-exit defender-exit-hybrid-card-action
-   :hybrid-preservation preservation-hybrid-card-action})
+   :hybrid-preservation preservation-hybrid-card-action
+   :hybrid-ruff-invite ruff-invite-hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond

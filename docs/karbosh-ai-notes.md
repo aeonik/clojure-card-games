@@ -72,3 +72,39 @@ swapped for 1,000 games:
 Read: the conservative gate improves numeric-bid make rates in isolation, but it
 did not beat the default policy head-to-head. Keep it pluggable for comparison;
 do not make it default without stronger evidence.
+
+## 2026-06-07 Partner Ruff Invite Experiment
+
+Added a rare lead tactic for situations where the leader has a guaranteed-good
+trump but can prove a partner ruff is available:
+
+- All opponents with cards left are known void in trump from prior play.
+- Unseen trump still exists, so with opponents void it must belong to partners.
+- At least one partner is known void in the off-suit being led.
+- The leader has a secure trump winner available, but leads the lowest card in
+  the partner-void off-suit instead.
+
+The tactic is available as:
+
+- `:probability-ruff-invite`
+- `:hybrid-ruff-invite`
+
+Default remains `:hybrid-preservation`.
+
+Seeded opportunity scan with default play, 500 games:
+
+| Games | Opportunities | Games with any | Avg per game |
+| ---: | ---: | ---: | ---: |
+| 500 | 9 | 9 | 0.018 |
+
+Fair head-to-head play-policy matchup, same 500 seeds with team assignments
+swapped for 1,000 games:
+
+| Policy | Wins | Win rate |
+| --- | ---: | ---: |
+| Default `:hybrid-preservation` | 500 | 50.0% |
+| Ruff invite `:hybrid-ruff-invite` | 500 | 50.0% |
+
+Read: the tactic is coherent and test-covered, but it is extremely rare under
+current inference rules and has no measurable win-rate edge in this sample. Keep
+it pluggable; do not make it default.
