@@ -43,6 +43,14 @@ body.karbosh-fast-mode {
   --hand-card-settle-ms: 90ms;
 }
 
+body.karbosh-ultra-fast-mode {
+  --play-card-animation-ms: 120ms;
+  --trick-popup-animation-ms: 350ms;
+  --bid-popup-animation-ms: 210ms;
+  --fireworks-animation-ms: 1150ms;
+  --hand-card-settle-ms: 45ms;
+}
+
 button,
 input {
   font: inherit;
@@ -1128,6 +1136,10 @@ body.karbosh-fast-mode .fireworks-overlay.is-double-karbosh {
   --fireworks-animation-ms: 3800ms;
 }
 
+body.karbosh-ultra-fast-mode .fireworks-overlay.is-double-karbosh {
+  --fireworks-animation-ms: 1900ms;
+}
+
 .fireworks-overlay::before {
   content: "";
   position: absolute;
@@ -1839,6 +1851,13 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
   border-color: rgba(230, 189, 90, 0.8);
   background: rgba(230, 189, 90, 0.16);
   color: #ffe3a2;
+}
+
+.fast-mode-button.is-ultra {
+  border-color: rgba(255, 143, 56, 0.9);
+  background: rgba(255, 143, 56, 0.22);
+  color: #ffd1a6;
+  box-shadow: 0 0 0 1px rgba(255, 143, 56, 0.18), 0 0 1rem rgba(255, 143, 56, 0.18);
 }
 
 .hand-phase-callout.is-active-donation {

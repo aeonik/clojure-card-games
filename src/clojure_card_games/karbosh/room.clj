@@ -171,8 +171,39 @@
 (defn set-public [room public?]
   (assoc room :public? (true? public?)))
 
+(def speed-modes #{:normal :fast :ultra-fast})
+
+(defn normalize-speed-mode [mode]
+  (let [mode (cond
+               (true? mode) :fast
+               (false? mode) :normal
+               (keyword? mode) mode
+               (= "true" mode) :fast
+               (= "false" mode) :normal
+               (string? mode) (keyword mode)
+               :else :normal)]
+    (if (contains? speed-modes mode)
+      mode
+      :normal)))
+
+(defn speed-mode [room]
+  (let [mode (normalize-speed-mode (:speed-mode room))]
+    (if (and (= :normal mode)
+             (true? (:fast-mode? room)))
+      :fast
+      mode)))
+
+(defn fast-mode? [room]
+  (not= :normal (speed-mode room)))
+
+(defn set-speed-mode [room mode]
+  (let [mode (normalize-speed-mode mode)]
+    (assoc room
+           :speed-mode mode
+           :fast-mode? (not= :normal mode))))
+
 (defn set-fast-mode [room fast-mode?]
-  (assoc room :fast-mode? (true? fast-mode?)))
+  (set-speed-mode room fast-mode?))
 
 (defn new-room
   ([room-id seed]
@@ -187,7 +218,8 @@
       :game-started-at now
       :owner nil
       :public? (true? public?)
-      :fast-mode? (true? fast-mode?)
+      :speed-mode (normalize-speed-mode fast-mode?)
+      :fast-mode? (not= :normal (normalize-speed-mode fast-mode?))
       :game-index 0
       :games []
       :game (game/init-game seed)
@@ -488,4 +520,5 @@
                             :owner (:owner room)
                             :can-kick? (= player (:owner room))
                             :public? (true? (:public? room))
-                            :fast-mode? (true? (:fast-mode? room)))}}))
+                            :speed-mode (speed-mode room)
+                            :fast-mode? (fast-mode? room))}}))

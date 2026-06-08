@@ -24,17 +24,53 @@
    :fireworks 2600
    :hand-animation 90})
 
-(defn stored-fast-mode? []
-  (try
-    (= "true" (.getItem js/localStorage fast-mode-storage-key))
-    (catch :default _
-      false)))
+(def ultra-fast-timings
+  {:play-animation 130
+   :trick-popup 350
+   :bid-popup 210
+   :fireworks 1300
+   :hand-animation 45})
 
-(defn persist-fast-mode! [enabled?]
+(def speed-modes #{:normal :fast :ultra-fast})
+
+(defn normalize-speed-mode [mode]
+  (let [mode (cond
+               (true? mode) :fast
+               (false? mode) :normal
+               (keyword? mode) mode
+               (= "true" mode) :fast
+               (= "false" mode) :normal
+               (string? mode) (keyword mode)
+               :else :normal)]
+    (if (contains? speed-modes mode)
+      mode
+      :normal)))
+
+(defn fast-speed? [mode]
+  (not= :normal (normalize-speed-mode mode)))
+
+(defn ultra-fast-speed? [mode]
+  (= :ultra-fast (normalize-speed-mode mode)))
+
+(defn next-speed-mode [mode]
+  (case (normalize-speed-mode mode)
+    :normal :fast
+    :fast :ultra-fast
+    :ultra-fast :normal))
+
+(defn stored-speed-mode []
   (try
-    (.setItem js/localStorage fast-mode-storage-key (if enabled? "true" "false"))
+    (normalize-speed-mode (.getItem js/localStorage fast-mode-storage-key))
+    (catch :default _
+      :normal)))
+
+(defn persist-speed-mode! [mode]
+  (try
+    (.setItem js/localStorage fast-mode-storage-key (name (normalize-speed-mode mode)))
     (catch :default _
       nil)))
+
+(def initial-speed-mode (stored-speed-mode))
 
 (defonce app
   (atom {:socket nil
@@ -58,7 +94,8 @@
          :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
-         :fast-mode? (stored-fast-mode?)
+         :speed-mode initial-speed-mode
+         :fast-mode? (fast-speed? initial-speed-mode)
          :last-reconnect-at 0
          :error nil}))
 
@@ -88,10 +125,15 @@
 (defn active-game-layout! [active?]
   (let [classes (.-classList (.-body js/document))]
     (.toggle classes "has-karbosh-game" active?)
-    (.toggle classes "karbosh-fast-mode" (:fast-mode? @app))))
+    (.toggle classes "karbosh-fast-mode" (fast-speed? (:speed-mode @app)))
+    (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? (:speed-mode @app)))))
 
 (defn timing-ms [k]
-  (get (if (:fast-mode? @app) fast-timings normal-timings) k))
+  (get (case (normalize-speed-mode (:speed-mode @app))
+         :ultra-fast ultra-fast-timings
+         :fast fast-timings
+         normal-timings)
+       k))
 
 (defn kw-name [x]
   (when x (name x)))
@@ -1128,12 +1170,18 @@
             :disabled disabled?}
    "Sort"])
 
-(defn fast-mode-button [enabled?]
-  [:button {:class (str "fast-mode-button" (when enabled? " is-active"))
-            :type "button"
-            :data-fast-mode (if enabled? "false" "true")
-            :aria-pressed (if enabled? "true" "false")}
-   "Fast"])
+(defn fast-mode-button [mode]
+  (let [mode (normalize-speed-mode mode)
+        next-mode (next-speed-mode mode)]
+    [:button {:class (str "fast-mode-button"
+                          (when (fast-speed? mode) " is-active")
+                          (when (ultra-fast-speed? mode) " is-ultra"))
+              :type "button"
+              :data-speed-mode (name next-mode)
+              :aria-pressed (if (fast-speed? mode) "true" "false")}
+     (case mode
+       :ultra-fast "Ultra"
+       "Fast")]))
 
 (defn hand-panel-html [view pending-card paused? hand-order card-drag hand-animating? pending-auto?]
   (let [hand (displayed-hand view pending-card hand-order)
@@ -1148,7 +1196,7 @@
       [:div {:class "hand-actions"}
        [:span (count hand) " cards"]
        (sort-hand-button (or pending-card (empty? hand)))
-       (fast-mode-button (:fast-mode? @app))
+       (fast-mode-button (:speed-mode @app))
        (hand-primary-action-button view active? paused? pending-auto?)]]
      (karbosh-callout-html view active?)
      [:div {:class (str "hand-row"
@@ -1438,7 +1486,9 @@
       :state
       (let [old-view (:view @app)
             view (:view message)
-            fast-mode? (true? (:fast-mode? view))
+            speed-mode (normalize-speed-mode (or (:speed-mode view)
+                                                 (:fast-mode? view)))
+            fast-mode? (fast-speed? speed-mode)
             hand-order (reconcile-hand-order (:hand-order @app)
                                              (:hand view)
                                              (:hand-index view))
@@ -1495,9 +1545,10 @@
                :hand-animating? false
                :pending-card nil
                :pending-auto? false
+               :speed-mode speed-mode
                :fast-mode? fast-mode?
                :error nil)
-        (persist-fast-mode! fast-mode?)
+        (persist-speed-mode! speed-mode)
         (set-room-url! (:room-id message))
         (save-session! (:room-id message) (:player message) (player-name))
         (render-status!)
@@ -1564,6 +1615,7 @@
       (connect! #(send! (cond-> {:op :create-room
                                  :name (player-name)
                                  :public? (create-public-room?)
+                                 :speed-mode (:speed-mode @app)
                                  :fast-mode? (:fast-mode? @app)}
                           (some? seed) (assoc :seed seed)))))))
 
@@ -1639,11 +1691,16 @@
       (pulse-hand-animation!)
       (render-game!))))
 
-(defn set-fast-mode! [enabled?]
-  (persist-fast-mode! enabled?)
-  (swap! app assoc :fast-mode? enabled?)
-  (render-game!)
-  (send! {:op :set-fast-mode :fast-mode? enabled?}))
+(defn set-speed-mode! [mode]
+  (let [mode (normalize-speed-mode mode)]
+    (persist-speed-mode! mode)
+    (swap! app assoc
+           :speed-mode mode
+           :fast-mode? (fast-speed? mode))
+    (render-game!)
+    (send! {:op :set-fast-mode
+            :speed-mode mode
+            :fast-mode? (fast-speed? mode)})))
 
 (def drag-threshold-px 8)
 
@@ -1818,7 +1875,8 @@
                              seat-target (closest target "[data-seat-player]")
                              close-seat-target (closest target "[data-close-seat-popover]")
                              kick-target (closest target "[data-kick-player]")
-                             fast-target (closest target "[data-fast-mode]")
+                             fast-target (or (closest target "[data-speed-mode]")
+                                             (closest target "[data-fast-mode]"))
                              popover-target (closest target "[data-seat-popover]")]
                          (cond
                            close-seat-target
@@ -1868,8 +1926,9 @@
                            (sort-hand!)
 
                            fast-target
-                           (set-fast-mode!
-                            (= "true" (.getAttribute fast-target "data-fast-mode")))
+                           (set-speed-mode!
+                            (or (.getAttribute fast-target "data-speed-mode")
+                                (= "true" (.getAttribute fast-target "data-fast-mode"))))
 
                            (.hasAttribute target "data-fill-bots")
                            (fill-bots!)

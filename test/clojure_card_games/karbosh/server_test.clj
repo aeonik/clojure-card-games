@@ -97,12 +97,19 @@
            (server/bot-turn-delay-ms room)))
     (is (= server/fast-trick-complete-delay-ms
            (server/bot-turn-delay-ms (assoc room :fast-mode? true))))
+    (is (= server/ultra-fast-trick-complete-delay-ms
+           (server/bot-turn-delay-ms (assoc room :speed-mode :ultra-fast))))
     (is (= server/bot-action-delay-ms
            (server/bot-turn-delay-ms (assoc-in room [:game :current-trick]
                                                [{:player :player1 :card [:K :♥]}]))))
     (is (= server/fast-bot-action-delay-ms
            (server/bot-turn-delay-ms (-> room
                                          (assoc :fast-mode? true)
+                                         (assoc-in [:game :current-trick]
+                                                   [{:player :player1 :card [:K :♥]}])))))
+    (is (= server/ultra-fast-bot-action-delay-ms
+           (server/bot-turn-delay-ms (-> room
+                                         (assoc :speed-mode :ultra-fast)
                                          (assoc-in [:game :current-trick]
                                                    [{:player :player1 :card [:K :♥]}])))))))
 
@@ -301,10 +308,11 @@
       (with-redefs [server/unique-room-id (constantly "PUB123")]
         (is (= "PUB123" (server/create-room! :conn out {:name "Human"
                                                         :public? true
-                                                        :fast-mode? true
+                                                        :speed-mode :ultra-fast
                                                         :seed -42})))
         (is (true? (get-in @server/rooms ["PUB123" :public?])))
         (is (true? (get-in @server/rooms ["PUB123" :fast-mode?])))
+        (is (= :ultra-fast (get-in @server/rooms ["PUB123" :speed-mode])))
         (is (= -42 (get-in @server/rooms ["PUB123" :seed])))
         (is (= -42 (get-in @server/rooms ["PUB123" :game :initial-seed]))))
       (finally
@@ -814,11 +822,13 @@
                                :name "Human"})]
     (try
       (reset! server/rooms {"ABC123" state})
-      (server/set-fast-mode! "ABC123" out true)
+      (server/set-fast-mode! "ABC123" out :ultra-fast)
       (let [message (async/<!! out)]
         (is (true? (get-in @server/rooms ["ABC123" :fast-mode?])))
+        (is (= :ultra-fast (get-in @server/rooms ["ABC123" :speed-mode])))
         (is (= :state (:op message)))
-        (is (true? (get-in message [:view :fast-mode?]))))
+        (is (true? (get-in message [:view :fast-mode?])))
+        (is (= :ultra-fast (get-in message [:view :speed-mode]))))
       (finally
         (reset! server/rooms old-rooms)))))
 
