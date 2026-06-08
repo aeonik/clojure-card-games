@@ -1628,6 +1628,7 @@ body.karbosh-fast-mode .fireworks-overlay.is-double-karbosh {
 }
 
 .table-top-actions,
+.table-main-actions,
 .table-room-actions,
 .table-fill-bots-button,
 .table-new-game-button {
@@ -1648,6 +1649,7 @@ body.has-karbosh-game .auto-play-control {
 }
 
 body.has-karbosh-game .table-top-actions,
+body.has-karbosh-game .table-main-actions,
 body.has-karbosh-game .table-room-actions {
   display: flex;
   align-items: center;
@@ -1663,6 +1665,7 @@ body.has-karbosh-game .table-top-actions {
   flex-wrap: wrap;
 }
 
+body.has-karbosh-game .table-main-actions,
 body.has-karbosh-game .table-room-actions {
   gap: 0.5rem;
 }
@@ -2663,7 +2666,7 @@ input {
   body.has-karbosh-game .panel-heading {
     order: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.3rem;
     align-items: center;
     border-bottom: 0;
@@ -2689,6 +2692,7 @@ input {
   }
 
   body.has-karbosh-game .table-top-actions,
+  body.has-karbosh-game .table-main-actions,
   body.has-karbosh-game .table-room-actions {
     display: flex;
     align-items: center;
@@ -2696,12 +2700,25 @@ input {
   }
 
   body.has-karbosh-game .table-top-actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    align-self: stretch;
+    width: 100%;
     gap: 0.26rem;
-    justify-content: flex-end;
+    justify-content: space-between;
+  }
+
+  body.has-karbosh-game .table-main-actions,
+  body.has-karbosh-game .table-room-actions {
+    gap: 0.26rem;
+  }
+
+  body.has-karbosh-game .table-main-actions {
+    justify-content: flex-start;
   }
 
   body.has-karbosh-game .table-room-actions {
-    gap: 0.26rem;
+    justify-content: flex-end;
   }
 
   body.has-karbosh-game .table-fill-bots-button,
@@ -3159,6 +3176,7 @@ input {
     gap: 0.18rem;
   }
 
+  body.has-karbosh-game .table-main-actions,
   body.has-karbosh-game .table-room-actions {
     gap: 0.18rem;
   }

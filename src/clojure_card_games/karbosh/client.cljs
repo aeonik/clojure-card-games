@@ -1033,10 +1033,11 @@
 
 (defn table-top-actions [view]
   [:div {:class "table-top-actions"}
-   (fill-bots-button)
+   [:div {:class "table-main-actions"}
+    (fill-bots-button)
+    (room-visibility-button view)]
    [:div {:class "table-room-actions"}
     (table-new-game-button)
-    (room-visibility-button view)
     (leave-room-button)]])
 
 (defn render-controls [view]
