@@ -110,12 +110,17 @@
   (let [namespaces (vec server/reloadable-namespaces)
         analysis-index (.indexOf namespaces 'clojure-card-games.karbosh.analysis)
         bot-index (.indexOf namespaces 'clojure-card-games.karbosh.bot)
-        room-index (.indexOf namespaces 'clojure-card-games.karbosh.room)]
+        room-index (.indexOf namespaces 'clojure-card-games.karbosh.room)
+        trick-lab-index (.indexOf namespaces 'clojure-card-games.karbosh.trick-lab)
+        admin-index (.indexOf namespaces 'clojure-card-games.karbosh.admin)]
     (is (not= -1 analysis-index))
     (is (not= -1 bot-index))
     (is (not= -1 room-index))
+    (is (not= -1 trick-lab-index))
     (is (< analysis-index bot-index))
-    (is (< bot-index room-index))))
+    (is (< bot-index room-index))
+    (is (< room-index trick-lab-index))
+    (is (< trick-lab-index admin-index))))
 
 (deftest admin-basic-auth-test
   (with-redefs [server/admin-user (constantly "admin")

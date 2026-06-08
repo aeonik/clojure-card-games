@@ -33,6 +33,7 @@
     clojure-card-games.karbosh.analysis
     clojure-card-games.karbosh.bot
     clojure-card-games.karbosh.room
+    clojure-card-games.karbosh.trick-lab
     clojure-card-games.karbosh.admin
     clojure-card-games.karbosh.server])
 
