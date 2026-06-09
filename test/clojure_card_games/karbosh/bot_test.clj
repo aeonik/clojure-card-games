@@ -417,6 +417,47 @@
       (is (= {:type :play-card :card [:J :♠]}
              (bot/card-action game :player1 :hybrid)))))
 
+  (testing "team EV discounts duplicate top trump and pulls before exposed off aces"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♥
+                  :active-players game/players
+                  :hand-index 0
+                  :bids [{:type :bid
+                          :player :player6
+                          :bid-type :bid
+                          :value 5
+                          :hand-index 0}]
+                  :players {:player6 {:team 2
+                                      :hand [[:Q :♥] [9 :♣] [:K :♦]
+                                             [:K :♣] [:J :♥] [:K :♣]
+                                             [:A :♦] [:J :♥]]}}
+                  :current-trick []})
+          cards (bot/legal-cards game :player6)
+          analyses (bot/card-analyses game :player6 cards)
+          unseen-counts (bot/unseen-card-counts game :player6)
+          right-value (:value (bot/team-ev-lead-breakdown
+                               bot/default-play-config
+                               game
+                               :player6
+                               analyses
+                               unseen-counts
+                               [:J :♥]))
+          ace-value (:value (bot/team-ev-lead-breakdown
+                             bot/default-play-config
+                             game
+                             :player6
+                             analyses
+                             unseen-counts
+                             [:A :♦]))]
+      (is (< ace-value right-value))
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action game :player6 :probability-team-ev)))
+      (is (= {:type :play-card :card [:J :♥]}
+             (bot/card-action game
+                              :player6
+                              :hybrid-action-inference-team-ev)))))
+
   (testing "numeric callers without trump control pressure with off-suit aces"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing

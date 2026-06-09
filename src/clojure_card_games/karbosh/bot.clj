@@ -68,6 +68,8 @@
    :team-ev-high-trump-spend-penalty 650
    :team-ev-card-spend-rate 0.12
    :team-ev-safe-card-bonus 150
+   :team-ev-backup-secure-trump-spend-discount 0.5
+   :team-ev-secure-trump-protection-weight 900
    :ditch-policy default-ditch-policy
    :ditch-future-suit-equity-weight 50
    :soft-void-trump-threshold 0.65
@@ -1467,11 +1469,61 @@
                                             %)
            (players-with-cards game (pending-opponents-after game player)))))))
 
-(defn card-spend-cost [config game card]
-  (+ (* (:team-ev-card-spend-rate config) (card-score game card))
-     (if (high-preservation-trump? game card)
-       (:team-ev-high-trump-spend-penalty config)
-       0)))
+(defn backup-secure-trump-after-spend? [game player unseen-counts card]
+  (and (trump-card? (:trump game) card)
+       (some #(and (trump-card? (:trump game) %)
+                   (good-card-with-counts? game unseen-counts %))
+             (remaining-hand-after game player card))))
+
+(defn high-trump-spend-penalty
+  ([config game card]
+   (if (high-preservation-trump? game card)
+     (:team-ev-high-trump-spend-penalty config)
+     0))
+  ([config game player unseen-counts card]
+   (let [penalty (high-trump-spend-penalty config game card)]
+     (if (and (pos? penalty)
+              (backup-secure-trump-after-spend? game
+                                                player
+                                                unseen-counts
+                                                card))
+       (* penalty
+          (- 1.0
+             (:team-ev-backup-secure-trump-spend-discount config 0.0)))
+       penalty))))
+
+(defn card-spend-cost
+  ([config game card]
+   (+ (* (:team-ev-card-spend-rate config) (card-score game card))
+      (high-trump-spend-penalty config game card)))
+  ([config game player unseen-counts card]
+   (+ (* (:team-ev-card-spend-rate config) (card-score game card))
+      (high-trump-spend-penalty config game player unseen-counts card))))
+
+(defn off-suit-control-card? [game unseen-counts card]
+  (and (not (trump-card? (:trump game) card))
+       (in-suit-control-card? game unseen-counts card)))
+
+(defn future-off-suit-ruff-exposure [config game player unseen-counts card]
+  (reduce max
+          0.0
+          (map (fn [future-card]
+                 (let [lead (card-effective-suit game future-card)]
+                   (* (/ (double (potential-card-score game future-card)) 80.0)
+                      (opponent-ruff-probability-for-lead config
+                                                          game
+                                                          player
+                                                          unseen-counts
+                                                          lead))))
+               (filter #(off-suit-control-card? game unseen-counts %)
+                       (remaining-hand-after game player card)))))
+
+(defn secure-trump-protection-bonus [config game player unseen-counts card]
+  (if (and (trump-card? (:trump game) card)
+           (good-card-with-counts? game unseen-counts card))
+    (* (:team-ev-secure-trump-protection-weight config 0)
+       (future-off-suit-ruff-exposure config game player unseen-counts card))
+    0.0))
 
 (defn team-ev-lead-breakdown [config game player analyses unseen-counts card]
   (let [lead (rules/effective-suit card (:trump game))
@@ -1489,19 +1541,27 @@
         team-win-prob (min 1.0 (combined-probability [(- 1.0 risk)
                                                       partner-ruff]))
         safe? (zero? risk)
+        protection-bonus (secure-trump-protection-bonus config
+                                                        game
+                                                        player
+                                                        unseen-counts
+                                                        card)
+        spend-cost (card-spend-cost config game player unseen-counts card)
         value (- (+ (* (:team-ev-trick-weight config) team-win-prob)
                     (* (:team-ev-partner-ruff-weight config) partner-ruff)
-                    (if safe? (:team-ev-safe-card-bonus config) 0))
+                    (if safe? (:team-ev-safe-card-bonus config) 0)
+                    protection-bonus)
                  (* (:team-ev-risk-penalty config) risk)
                  (* (:team-ev-opponent-ruff-penalty config) opponent-ruff)
-                 (card-spend-cost config game card))]
+                 spend-cost)]
     {:card card
      :lead lead
      :risk risk
      :team-win-prob team-win-prob
      :partner-ruff-prob partner-ruff
      :opponent-ruff-prob opponent-ruff
-     :spend-cost (card-spend-cost config game card)
+     :protection-bonus protection-bonus
+     :spend-cost spend-cost
      :value value}))
 
 (defn team-ev-lead-value [config game player analyses unseen-counts card]
