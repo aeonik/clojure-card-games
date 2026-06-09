@@ -54,6 +54,12 @@
     and at least one non-trump exit. In this hand, autoplay now leads `9♠`
     instead of `Q♣`. Plain aggressive `:hybrid` remains allowed to spend trump.
 
+- `ZXD4P4` hand 2 (Game 10): external Monte Carlo review logged.
+  - Date: 2026-06-09
+  - Snapshot link: `https://dc3systems.com/karbosh/admin/rooms/ZXD4P4/snapshot/hands/2`
+  - Note: another Codex model completed monte-carlo sims for this game; keep this
+    on file for follow-up analysis.
+
 ## 2026-06-05 Lead Policy
 
 VQS26P showed a recurring lead-policy weakness: when no card met the safe-lead
