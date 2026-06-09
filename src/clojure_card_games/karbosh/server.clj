@@ -9,6 +9,7 @@
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
+            [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.storage :as storage]
             [org.httpkit.server :as http])
   (:import [java.net URI URLDecoder]
@@ -535,6 +536,287 @@
   (str "/karbosh/admin/history/" room-id "/" seed
        (when timestamp (str "/" timestamp))
        "/snapshot"))
+
+(defn api-game-url [{:keys [room-id seed timestamp]}]
+  (str "/karbosh/api/rooms/" room-id "/games/" seed "/" timestamp))
+
+(defn api-hand-url [{:keys [hand-index] :as id}]
+  (str (api-game-url id) "/hands/" hand-index))
+
+(defn api-trick-url [{:keys [trick-index] :as id}]
+  (str (api-hand-url id) "/tricks/" trick-index))
+
+(defn edn-error-response [status body]
+  (response status
+            (pr-str (assoc body :ok false))
+            "application/edn; charset=utf-8"))
+
+(defn game-id-from-record [record]
+  {:room-id (:room-id record)
+   :seed (audit/game-seed record)
+   :timestamp (audit/game-timestamp record)})
+
+(defn hand-links [game-id room]
+  (mapv (fn [hand]
+          {:hand-index (:hand-index hand)
+           :href (api-hand-url (assoc game-id :hand-index (:hand-index hand)))})
+        (admin/room-hands room)))
+
+(defn trick-links [game-id hand]
+  (let [completed-count (count (:completed-tricks hand))
+        current-count (if (seq (:current-trick hand)) 1 0)]
+    (mapv (fn [trick-index]
+            {:trick-index trick-index
+             :href (api-trick-url (assoc game-id
+                                          :hand-index (:hand-index hand)
+                                          :trick-index trick-index))})
+          (range (+ completed-count current-count)))))
+
+(defn room-snapshot-data [room-id]
+  (if-let [room (or (get @rooms room-id)
+                    (stored-room room-id))]
+    (let [room (audit/sanitize-room room)]
+      {:ok true
+       :kind :room-snapshot
+       :durable? (not (contains? @rooms room-id))
+       :room-id room-id
+       :room room
+       :view (game/admin-view (:game room) (:seats room))
+       :links {:games (str "/karbosh/api/rooms/" room-id "/games")
+               :snapshot (str "/karbosh/api/rooms/" room-id "/snapshot")
+               :admin-snapshot (room-snapshot-url room-id)}})
+    (when-let [record (historical-room-record room-id)]
+      (let [room (:room record)]
+        {:ok true
+         :kind :room-snapshot
+         :historical? true
+         :record (dissoc record :room)
+         :room-id room-id
+         :room room
+         :view (game/admin-view (:game room) (:seats room))
+         :links {:games (str "/karbosh/api/rooms/" room-id "/games")
+                 :snapshot (str "/karbosh/api/rooms/" room-id "/snapshot")
+                 :admin-snapshot (room-snapshot-url room-id)}}))))
+
+(defn room-game-candidate-records [room-id]
+  (let [room-records (when-let [room (or (get @rooms room-id)
+                                         (stored-room room-id))]
+                       (durable-game-records-for-room (audit/sanitize-room room)))
+        audit-records (audit/game-candidate-records
+                       (audit/room-file (audit-dir) room-id))]
+    (audit/game-records-from-candidates (concat room-records audit-records))))
+
+(defn game-summary [record]
+  (let [{:keys [room-id seed timestamp] :as id} (game-id-from-record record)
+        room (:room record)
+        game (:game room)
+        hands (admin/room-hands room)]
+    {:room-id room-id
+     :seed seed
+     :timestamp timestamp
+     :game-index (:game-index room)
+     :phase (:phase game)
+     :winner (:winner game)
+     :score (:scores game)
+     :hand-count (count hands)
+     :updated-at (or (:updated-at room) (:logged-at record))
+     :links {:game (api-game-url id)
+             :snapshot (game-snapshot-url id)
+             :raw-snapshot (str (game-snapshot-url id) ".edn")
+             :hands (hand-links id room)}}))
+
+(defn game-data [record]
+  (let [{:keys [room-id seed timestamp] :as id} (game-id-from-record record)
+        room (:room record)
+        game (:game room)]
+    {:ok true
+     :kind :game
+     :room-id room-id
+     :seed seed
+     :timestamp timestamp
+     :record (dissoc record :room)
+     :room (select-keys room [:id :public? :created-at :updated-at
+                              :game-index :game-started-at])
+     :seats (:seats room)
+     :game game
+     :view (game/admin-view game (:seats room))
+     :links {:self (api-game-url id)
+             :room-snapshot (str "/karbosh/api/rooms/" room-id "/snapshot")
+             :admin-snapshot (game-snapshot-url id)
+             :hands (hand-links id room)}}))
+
+(defn hand-data [record hand-index]
+  (let [{:keys [room-id] :as id} (game-id-from-record record)
+        room (:room record)]
+    (if-let [hand (admin/room-hand room hand-index)]
+      {:ok true
+       :kind :hand
+       :room-id room-id
+       :seed (:seed id)
+       :timestamp (:timestamp id)
+       :hand-index hand-index
+       :hand hand
+       :links {:self (api-hand-url (assoc id :hand-index hand-index))
+               :game (api-game-url id)
+               :admin-hand (admin/hand-detail-url (game-snapshot-url id) hand)
+               :tricks (trick-links id hand)}}
+      (edn-error-response 404
+                          {:room-id room-id
+                           :seed (:seed id)
+                           :timestamp (:timestamp id)
+                           :hand-index hand-index
+                           :message "Hand not found"}))))
+
+(defn indexed-trick [hand trick-index]
+  (let [completed (:completed-tricks hand)
+        completed-count (count completed)]
+    (cond
+      (< -1 trick-index completed-count)
+      {:status :completed
+       :trick (nth completed trick-index)}
+
+      (and (= trick-index completed-count)
+           (seq (:current-trick hand)))
+      {:status :current
+       :trick (:current-trick hand)}
+
+      :else nil)))
+
+(defn ring-response? [x]
+  (and (map? x)
+       (integer? (:status x))
+       (contains? x :headers)))
+
+(defn trick-data [record hand-index trick-index]
+  (let [{:keys [room-id] :as id} (game-id-from-record record)
+        room (:room record)]
+    (if-let [hand (admin/room-hand room hand-index)]
+      (if-let [{:keys [status trick]} (indexed-trick hand trick-index)]
+        (let [trump (:trump hand)
+              winning-play (rules/winning-play trick trump)
+              winning-player (:player winning-play)]
+          {:ok true
+           :kind :trick
+           :room-id room-id
+           :seed (:seed id)
+           :timestamp (:timestamp id)
+           :hand-index hand-index
+           :trick-index trick-index
+           :trick-status status
+           :trump trump
+           :lead (rules/trick-lead trick trump)
+           :winning-play winning-play
+           :winning-player winning-player
+           :winning-team (get-in room [:game :players winning-player :team])
+           :trick trick
+           :hand (select-keys hand [:hand-index :bid :trump :tricks :points
+                                    :scores-after :phase :current?])
+           :links {:self (api-trick-url (assoc id
+                                                :hand-index hand-index
+                                                :trick-index trick-index))
+                   :hand (api-hand-url (assoc id :hand-index hand-index))
+                   :game (api-game-url id)
+                   :admin-analysis (str (admin/hand-detail-url
+                                         (game-snapshot-url id)
+                                         hand)
+                                        "/tricks/" trick-index "/analysis")}})
+        (edn-error-response 404
+                            {:room-id room-id
+                             :seed (:seed id)
+                             :timestamp (:timestamp id)
+                             :hand-index hand-index
+                             :trick-index trick-index
+                             :message "Trick not found"}))
+      (edn-error-response 404
+                          {:room-id room-id
+                           :seed (:seed id)
+                           :timestamp (:timestamp id)
+                           :hand-index hand-index
+                           :message "Hand not found"}))))
+
+(defn api-room-route [uri]
+  (let [prefix "/karbosh/api/rooms/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id & path] (map decode-query-value
+                                  (str/split (subs uri (count prefix)) #"/"))
+            room-id (normalize-room-id room-id)]
+        (when room-id
+          (let [[a b c d e f & extra] path]
+            (cond
+              (and (= "snapshot" a) (nil? b))
+              {:kind :room-snapshot :room-id room-id}
+
+              (and (= "games" a) (nil? b))
+              {:kind :room-games :room-id room-id}
+
+              (and (= "games" a) b c (nil? d))
+              {:kind :game :room-id room-id :seed b :timestamp c}
+
+              (and (= "games" a) b c (= "hands" d) e (nil? f))
+              (when-let [hand-index (parse-hand-index e)]
+                {:kind :hand
+                 :room-id room-id
+                 :seed b
+                 :timestamp c
+                 :hand-index hand-index})
+
+              (and (= "games" a) b c (= "hands" d) e (= "tricks" f) (first extra)
+                   (nil? (second extra)))
+              (when-let [hand-index (parse-hand-index e)]
+                (when-let [trick-index (parse-hand-index (first extra))]
+                  {:kind :trick
+                   :room-id room-id
+                   :seed b
+                   :timestamp c
+                   :hand-index hand-index
+                   :trick-index trick-index})))))))))
+
+(defn api-room-data-response [{:keys [kind room-id seed timestamp hand-index trick-index]}]
+  (case kind
+    :room-snapshot
+    (if-let [data (room-snapshot-data room-id)]
+      (edn-response data)
+      (edn-error-response 404 {:room-id room-id
+                               :message "Room not found"}))
+
+    :room-games
+    (let [records (room-game-candidate-records room-id)]
+      (if (or (seq records) (room-snapshot-data room-id))
+        (edn-response {:ok true
+                       :kind :room-games
+                       :room-id room-id
+                       :games (mapv game-summary records)
+                       :links {:room-snapshot (str "/karbosh/api/rooms/"
+                                                   room-id
+                                                   "/snapshot")}})
+        (edn-error-response 404 {:room-id room-id
+                                 :message "Room not found"})))
+
+    :game
+    (if-let [record (game-history-record room-id seed timestamp)]
+      (edn-response (game-data record))
+      (edn-error-response 404 {:room-id room-id
+                               :seed seed
+                               :timestamp timestamp
+                               :message "Game not found"}))
+
+    :hand
+    (if-let [record (game-history-record room-id seed timestamp)]
+      (let [data (hand-data record hand-index)]
+        (if (ring-response? data) data (edn-response data)))
+      (edn-error-response 404 {:room-id room-id
+                               :seed seed
+                               :timestamp timestamp
+                               :message "Game not found"}))
+
+    :trick
+    (if-let [record (game-history-record room-id seed timestamp)]
+      (let [data (trick-data record hand-index trick-index)]
+        (if (ring-response? data) data (edn-response data)))
+      (edn-error-response 404 {:room-id room-id
+                               :seed seed
+                               :timestamp timestamp
+                               :message "Game not found"}))))
 
 (defn admin-history-response [request]
   (cond
@@ -1425,7 +1707,8 @@
         game-snapshot-id (admin-game-snapshot-id uri)
         game-snapshot-edn-id (admin-game-snapshot-edn-id uri)
         game-hand-detail-id (admin-game-hand-detail-id uri)
-        game-trick-analysis-id (admin-game-trick-analysis-id uri)]
+        game-trick-analysis-id (admin-game-trick-analysis-id uri)
+        api-room-route (api-room-route uri)]
     (cond
       (and (= request-method :get) (= uri "/karbosh/ws"))
       (if (origin-allowed? request)
@@ -1473,6 +1756,9 @@
 
       (and (= request-method :get) (= uri "/karbosh/api/public-rooms"))
       (public-rooms-response)
+
+      (and (= request-method :get) api-room-route)
+      (api-room-data-response api-room-route)
 
       (and (= request-method :get) room-preview-id)
       (room-preview-response room-preview-id)

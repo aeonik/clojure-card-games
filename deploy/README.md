@@ -151,9 +151,21 @@ The admin panel is available at `/karbosh/admin` and uses HTTP Basic Auth. The
 default username is `admin`; override it with `KARBOSH_ADMIN_USER` if needed. If
 `KARBOSH_ADMIN_PASSWORD` is unset, admin routes return disabled responses.
 
-Rendered room histories are available at `/karbosh/admin/rooms/{ROOM}/snapshot`
-under the same Basic Auth. Raw room snapshots are available at
-`/karbosh/admin/rooms/{ROOM}/snapshot.edn`.
+The admin dashboard itself is protected. Direct room/game history links are
+shareable so players can review games without dashboard access:
+
+- `/karbosh/admin/rooms/{ROOM}/snapshot`
+- `/karbosh/admin/rooms/{ROOM}/snapshot.edn`
+- `/karbosh/admin/history/{ROOM}/{SEED}/{STARTED_AT}/snapshot`
+- `/karbosh/admin/history/{ROOM}/{SEED}/{STARTED_AT}/snapshot.edn`
+
+Read-only EDN API links expose the same data as smaller resources:
+
+- `/karbosh/api/rooms/{ROOM}/snapshot`
+- `/karbosh/api/rooms/{ROOM}/games`
+- `/karbosh/api/rooms/{ROOM}/games/{SEED}/{STARTED_AT}`
+- `/karbosh/api/rooms/{ROOM}/games/{SEED}/{STARTED_AT}/hands/{HAND_INDEX}`
+- `/karbosh/api/rooms/{ROOM}/games/{SEED}/{STARTED_AT}/hands/{HAND_INDEX}/tricks/{TRICK_INDEX}`
 
 ## Durable Room Storage
 

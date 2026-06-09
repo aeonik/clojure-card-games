@@ -511,6 +511,68 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest public-rest-snapshot-game-hand-trick-api-test
+  (let [old-rooms @server/rooms
+        room (assoc (completed-room "ABC123" 9)
+                    :game-started-at 111
+                    :updated-at 222)]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (let [snapshot-response (server/handler
+                               {:request-method :get
+                                :uri "/karbosh/api/rooms/ABC123/snapshot"
+                                :headers {"host" "dc3systems.com"}})
+            games-response (server/handler
+                            {:request-method :get
+                             :uri "/karbosh/api/rooms/ABC123/games"
+                             :headers {"host" "dc3systems.com"}})
+            game-response (server/handler
+                           {:request-method :get
+                            :uri "/karbosh/api/rooms/ABC123/games/9/111"
+                            :headers {"host" "dc3systems.com"}})
+            hand-response (server/handler
+                           {:request-method :get
+                            :uri "/karbosh/api/rooms/ABC123/games/9/111/hands/0"
+                            :headers {"host" "dc3systems.com"}})
+            trick-response (server/handler
+                            {:request-method :get
+                             :uri "/karbosh/api/rooms/ABC123/games/9/111/hands/0/tricks/0"
+                             :headers {"host" "dc3systems.com"}})
+            snapshot (edn/read-string (:body snapshot-response))
+            games (edn/read-string (:body games-response))
+            game (edn/read-string (:body game-response))
+            hand (edn/read-string (:body hand-response))
+            trick (edn/read-string (:body trick-response))]
+        (is (= 200 (:status snapshot-response)))
+        (is (= :room-snapshot (:kind snapshot)))
+        (is (= "ABC123" (:room-id snapshot)))
+        (is (= "/karbosh/api/rooms/ABC123/games"
+               (get-in snapshot [:links :games])))
+        (is (= 200 (:status games-response)))
+        (is (= :room-games (:kind games)))
+        (is (= 1 (count (:games games))))
+        (is (= "/karbosh/api/rooms/ABC123/games/9/111"
+               (get-in games [:games 0 :links :game])))
+        (is (= 200 (:status game-response)))
+        (is (= :game (:kind game)))
+        (is (= 9 (:seed game)))
+        (is (= 111 (:timestamp game)))
+        (is (= :game-over (get-in game [:game :phase])))
+        (is (= 200 (:status hand-response)))
+        (is (= :hand (:kind hand)))
+        (is (= 0 (:hand-index hand)))
+        (is (= :♠ (get-in hand [:hand :trump])))
+        (is (= "/karbosh/api/rooms/ABC123/games/9/111/hands/0/tricks/0"
+               (get-in hand [:links :tricks 0 :href])))
+        (is (= 200 (:status trick-response)))
+        (is (= :trick (:kind trick)))
+        (is (= :completed (:trick-status trick)))
+        (is (= :player2 (:winning-player trick)))
+        (is (= 2 (:winning-team trick)))
+        (is (= completed-trick (:trick trick))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest historical-snapshot-html-is-public-but-admin-remains-protected-test
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-share-history-test"
