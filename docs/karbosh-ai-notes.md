@@ -61,7 +61,7 @@
     on file for follow-up analysis.
 
 - `ZXD4P4` hand 2, archived game `6729679244203831760` /
-  `1781044733784`: singleton ace clearance study.
+  `1781044733784`: canonical singleton ace clearance study.
   - Date: 2026-06-09
   - Snapshot link: `https://dc3systems.com/karbosh/admin/history/ZXD4P4/6729679244203831760/1781044733784/snapshot/hands/2`
   - Scenario: Dave/player1 made `5`, selected diamonds, opened with `J♦`, then
@@ -70,6 +70,10 @@
     `{:♥ 9, :♠ 10, :♦ 6, :♣ 10}`. The hypergeometric model correctly treated
     `J♥` as trump, not as a heart; it preferred `A♣` because immediate ruff
     risk was lower (`18.0%` vs `23.7%`).
+  - Exact joint immediate ruff risk is approximately `18.74%` for `A♣` and
+    `24.93%` for `A♥`; the current approximation is directionally correct but
+    combines per-player ruff events as if independent. Use this hand as a
+    benchmark when tightening exact labeled-hand odds.
   - Paired Monte Carlo setup: keep player1's initial hand fixed, randomize the
     other five hands, force player1 to lead `J♦`, let current policy finish
     trick 1, then force either `A♣` or `A♥` as the next lead and let current
@@ -86,6 +90,10 @@
     studying a modest singleton-control/short-suit lead bonus, but the edge is
     small enough that it should be validated across broader seeded policy
     matchups before changing defaults.
+  - Read: this is a high-value study hand because immediate trick risk and
+    full-continuation EV point in different directions. It should remain a
+    regression case for exact hypergeometric odds, singleton-control valuation,
+    and rollout-vs-local-risk policy tuning.
 
 - `ZXD4P4` hand 10 (Game 10): canonical candidate for deeper study.
   - Date: 2026-06-09
