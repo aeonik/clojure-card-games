@@ -357,7 +357,9 @@
              (binding [bot/*play-config* bot/classic-play-config]
                (bot/card-action game :player1 :hybrid-threshold))))
       (is (= {:type :play-card :card [:A :♥]}
-             (bot/card-action game :player1 :hybrid)))))
+             (bot/card-action game :player1 :hybrid)))
+      (is (fn? (bot/resolve-play-strategy
+                :hybrid-action-inference-team-ev)))))
 
   (testing "risk-adjusted fallback leads an ace over a doomed low card"
     (let [game (with-hidden-hand-sizes
@@ -936,7 +938,7 @@
                              (bot/total-unseen-count unseen-counts)
                              (count (get-in game [:players :player1 :hand])))
           conditioned-availability (bot/suit-available-probability
-                                    bot/default-play-config
+                                    bot/action-inference-play-config
                                     game
                                     :player5
                                     unseen-counts
@@ -944,7 +946,7 @@
                                     :player1
                                     :♣)
           void-probability (bot/soft-void-confidence
-                            bot/default-play-config
+                            bot/action-inference-play-config
                             game
                             :player5
                             unseen-counts
@@ -1070,10 +1072,17 @@
                 :completed-tricks []
                 :current-trick []})
         event (binding [bot/*play-strategy* :hybrid-ruff-invite]
-                (bot/explained-action game :player1))]
+                (bot/explained-action game :player1))
+        action-inference-event
+        (binding [bot/*play-strategy* :hybrid-action-inference-team-ev]
+          (bot/explained-action game :player1))]
     (is (= :play-card (:type event)))
     (is (= :hybrid-ruff-invite (get-in event [:ai :policy])))
     (is (contains? #{:probability-ruff-invite :card-counting}
                    (get-in event [:ai :engine])))
     (is (some? (get-in event [:ai :reason])))
-    (is (seq (get-in event [:ai :candidates])))))
+    (is (seq (get-in event [:ai :candidates])))
+    (is (= :hybrid-action-inference-team-ev
+           (get-in action-inference-event [:ai :policy])))
+    (is (= :probability-action-inference-team-ev
+           (get-in action-inference-event [:ai :engine])))))

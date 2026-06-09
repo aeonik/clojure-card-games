@@ -51,6 +51,8 @@
                                room/bot-personas)
         heart-vader (some #(when (= "Heart Vader" (:name %)) %)
                           room/bot-personas)
+        karbosh-kardashian (some #(when (= "Karbosh Kardashian" (:name %)) %)
+                                  room/bot-personas)
         hal-52 (some #(when (= "HAL 52" (:name %)) %)
                      room/bot-personas)
         c-3p-oh-no (some #(when (= "C-3P-Oh No" (:name %)) %)
@@ -73,6 +75,9 @@
     (is (= :hybrid (:play-strategy trumpelstiltskin)))
     (is (= :aggressive (:style heart-vader)))
     (is (= :hybrid-ruff-invite (:play-strategy heart-vader)))
+    (is (= :aggressive (:style karbosh-kardashian)))
+    (is (= :hybrid-action-inference-team-ev
+           (:play-strategy karbosh-kardashian)))
     (is (= :preservation (:style hal-52)))
     (is (= :hybrid-ruff-invite (:play-strategy hal-52)))
     (is (= :future-suit-equity (:ditch-policy hal-52)))

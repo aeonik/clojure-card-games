@@ -71,7 +71,7 @@
    :ditch-policy default-ditch-policy
    :ditch-future-suit-equity-weight 50
    :soft-void-trump-threshold 0.65
-   :action-inference-confidence 1.0
+   :action-inference-confidence 0.0
    :karbosh-lead-risk-tolerance 0.03
    :karbosh-win-risk-tolerance 0.01
    :karbosh-lead-risk-penalty 6500
@@ -79,6 +79,9 @@
 
 (def default-play-config
   (assoc classic-play-config :lead-risk-tolerance 0.05))
+
+(def action-inference-play-config
+  (assoc default-play-config :action-inference-confidence 1.0))
 
 (def default-play-strategy :hybrid-preservation)
 
@@ -1662,6 +1665,19 @@
     (card-counting-card-action game player)
     (team-ev-probability-card-action game player)))
 
+(defn with-action-inference [f game player]
+  (binding [*play-config* (assoc *play-config*
+                                 :action-inference-confidence
+                                 (:action-inference-confidence
+                                  action-inference-play-config))]
+    (f game player)))
+
+(defn action-inference-team-ev-probability-card-action [game player]
+  (with-action-inference team-ev-probability-card-action game player))
+
+(defn action-inference-team-ev-hybrid-card-action [game player]
+  (with-action-inference team-ev-hybrid-card-action game player))
+
 (def play-strategies
   {:card-counting card-counting-card-action
    :probability-threshold threshold-probability-card-action
@@ -1670,12 +1686,14 @@
    :probability-preservation preservation-probability-card-action
    :probability-ruff-invite ruff-invite-preservation-card-action
    :probability-team-ev team-ev-probability-card-action
+   :probability-action-inference-team-ev action-inference-team-ev-probability-card-action
    :hybrid-threshold hybrid-threshold-card-action
    :hybrid hybrid-card-action
    :hybrid-defender-exit defender-exit-hybrid-card-action
    :hybrid-preservation preservation-hybrid-card-action
    :hybrid-ruff-invite ruff-invite-hybrid-card-action
-   :hybrid-team-ev team-ev-hybrid-card-action})
+   :hybrid-team-ev team-ev-hybrid-card-action
+   :hybrid-action-inference-team-ev action-inference-team-ev-hybrid-card-action})
 
 (defn resolve-play-strategy [strategy]
   (cond
@@ -1695,7 +1713,8 @@
    :hybrid-defender-exit :probability-defender-exit
    :hybrid-preservation :probability-preservation
    :hybrid-ruff-invite :probability-ruff-invite
-   :hybrid-team-ev :probability-team-ev})
+   :hybrid-team-ev :probability-team-ev
+   :hybrid-action-inference-team-ev :probability-action-inference-team-ev})
 
 (defn card-engine [game strategy]
   (let [strategy (strategy-key strategy :custom)]
@@ -1779,7 +1798,8 @@
            :hybrid-ruff-invite} engine)
         :lead-preserve-high-trump
 
-        (= :probability-team-ev engine)
+        (#{:probability-team-ev
+           :probability-action-inference-team-ev} engine)
         :lead-team-ev
 
         :else

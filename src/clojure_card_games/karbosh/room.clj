@@ -8,6 +8,7 @@
 (def default-bot-play-strategy :hybrid-preservation)
 (def aggressive-bot-play-strategy :hybrid)
 (def ruff-invite-bot-play-strategy :hybrid-ruff-invite)
+(def action-inference-bot-play-strategy :hybrid-action-inference-team-ev)
 (def default-auto-play-strategy ruff-invite-bot-play-strategy)
 
 (def classic-ditch-bot-names
@@ -44,6 +45,13 @@
     "Botzilla"
     "Decks Machina"})
 
+(def action-inference-bot-names
+  #{"Karbosh Kardashian"
+    "The Great Cardini"
+    "Decks Machina"
+    "Tony Starkboard"
+    "Cache Money"})
+
 (defn persona-style [persona]
   (or (:style persona)
       (if (contains? aggressive-bot-names (:name persona))
@@ -52,8 +60,14 @@
 
 (defn persona-play-strategy [persona]
   (or (:play-strategy persona)
-      (if (contains? ruff-invite-bot-names (:name persona))
+      (cond
+        (contains? action-inference-bot-names (:name persona))
+        action-inference-bot-play-strategy
+
+        (contains? ruff-invite-bot-names (:name persona))
         ruff-invite-bot-play-strategy
+
+        :else
         (case (persona-style persona)
           :aggressive aggressive-bot-play-strategy
           :ruff-invite ruff-invite-bot-play-strategy
