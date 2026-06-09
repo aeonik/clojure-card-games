@@ -69,7 +69,7 @@
    :team-ev-card-spend-rate 0.12
    :team-ev-safe-card-bonus 150
    :team-ev-backup-secure-trump-spend-discount 0.5
-   :team-ev-secure-trump-protection-weight 900
+   :team-ev-secure-trump-protection-weight 4000
    :ditch-policy default-ditch-policy
    :ditch-future-suit-equity-weight 50
    :soft-void-trump-threshold 0.65
@@ -1519,8 +1519,16 @@
                        (remaining-hand-after game player card)))))
 
 (defn secure-trump-protection-bonus [config game player unseen-counts card]
-  (if (and (trump-card? (:trump game) card)
-           (good-card-with-counts? game unseen-counts card))
+  (if (and (maker-team? game player)
+           (trump-card? (:trump game) card)
+           (good-card-with-counts? game unseen-counts card)
+           (not (opponents-likely-void-in-suit? config
+                                                game
+                                                player
+                                                unseen-counts
+                                                (known-voids game)
+                                                player
+                                                (:trump game))))
     (* (:team-ev-secure-trump-protection-weight config 0)
        (future-off-suit-ruff-exposure config game player unseen-counts card))
     0.0))

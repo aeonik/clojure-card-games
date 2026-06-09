@@ -458,6 +458,71 @@
                               :player6
                               :hybrid-action-inference-team-ev)))))
 
+  (testing "team EV pulls top trump before exposed aces while opponents may hold trump"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 11
+                  :bids [{:type :bid
+                          :player :player2
+                          :bid-type :bid
+                          :value 4
+                          :hand-index 11}]
+                  :players {:player2 {:team 2
+                                      :hand [[:K :♥] [10 :♣] [:A :♦]
+                                             [9 :♣] [:Q :♠] [10 :♠]
+                                             [:J :♠] [10 :♠]]}}
+                  :current-trick []})
+          cards (bot/legal-cards game :player2)
+          analyses (bot/card-analyses game :player2 cards)
+          unseen-counts (bot/unseen-card-counts game :player2)
+          right-value (:value (bot/team-ev-lead-breakdown
+                               bot/default-play-config
+                               game
+                               :player2
+                               analyses
+                               unseen-counts
+                               [:J :♠]))
+          ace-value (:value (bot/team-ev-lead-breakdown
+                             bot/default-play-config
+                             game
+                             :player2
+                             analyses
+                             unseen-counts
+                             [:A :♦]))]
+      (is (< ace-value right-value))
+      (is (= {:type :play-card :card [:J :♠]}
+             (bot/card-action game
+                              :player2
+                              :hybrid-action-inference-team-ev)))))
+
+  (testing "team EV can cash an ace when opponents are exhausted of trump"
+    (let [game (with-hidden-hand-sizes
+                 {:phase :trick-playing
+                  :trump :♠
+                  :active-players game/players
+                  :hand-index 11
+                  :bids [{:type :bid
+                          :player :player2
+                          :bid-type :bid
+                          :value 4
+                          :hand-index 11}]
+                  :players {:player2 {:team 2
+                                      :hand [[:J :♠] [:A :♦] [10 :♣]
+                                             [9 :♣]]}}
+                  :completed-tricks [[{:player :player4 :card [9 :♠]}
+                                      {:player :player5 :card [9 :♦]}
+                                      {:player :player6 :card [:A :♠]}
+                                      {:player :player1 :card [:K :♦]}
+                                      {:player :player2 :card [:Q :♠]}
+                                      {:player :player3 :card [:A :♥]}]]
+                  :current-trick []})]
+      (is (= {:type :play-card :card [:A :♦]}
+             (bot/card-action game
+                              :player2
+                              :hybrid-action-inference-team-ev)))))
+
   (testing "numeric callers without trump control pressure with off-suit aces"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing
