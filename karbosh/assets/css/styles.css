@@ -775,6 +775,7 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .player-seat.is-empty {
+  cursor: pointer;
   border-style: dashed;
   background: rgba(18, 22, 34, 0.5);
 }
@@ -1002,6 +1003,102 @@ body:not(.has-karbosh-game) .meta-grid,
 .seat-kick-button:focus-visible {
   border-color: rgba(255, 170, 170, 0.9);
   background: rgba(231, 101, 101, 0.24);
+}
+
+.seat-invite-popover {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  width: min(31rem, calc(100% - 2.5rem));
+  max-width: min(31rem, calc(100% - 2.5rem));
+}
+
+.seat-invite-icon {
+  background: rgba(111, 208, 199, 0.9);
+}
+
+.seat-invite-content {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.seat-invite-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.seat-invite-copy,
+.seat-bot-button {
+  min-height: 0;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 0.48rem 0.68rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.seat-invite-copy {
+  border: 1px solid rgba(111, 208, 199, 0.55);
+  background: rgba(111, 208, 199, 0.14);
+  color: #d5fffb;
+}
+
+.seat-bot-button {
+  border: 1px solid rgba(230, 189, 90, 0.58);
+  background: rgba(230, 189, 90, 0.14);
+  color: #ffeac0;
+}
+
+.seat-invite-copy:hover,
+.seat-invite-copy:focus-visible {
+  border-color: rgba(158, 246, 239, 0.9);
+  background: rgba(111, 208, 199, 0.22);
+}
+
+.seat-bot-button:hover,
+.seat-bot-button:focus-visible {
+  border-color: rgba(255, 220, 145, 0.9);
+  background: rgba(230, 189, 90, 0.22);
+}
+
+.seat-invite-url {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  padding: 0.42rem 0.5rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-bot-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+.seat-bot-select {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.45rem 0.52rem;
+}
+
+.seat-bot-select option {
+  background: #111827;
+  color: var(--white);
 }
 
 .seat-hand-backs {
@@ -3534,6 +3631,28 @@ input {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     gap: 0.5rem;
     padding: 0.5rem;
+  }
+
+  body.has-karbosh-game .seat-invite-popover {
+    max-width: min(25rem, 62vw);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  body.has-karbosh-game .seat-invite-actions,
+  body.has-karbosh-game .seat-bot-picker {
+    gap: 0.35rem;
+  }
+
+  body.has-karbosh-game .seat-invite-copy,
+  body.has-karbosh-game .seat-bot-button {
+    padding: 0.38rem 0.48rem;
+    font-size: 0.56rem;
+  }
+
+  body.has-karbosh-game .seat-bot-select,
+  body.has-karbosh-game .seat-invite-url {
+    font-size: 0.62rem;
+    padding: 0.34rem 0.42rem;
   }
 
   body.has-karbosh-game .bot-persona-icon {

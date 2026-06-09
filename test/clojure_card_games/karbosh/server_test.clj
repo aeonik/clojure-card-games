@@ -1019,6 +1019,28 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest seat-bot-seats-specific-bot-and-broadcasts-test
+  (let [out (async/chan 2)
+        old-rooms @server/rooms
+        room (-> (room/new-room "ABC123" 9)
+                 (room/join-room {:conn-id :owner
+                                  :out out
+                                  :player :player1
+                                  :name "Owner"})
+                 (room/ensure-owner))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (server/seat-bot! "ABC123" out :player2 "Deal-E")
+      (let [message (async/<!! out)
+            room (get @server/rooms "ABC123")]
+        (is (= :state (:op message)))
+        (is (= "Deal-E" (get-in room [:seats :player2 :name])))
+        (is (true? (get-in room [:seats :player2 :bot?])))
+        (is (not-any? #(= "Deal-E" (:name %))
+                      (get-in message [:view :available-bot-personas]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest non-owner-cannot-kick-player-test
   (let [guest-out (async/chan 1)
         old-rooms @server/rooms

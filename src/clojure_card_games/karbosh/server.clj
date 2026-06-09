@@ -1201,6 +1201,29 @@
     :else
     (update-room! room-id room/fill-bots)))
 
+(defn seat-bot! [room-id out player bot-name]
+  (metric! :seat-bots)
+  (let [player (when player (keyword player))]
+    (cond
+      (not room-id)
+      (send-edn! out {:op :error :message "Join a room first"})
+
+      (not (contains? @rooms room-id))
+      (send-edn! out {:op :error :message "Room not found"})
+
+      (nil? player)
+      (send-edn! out {:op :error :message "Choose a seat"})
+
+      (str/blank? (or bot-name ""))
+      (send-edn! out {:op :error :message "Choose a bot"})
+
+      :else
+      (try
+        (update-room! room-id room/seat-named-bot player bot-name)
+        (catch Exception e
+          (record-error!)
+          (send-edn! out {:op :error :message (.getMessage e)}))))))
+
 (defn set-room-visibility! [room-id out public?]
   (metric! :room-visibility-updates)
   (cond
@@ -1315,6 +1338,9 @@
 
     :fill-bots
     (fill-bots! (:room-id @session) out)
+
+    :seat-bot
+    (seat-bot! (:room-id @session) out (:player message) (:bot-name message))
 
     :set-room-visibility
     (set-room-visibility! (:room-id @session) out (:public? message))

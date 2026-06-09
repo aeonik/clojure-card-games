@@ -84,6 +84,7 @@
          :bid-popup nil
          :fireworks nil
          :seat-popover-player nil
+         :seat-invite-copied-player nil
          :join-modal nil
          :public-rooms {:loading? false
                         :rooms []
@@ -418,10 +419,19 @@
 (defn create-public-room? []
   (boolean (some-> (el "create-public-room") .-checked)))
 
-(defn room-page-url [room-id]
-  (let [url (js/URL. (.-href js/location))]
-    (.set (.-searchParams url) "room" room-id)
-    (.-href url)))
+(defn room-page-url
+  ([room-id]
+   (room-page-url room-id nil))
+  ([room-id player]
+   (let [url (js/URL. (.-href js/location))]
+     (.set (.-searchParams url) "room" room-id)
+     (if player
+       (.set (.-searchParams url) "player" (kw-name player))
+       (.delete (.-searchParams url) "player"))
+     (.-href url))))
+
+(defn seat-invite-url [room-id player]
+  (room-page-url room-id player))
 
 (defn set-share-link! [room-id]
   (text! (el "share-link") (room-page-url room-id)))
@@ -728,7 +738,8 @@
                        (when current? " is-current")
                        (when you? " is-you"))
            :data-seat-player (when occupied? (kw-name id))
-           :title (when occupied? "Player options")}
+           :data-open-seat-player (when open? (kw-name id))
+           :title (if open? "Open seat options" "Player options")}
      (when dealer-seat? (dealer-chip-html))
      [:div {:class "seat-copy"}
       [:strong {:class "seat-name"
@@ -761,12 +772,15 @@
                               (when current? " is-current")
                               (when you? " is-you"))
                   :data-seat-player (when occupied? (kw-name id))
-                  :title (when occupied? "Player options")}
+                  :data-open-seat-player (when open? (kw-name id))
+                  :title (if open? "Open seat options" "Player options")}
              (when dealer-seat? (dealer-chip-html))
              [:div {:class "seat-copy"}
               [:strong {:class "seat-name"
                         :data-fit-min 3.2}
-               (or name (clojure.core/name id))]
+               (if open?
+                 "Open seat"
+                 (or name (clojure.core/name id)))]
               [:span (team-label team) " / " hand-count " cards / "
                (seat-state-label seat)]]
              (if-let [bid (latest-bid view id)]
@@ -1000,7 +1014,48 @@
             (or (trick-popup-html view trick-popup) "")
             (or (fireworks-html view fireworks) "")]))))
 
-(defn seat-popover-html [view player]
+(defn bot-option-html [{:keys [name]}]
+  [:option {:value name} name])
+
+(defn open-seat-popover-html [view room-id copied-player player]
+  (when-let [{:keys [team] :as seat} (player-by-id view player)]
+    (when (open-seat? seat)
+      (let [bots (vec (:available-bot-personas view))
+            invite-url (seat-invite-url room-id player)
+            copied? (= copied-player player)]
+        [:aside {:class (str "bot-persona-popover seat-popover seat-invite-popover "
+                             (player-class player))
+                 :data-seat-popover true
+                 :aria-live "polite"}
+         [:span {:class "bot-persona-icon seat-invite-icon"} "+"]
+         [:div {:class "seat-invite-content"}
+          [:strong "Open seat"]
+          [:p (str (team-label team) " / Seat " (last (kw-name player)))]
+          [:div {:class "seat-invite-actions"}
+           [:button {:type "button"
+                     :class "seat-invite-copy"
+                     :data-copy-seat-invite (kw-name player)}
+            (if copied? "Copied" "Copy invite URL")]
+           [:code {:class "seat-invite-url"} invite-url]]
+          [:div {:class "seat-bot-picker"}
+           [:select {:class "seat-bot-select"
+                     :data-seat-bot-select (kw-name player)
+                     :disabled (empty? bots)}
+            (if (seq bots)
+              (map bot-option-html bots)
+              [[:option {:value ""} "No bots available"]])]
+           [:button {:type "button"
+                     :class "seat-bot-button"
+                     :data-seat-bot (kw-name player)
+                     :disabled (empty? bots)}
+            "Invite Bot"]]]
+         [:button {:type "button"
+                   :class "bot-persona-close"
+                   :data-close-seat-popover true
+                   :aria-label "Close open seat options"}
+          "x"]]))))
+
+(defn occupied-seat-popover-html [view player]
   (when-let [{:keys [team bot? connected?] :as seat} (player-by-id view player)]
     (when-not (open-seat? seat)
       (let [{:keys [name icon catchphrase]} (bot-player-persona view player)
@@ -1029,10 +1084,18 @@
                    :aria-label "Close player options"}
           "x"]]))))
 
+(defn seat-popover-html [view room-id copied-player player]
+  (or (open-seat-popover-html view room-id copied-player player)
+      (occupied-seat-popover-html view player)))
+
 (defn render-seat-popover! []
   (when-let [root (el "seat-popover-root")]
-    (let [{:keys [view seat-popover-player]} @app]
-      (html! root (or (seat-popover-html view seat-popover-player)
+    (let [{:keys [view room-id seat-popover-player
+                  seat-invite-copied-player]} @app]
+      (html! root (or (seat-popover-html view
+                                          room-id
+                                          seat-invite-copied-player
+                                          seat-popover-player)
                       "")))))
 
 (defn card-button [{:keys [card index disabled? dragging?]}]
@@ -1317,11 +1380,15 @@
     (render-trump-picker!)))
 
 (defn show-seat-popover! [player]
-  (swap! app assoc :seat-popover-player player)
+  (swap! app assoc
+         :seat-popover-player player
+         :seat-invite-copied-player nil)
   (render-seat-popover!))
 
 (defn close-seat-popover! []
-  (swap! app assoc :seat-popover-player nil)
+  (swap! app assoc
+         :seat-popover-player nil
+         :seat-invite-copied-player nil)
   (render-seat-popover!))
 
 (defn card-event [view card]
@@ -1467,6 +1534,7 @@
          :bid-popup nil
          :fireworks nil
          :seat-popover-player nil
+         :seat-invite-copied-player nil
          :join-modal nil
          :hand-order nil
          :card-drag nil
@@ -1668,6 +1736,32 @@
 (defn kick-player! [player]
   (close-seat-popover!)
   (send! {:op :kick-player :player (kw-name player)}))
+
+(defn copy-seat-invite! [player]
+  (let [url (seat-invite-url (:room-id @app) player)]
+    (when-let [clipboard (.-clipboard js/navigator)]
+      (.writeText clipboard url))
+    (swap! app assoc :seat-invite-copied-player player)
+    (render-seat-popover!)
+    (js/setTimeout
+     (fn []
+       (when (= player (:seat-invite-copied-player @app))
+         (swap! app assoc :seat-invite-copied-player nil)
+         (render-seat-popover!)))
+     1800)))
+
+(defn selected-seat-bot-name [player]
+  (some-> (qs (str "[data-seat-bot-select=\"" (kw-name player) "\"]"))
+          .-value
+          str/trim
+          not-empty))
+
+(defn seat-bot! [player]
+  (when-let [bot-name (selected-seat-bot-name player)]
+    (close-seat-popover!)
+    (send! {:op :seat-bot
+            :player (kw-name player)
+            :bot-name bot-name})))
 
 (defn set-room-visibility! [public?]
   (send! {:op :set-room-visibility :public? public?})
@@ -1873,8 +1967,11 @@
                        (let [target (.-target event)
                              card-target (card-button-node target)
                              seat-target (closest target "[data-seat-player]")
+                             open-seat-target (closest target "[data-open-seat-player]")
                              close-seat-target (closest target "[data-close-seat-popover]")
                              kick-target (closest target "[data-kick-player]")
+                             copy-seat-invite-target (closest target "[data-copy-seat-invite]")
+                             seat-bot-target (closest target "[data-seat-bot]")
                              fast-target (or (closest target "[data-speed-mode]")
                                              (closest target "[data-fast-mode]"))
                              popover-target (closest target "[data-seat-popover]")]
@@ -1890,11 +1987,32 @@
                              (kick-player!
                               (keyword (.getAttribute kick-target "data-kick-player"))))
 
+                           copy-seat-invite-target
+                           (do
+                             (.preventDefault event)
+                             (copy-seat-invite!
+                              (keyword (.getAttribute copy-seat-invite-target
+                                                      "data-copy-seat-invite"))))
+
+                           seat-bot-target
+                           (do
+                             (.preventDefault event)
+                             (seat-bot!
+                              (keyword (.getAttribute seat-bot-target
+                                                      "data-seat-bot"))))
+
                            seat-target
                            (do
                              (.preventDefault event)
                              (show-seat-popover!
                               (keyword (.getAttribute seat-target "data-seat-player"))))
+
+                           open-seat-target
+                           (do
+                             (.preventDefault event)
+                             (show-seat-popover!
+                              (keyword (.getAttribute open-seat-target
+                                                      "data-open-seat-player"))))
 
                            (.hasAttribute target "data-bid")
                            (when-not (disabled-button? target)

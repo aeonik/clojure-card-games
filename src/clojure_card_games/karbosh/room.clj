@@ -157,6 +157,10 @@
         available (remove #(contains? used (:name %)) bot-personas)]
     (vec (or (seq available) bot-personas))))
 
+(defn bot-persona-by-name [bot-name]
+  (some #(when (= bot-name (:name %)) %)
+        bot-personas))
+
 (defn random-bot-persona [room]
   (rand-nth (available-bot-personas room)))
 
@@ -258,6 +262,18 @@
                 :play-strategy (:play-strategy persona)
                 :ditch-policy (:ditch-policy persona)
                 :style (:style persona)}))))
+
+(defn seat-named-bot [room player bot-name]
+  (when-not (some #{player} game/players)
+    (throw (ex-info "Unknown player" {:player player})))
+  (when (contains? (:seats room) player)
+    (throw (ex-info "Seat is occupied" {:player player})))
+  (let [persona (bot-persona-by-name bot-name)]
+    (when-not persona
+      (throw (ex-info "Unknown bot" {:bot-name bot-name})))
+    (when (contains? (seated-bot-persona-names room) (:name persona))
+      (throw (ex-info "Bot is already seated" {:bot-name bot-name})))
+    (seat-bot room player persona)))
 
 (defn bot-player? [room player]
   (true? (get-in room [:seats player :bot?])))
@@ -534,5 +550,8 @@
                             :owner (:owner room)
                             :can-kick? (= player (:owner room))
                             :public? (true? (:public? room))
+                            :available-bot-personas (when (some #(nil? (get-in room [:seats %]))
+                                                                 game/players)
+                                                      (available-bot-personas room))
                             :speed-mode (speed-mode room)
                             :fast-mode? (fast-mode? room))}}))

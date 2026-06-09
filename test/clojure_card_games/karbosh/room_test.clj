@@ -13,6 +13,23 @@
     (is (room/bot-player? state :player2))
     (is (= "Human" (get-in state [:seats :player1 :name])))))
 
+(deftest seat-named-bot-test
+  (let [room (-> (room/new-room "ABC123" 9)
+                 (room/seat-player :player1 "Human"))
+        state (room/seat-named-bot room :player2 "Deal-E")]
+    (is (= "Deal-E" (get-in state [:seats :player2 :name])))
+    (is (true? (get-in state [:seats :player2 :bot?])))
+    (is (= "Deal-E" (get-in state [:seats :player2 :persona :name])))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Seat is occupied"
+                          (room/seat-named-bot state :player1 "HAL 52")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Bot is already seated"
+                          (room/seat-named-bot state :player3 "Deal-E")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Unknown bot"
+                          (room/seat-named-bot room :player2 "Bot Not Found")))))
+
 (deftest bot-personas-test
   (let [persona {:name "Deal-E"
                  :icon "DE"
