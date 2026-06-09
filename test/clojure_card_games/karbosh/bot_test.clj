@@ -890,6 +890,71 @@
       (is (= {:type :play-card :card [:J :♥]}
              (bot/card-action low-discard-game :player1 :hybrid-ruff-invite)))))
 
+  (testing "action inference treats an expensive same-outcome trump as no cheap trump"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :players {:player1 {:team 1
+                                    :hand [[:K :♦] [:A :♠] [9 :♦]
+                                           [10 :♥] [:A :♦] [10 :♠]
+                                           [:K :♥]]}
+                          :player2 {:team 2
+                                    :hand [[:Q :♥] [:J :♦] [:K :♦]
+                                           [9 :♠] [9 :♦] [:A :♠]
+                                           [:K :♣]]}
+                          :player3 {:team 1
+                                    :hand [[:J :♠] [:A :♥] [:Q :♦]
+                                           [:K :♥] [9 :♥] [10 :♠]
+                                           [:Q :♥]]}
+                          :player4 {:team 2
+                                    :hand [[10 :♦] [9 :♠] [:A :♥]
+                                           [:A :♦] [:Q :♠] [9 :♥]
+                                           [:J :♥]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♠] [10 :♥] [9 :♣]
+                                           [:A :♣] [:J :♦] [:Q :♣]]}
+                          :player6 {:team 2
+                                    :hand [[:Q :♠] [10 :♦] [:J :♥]
+                                           [:K :♠] [:Q :♦] [:K :♣]]}}
+                :completed-tricks [[{:player :player5 :card [:J :♣]}
+                                    {:player :player6 :card [10 :♣]}
+                                    {:player :player1 :card [:J :♠]}
+                                    {:player :player2 :card [10 :♣]}
+                                    {:player :player3 :card [9 :♣]}
+                                    {:player :player4 :card [:A :♣]}]]
+                :current-trick [{:player :player5 :card [:J :♣]}
+                                {:player :player6 :card [:Q :♣]}]
+                :current-player :player1
+                :trick-leader :player5}
+          unseen-counts (bot/unseen-card-counts game :player5)
+          voids (bot/known-voids game)
+          base-availability (bot/prob-hand-has-success
+                             (bot/unseen-effective-suit-count
+                              unseen-counts
+                              :♣
+                              :♣)
+                             (bot/total-unseen-count unseen-counts)
+                             (count (get-in game [:players :player1 :hand])))
+          conditioned-availability (bot/suit-available-probability
+                                    bot/default-play-config
+                                    game
+                                    :player5
+                                    unseen-counts
+                                    voids
+                                    :player1
+                                    :♣)
+          void-probability (bot/soft-void-confidence
+                            bot/default-play-config
+                            game
+                            :player5
+                            unseen-counts
+                            voids
+                            :player1
+                            :♣)]
+      (is (< 0.50 base-availability 0.53))
+      (is (< 0.20 conditioned-availability 0.24))
+      (is (< 0.76 void-probability 0.80))))
+
   (testing "when following, a bot preserves an unsafe high trump with a partner pending"
     (let [game {:phase :trick-playing
                 :trump :♦

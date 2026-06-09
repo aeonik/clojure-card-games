@@ -71,6 +71,7 @@
    :ditch-policy default-ditch-policy
    :ditch-future-suit-equity-weight 50
    :soft-void-trump-threshold 0.65
+   :action-inference-confidence 1.0
    :karbosh-lead-risk-tolerance 0.03
    :karbosh-win-risk-tolerance 0.01
    :karbosh-lead-risk-penalty 6500
@@ -882,6 +883,27 @@
 (defn known-void? [voids player suit]
   (contains? (get voids player #{}) suit))
 
+(defn unseen-effective-suit-count [unseen-counts trump suit]
+  (reduce-kv (fn [n card count]
+               (if (= suit (rules/effective-suit card trump))
+                 (+ n count)
+                 n))
+             0
+             unseen-counts))
+
+(defn total-unseen-count [unseen-counts]
+  (reduce + (vals unseen-counts)))
+
+(defn prob-hand-has-success [successes population-size hand-size]
+  (if (and (pos? successes)
+           (pos? hand-size)
+           (<= hand-size population-size))
+    (double (or (analysis/probability-of-any-success successes
+                                                     population-size
+                                                     [hand-size])
+                0))
+    0.0))
+
 (defn soft-void-discard-confidence
   "Estimate whether a discard suggests the player was also void in `target-suit`.
 
@@ -928,29 +950,134 @@
                     trick)))
           (completed-and-current-tricks game))))
 
-(defn soft-void-confidence [game voids player suit]
+(defn discard-void-confidence [game voids player suit]
   (if (known-void? voids player suit)
     1.0
     (analysis/combine-event-probabilities
      (soft-void-evidence game player suit))))
 
-(defn likely-void? [config game voids player suit]
-  (>= (soft-void-confidence game voids player suit)
+(defn trick-play-prefixes [game]
+  (mapcat (fn [trick]
+            (let [plays (vec trick)]
+              (map-indexed (fn [index play]
+                             {:prefix (subvec plays 0 index)
+                              :play play})
+                           plays)))
+          (completed-and-current-tricks game)))
+
+(defn winning-team-after [game trump trick]
+  (some->> (rules/resolve-trick trick trump)
+           (game/player-team game)))
+
+(defn same-team-outcome? [game trump left-trick right-trick]
+  (= (winning-team-after game trump left-trick)
+     (winning-team-after game trump right-trick)))
+
+(defn cheaper-same-outcome-cards [game prefix player observed-card target-suit]
+  (let [trump (:trump game)
+        prefix (vec prefix)
+        lead (rules/trick-lead prefix trump)
+        observed-suit (rules/effective-suit observed-card trump)
+        observed-value (when lead
+                         (rules/card-value observed-card trump lead))
+        observed-trick (conj prefix {:player player :card observed-card})]
+    (when (and lead
+               (= target-suit observed-suit)
+               (winning-team-after game trump observed-trick))
+      (->> (distinct (cards/deck))
+           (filter #(= target-suit (rules/effective-suit % trump)))
+           (filter #(< (rules/card-value % trump lead) observed-value))
+           (filter #(same-team-outcome?
+                     game
+                     trump
+                     observed-trick
+                     (conj prefix {:player player :card %})))))))
+
+(defn action-inference-evidence [config game target-player target-suit]
+  (keep (fn [{:keys [prefix play]}]
+          (when (and (seq prefix)
+                     (= target-player (:player play)))
+            (let [excluded (set (cheaper-same-outcome-cards
+                                 game
+                                 prefix
+                                 target-player
+                                 (:card play)
+                                 target-suit))]
+              (when (seq excluded)
+                {:confidence (:action-inference-confidence config 1.0)
+                 :excluded-cards excluded
+                 :observed-card (:card play)}))))
+        (trick-play-prefixes game)))
+
+(defn excluded-card-count [unseen-counts cards]
+  (reduce + (map #(get unseen-counts % 0) cards)))
+
+(defn action-conditioned-suit-availability
+  [config game unseen-counts target-player target-suit]
+  (let [trump (:trump game)
+        hand-size (count (get-in game [:players target-player :hand]))
+        population-size (total-unseen-count unseen-counts)
+        suit-left (unseen-effective-suit-count unseen-counts trump target-suit)
+        base (prob-hand-has-success suit-left population-size hand-size)
+        evidence (vec (action-inference-evidence
+                       config
+                       game
+                       target-player
+                       target-suit))
+        confidence (analysis/combine-event-probabilities
+                    (map :confidence evidence))
+        excluded-cards (set (mapcat :excluded-cards evidence))
+        excluded-total (excluded-card-count unseen-counts excluded-cards)
+        excluded-suit (excluded-card-count
+                       unseen-counts
+                       (filter #(= target-suit
+                                   (rules/effective-suit % trump))
+                               excluded-cards))
+        conditioned (prob-hand-has-success
+                     (max 0 (- suit-left excluded-suit))
+                     (max 0 (- population-size excluded-total))
+                     hand-size)]
+    (+ (* (- 1.0 confidence) base)
+       (* confidence conditioned))))
+
+(defn suit-void-probability [config game _observer unseen-counts voids player suit]
+  (if (known-void? voids player suit)
+    1.0
+    (let [discard (discard-void-confidence game voids player suit)
+          available (action-conditioned-suit-availability
+                     config
+                     game
+                     unseen-counts
+                     player
+                     suit)]
+      (analysis/combine-event-probabilities
+       [discard (- 1.0 available)]))))
+
+(defn suit-available-probability [config game observer unseen-counts voids player suit]
+  (- 1.0
+     (suit-void-probability config game observer unseen-counts voids player suit)))
+
+(defn soft-void-confidence
+  ([game voids player suit]
+   (discard-void-confidence game voids player suit))
+  ([config game observer unseen-counts voids player suit]
+   (suit-void-probability config game observer unseen-counts voids player suit)))
+
+(defn likely-void? [config game observer unseen-counts voids player suit]
+  (>= (soft-void-confidence config
+                            game
+                            observer
+                            unseen-counts
+                            voids
+                            player
+                            suit)
       (:soft-void-trump-threshold config 0.65)))
 
 (defn players-with-cards [game players]
   (filter #(pos? (count (get-in game [:players % :hand]))) players))
 
-(defn unseen-effective-suit-count [unseen-counts trump suit]
-  (reduce-kv (fn [n card count]
-               (if (= suit (rules/effective-suit card trump))
-                 (+ n count)
-                 n))
-             0
-             unseen-counts))
-
-(defn opponents-likely-void-in-suit? [config game voids player suit]
-  (every? #(likely-void? config game voids % suit)
+(defn opponents-likely-void-in-suit? [config game observer unseen-counts voids player suit]
+  (every? #(likely-void? config game observer unseen-counts voids % suit)
           (players-with-cards
            game
            (remove #(same-team? game player %) (game/trick-players game)))))
@@ -978,7 +1105,13 @@
      (when (and trump
                 secure-trump
                 (pos? unseen-trumps)
-                (opponents-likely-void-in-suit? config game voids player trump)
+                (opponents-likely-void-in-suit? config
+                                                game
+                                                player
+                                                unseen-counts
+                                                voids
+                                                player
+                                                trump)
                 (seq partner-void-cards))
        (lowest-card game partner-void-cards)))))
 
@@ -1248,18 +1381,6 @@
                                 cards)
       (preservation-probability-lead-card config game player analyses cards)))
 
-(defn total-unseen-count [unseen-counts]
-  (reduce + (vals unseen-counts)))
-
-(defn prob-hand-has-success [successes population-size hand-size]
-  (if (and (pos? successes)
-           (pos? hand-size)
-           (<= hand-size population-size))
-    (probability (analysis/probability-of-any-success successes
-                                                      population-size
-                                                      [hand-size]))
-    0.0))
-
 (defn prob-void-and-trump-for-player
   ([game player unseen-counts voids lead other]
    (prob-void-and-trump-for-player default-play-config
@@ -1269,17 +1390,19 @@
                                    voids
                                    lead
                                    other))
-  ([_config game _player unseen-counts voids lead other]
+  ([config game player unseen-counts voids lead other]
    (let [trump (:trump game)
-         population-size (total-unseen-count unseen-counts)
-         hand-size (count (get-in game [:players other :hand]))
-         trump-left (unseen-effective-suit-count unseen-counts trump trump)
-         lead-left (unseen-effective-suit-count unseen-counts trump lead)
-         trump-available-prob (- 1.0
-                                 (soft-void-confidence game
-                                                       voids
-                                                       other
-                                                       trump))]
+        population-size (total-unseen-count unseen-counts)
+        hand-size (count (get-in game [:players other :hand]))
+        trump-left (unseen-effective-suit-count unseen-counts trump trump)
+        lead-left (unseen-effective-suit-count unseen-counts trump lead)
+        trump-available-prob (suit-available-probability config
+                                                         game
+                                                         player
+                                                         unseen-counts
+                                                         voids
+                                                         other
+                                                         trump)]
      (cond
        (or (nil? trump)
            (= lead trump)
