@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.trick-lab
   (:require [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.room :as rooms]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
@@ -250,17 +251,27 @@
     (with-hands state hands)))
 
 (defn sample-worlds [state actor known-cards voids {:keys [samples seed]}]
-  (let [max-attempts (* max-attempt-factor samples)]
-    (loop [attempt 0
-           accepted []]
-      (if (or (>= (count accepted) samples)
-              (>= attempt max-attempts))
-        {:worlds accepted
-         :attempts attempt}
-        (let [world (sample-world state actor known-cards (+ seed attempt))]
-          (recur (inc attempt)
-                 (cond-> accepted
-                   (valid-world? world voids) (conj world))))))))
+  (let [max-attempts (* max-attempt-factor samples)
+        attempts (range max-attempts)
+        accepted (->> attempts
+                      (parallel/maybe-parallel-map
+                       16
+                       (fn [attempt]
+                         {:attempt (inc attempt)
+                          :world (sample-world state
+                                               actor
+                                               known-cards
+                                               (+ seed attempt))}))
+                      (keep (fn [{:keys [world] :as result}]
+                              (when (valid-world? world voids)
+                                result)))
+                      (take samples)
+                      (vec))
+        attempts-used (if (= samples (count accepted))
+                        (:attempt (peek accepted))
+                        max-attempts)]
+    {:worlds (mapv :world accepted)
+     :attempts attempts-used}))
 
 (defn increment-outcome [summary {:keys [winner team-wins? actor-wins?]}]
   (-> summary
@@ -277,15 +288,20 @@
                                     :team-wins 0
                                     :actor-wins 0
                                     :winners {}}]))
-                      candidates)]
-    (reduce (fn [summary world]
-              (reduce (fn [summary card]
-                        (update summary card increment-outcome
-                                (evaluate-candidate room world actor card)))
+                      candidates)
+        world-outcomes (parallel/mapv-maybe-parallel
+                        16
+                        (fn [world]
+                          (mapv #(evaluate-candidate room world actor %)
+                                candidates))
+                        worlds)]
+    (reduce (fn [summary outcomes]
+              (reduce (fn [summary {:keys [card] :as outcome}]
+                        (update summary card increment-outcome outcome))
                       summary
-                      candidates))
+                      outcomes))
             initial
-            worlds)))
+            world-outcomes)))
 
 (defn candidate-probabilities [state player candidates]
   (let [analyses (bot/card-analyses state player candidates)]

@@ -116,14 +116,17 @@
 (deftest reloadable-namespaces-order-test
   (let [namespaces (vec server/reloadable-namespaces)
         analysis-index (.indexOf namespaces 'clojure-card-games.karbosh.analysis)
+        parallel-index (.indexOf namespaces 'clojure-card-games.karbosh.parallel)
         bot-index (.indexOf namespaces 'clojure-card-games.karbosh.bot)
         room-index (.indexOf namespaces 'clojure-card-games.karbosh.room)
         trick-lab-index (.indexOf namespaces 'clojure-card-games.karbosh.trick-lab)
         admin-index (.indexOf namespaces 'clojure-card-games.karbosh.admin)]
+    (is (not= -1 parallel-index))
     (is (not= -1 analysis-index))
     (is (not= -1 bot-index))
     (is (not= -1 room-index))
     (is (not= -1 trick-lab-index))
+    (is (< parallel-index analysis-index))
     (is (< analysis-index bot-index))
     (is (< bot-index room-index))
     (is (< room-index trick-lab-index))

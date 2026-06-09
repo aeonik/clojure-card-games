@@ -1,5 +1,6 @@
 (ns clojure-card-games.karbosh.solver.pimc
   (:require [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.solver.play :as play]
             [clojure-card-games.karbosh.solver.sample :as sample]))
@@ -97,13 +98,14 @@
   play for the contract, and records the bidding team's point differential."
   ([state contract] (evaluate-contract state contract {}))
   ([state contract options]
-   (let [outcomes (mapv (fn [seed]
-                          (let [world (sample-state state (assoc options :seed seed))
-                                value (play/solve-contract world contract)]
-                            {:seed seed
-                             :value value
-                             :made? (pos? value)}))
-                        (seeds-for options))]
+   (let [outcomes (parallel/mapv-maybe-parallel
+                   (fn [seed]
+                     (let [world (sample-state state (assoc options :seed seed))
+                           value (play/solve-contract world contract)]
+                       {:seed seed
+                        :value value
+                        :made? (pos? value)}))
+                   (seeds-for options))]
      (assoc (summarize-outcomes outcomes)
             :contract contract
             :outcomes outcomes))))
@@ -116,11 +118,12 @@
   regular contract solver."
   ([state contract] (evaluate-contract-make state contract {}))
   ([state contract options]
-   (let [outcomes (mapv (fn [seed]
-                          (let [world (sample-state state (assoc options :seed seed))]
-                            {:seed seed
-                             :made? (play/solve-contract-made? world contract)}))
-                        (seeds-for options))]
+   (let [outcomes (parallel/mapv-maybe-parallel
+                   (fn [seed]
+                     (let [world (sample-state state (assoc options :seed seed))]
+                       {:seed seed
+                        :made? (play/solve-contract-made? world contract)}))
+                   (seeds-for options))]
      (assoc (summarize-make-outcomes outcomes)
             :contract contract
             :outcomes outcomes))))
@@ -188,20 +191,21 @@
          trump (or (:trump options)
                    (:trump state)
                    (bot/best-trump (get-in state [:players caller :hand])))
-         outcomes (mapv (fn [seed]
-                          (let [world (sample-state state
-                                                    (assoc options :seed seed))
-                                setup (prepare-karbosh-world world
-                                                             contract
-                                                             trump)]
-                            {:seed seed
-                             :trump trump
-                             :discards (:discards setup)
-                             :donations (:donations setup)
-                             :made? (play/solve-karbosh-make?
-                                      setup
-                                      (assoc contract :bid-type :karbosh))}))
-                        (seeds-for options))]
+         outcomes (parallel/mapv-maybe-parallel
+                   (fn [seed]
+                     (let [world (sample-state state
+                                               (assoc options :seed seed))
+                           setup (prepare-karbosh-world world
+                                                        contract
+                                                        trump)]
+                       {:seed seed
+                        :trump trump
+                        :discards (:discards setup)
+                        :donations (:donations setup)
+                        :made? (play/solve-karbosh-make?
+                                 setup
+                                 (assoc contract :bid-type :karbosh))}))
+                   (seeds-for options))]
      (assoc (summarize-make-outcomes outcomes)
             :contract (assoc contract :bid-type :karbosh)
             :trump trump

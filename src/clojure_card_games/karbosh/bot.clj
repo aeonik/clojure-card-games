@@ -1,6 +1,7 @@
 (ns clojure-card-games.karbosh.bot
   (:require [clojure-card-games.karbosh.analysis :as analysis]
             [clojure-card-games.probability.hypergeom :as hypergeom]
+            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]))
@@ -1024,16 +1025,18 @@
         population-size (count unseen)
         counts (analysis/effective-suit-counts trump unseen)]
     (into {}
-          (map (fn [card]
-                 [card
-                  (analysis/card-defeat-analysis game
-                                                 player
-                                                 trump
-                                                 unseen
-                                                 counts
-                                                 population-size
-                                                 card)]))
-          cards)))
+          (parallel/mapv-maybe-parallel
+           6
+           (fn [card]
+             [card
+              (analysis/card-defeat-analysis game
+                                             player
+                                             trump
+                                             unseen
+                                             counts
+                                             population-size
+                                             card)])
+          cards))))
 
 (defn probability [x]
   (double (or x 0)))
