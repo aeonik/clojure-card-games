@@ -386,6 +386,15 @@
     (is (= :bidding (get-in next-room [:game :phase])))
     (is (= {1 0 2 0} (get-in next-room [:game :scores])))))
 
+(deftest new-game-without-explicit-seed-uses-random-seed
+  (let [active (-> (room/new-room "ABC123" 9)
+                   (assoc :game-started-at 1000))]
+    (with-redefs [room/random-seed (constantly -987654321)]
+      (let [next-room (room/apply-player-event active nil {:type :new-game})]
+        (is (= -987654321 (:seed next-room)))
+        (is (= -987654321 (get-in next-room [:game :initial-seed])))
+        (is (not= (:seed next-room) (:game-started-at next-room)))))))
+
 (deftest auto-play-requires-current-player
   (let [state (-> (room/new-room "ABC123" 9)
                   (room/seat-player :player2 "Human")

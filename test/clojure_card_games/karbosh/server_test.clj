@@ -334,6 +334,22 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest create-room-without-explicit-seed-uses-random-seed-test
+  (let [out (async/chan 1)
+        old-rooms @server/rooms]
+    (try
+      (reset! server/rooms {})
+      (with-redefs [server/unique-room-id (constantly "RND123")
+                    room/random-seed (constantly -1194148630)]
+        (is (= "RND123" (server/create-room! :conn out {:name "Human"})))
+        (is (= -1194148630 (get-in @server/rooms ["RND123" :seed])))
+        (is (= -1194148630
+               (get-in @server/rooms ["RND123" :game :initial-seed])))
+        (is (not= (get-in @server/rooms ["RND123" :seed])
+                  (get-in @server/rooms ["RND123" :created-at]))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest create-room-rejects-invalid-seed-test
   (let [out (async/chan 1)
         old-rooms @server/rooms]

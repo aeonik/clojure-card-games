@@ -1,7 +1,8 @@
 (ns clojure-card-games.karbosh.room
   (:require [clojure.string :as str]
             [clojure-card-games.karbosh.bot :as bot]
-            [clojure-card-games.karbosh.shared.game :as game]))
+            [clojure-card-games.karbosh.shared.game :as game])
+  (:import [java.util.concurrent ThreadLocalRandom]))
 
 (def room-id-chars "ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
 
@@ -141,6 +142,9 @@
 
 (defn random-room-id []
   (apply str (repeatedly 6 #(rand-nth room-id-chars))))
+
+(defn random-seed []
+  (.nextLong (ThreadLocalRandom/current)))
 
 (defn normalize-name [s]
   (let [s (str/trim (or s ""))]
@@ -423,11 +427,6 @@
          (count (get-in room [:game :hand-deals]))
          (System/nanoTime)]))
 
-(defn new-game-seed [room]
-  (hash [(:seed room)
-         :new-game
-         (System/nanoTime)]))
-
 (defn completed-game-entry [room now]
   (let [completed? (= :game-over (get-in room [:game :phase]))]
     (cond-> {:game-index (or (:game-index room) (count (:games room)))
@@ -440,7 +439,7 @@
 
 (defn start-new-game [room event]
   (let [now (System/currentTimeMillis)
-        seed (or (:seed event) (new-game-seed room))]
+        seed (or (:seed event) (random-seed))]
     (-> room
         (update :games (fnil conj []) (completed-game-entry room now))
         (assoc :seed seed

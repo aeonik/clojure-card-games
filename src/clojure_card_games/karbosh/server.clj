@@ -1431,7 +1431,7 @@
 
     :else
     (let [room-id (unique-room-id)
-          seed (or (parse-room-seed seed) (System/currentTimeMillis))
+          seed (or (parse-room-seed seed) (room/random-seed))
           room (-> (room/new-room room-id seed public? (or speed-mode fast-mode?))
                    (room/join-room {:conn-id conn-id
                                     :out out
