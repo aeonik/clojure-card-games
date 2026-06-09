@@ -60,6 +60,33 @@
   - Note: another Codex model completed monte-carlo sims for this game; keep this
     on file for follow-up analysis.
 
+- `ZXD4P4` hand 2, archived game `6729679244203831760` /
+  `1781044733784`: singleton ace clearance study.
+  - Date: 2026-06-09
+  - Snapshot link: `https://dc3systems.com/karbosh/admin/history/ZXD4P4/6729679244203831760/1781044733784/snapshot/hands/2`
+  - Scenario: Dave/player1 made `5`, selected diamonds, opened with `J♦`, then
+    autoplay led `A♣` over the singleton `A♥`. At that point `J♥` had already
+    followed as the left bower, and effective hidden suit counts were
+    `{:♥ 9, :♠ 10, :♦ 6, :♣ 10}`. The hypergeometric model correctly treated
+    `J♥` as trump, not as a heart; it preferred `A♣` because immediate ruff
+    risk was lower (`18.0%` vs `23.7%`).
+  - Paired Monte Carlo setup: keep player1's initial hand fixed, randomize the
+    other five hands, force player1 to lead `J♦`, let current policy finish
+    trick 1, then force either `A♣` or `A♥` as the next lead and let current
+    policy play out the rest of the hand. Player1 used `:hybrid-ruff-invite`;
+    the other seats used `:hybrid-action-inference-team-ev`.
+  - Combined 25,000 paired samples:
+
+    | Forced second lead | Make rate | Avg team 1 tricks | Avg team 1 points |
+    | --- | ---: | ---: | ---: |
+    | `A♣` | 55.70% | 4.783 | 1.120 |
+    | `A♥` | 56.02% | 4.806 | 1.156 |
+
+    `A♥` led by `+0.036` points and `+0.023` tricks per hand. This supports
+    studying a modest singleton-control/short-suit lead bonus, but the edge is
+    small enough that it should be validated across broader seeded policy
+    matchups before changing defaults.
+
 - `ZXD4P4` hand 10 (Game 10): canonical candidate for deeper study.
   - Date: 2026-06-09
   - Snapshot link: `https://dc3systems.com/karbosh/admin/history/ZXD4P4/2008994620/1781027426968/snapshot/hands/10`
