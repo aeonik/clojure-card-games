@@ -60,6 +60,13 @@
   - Note: another Codex model completed monte-carlo sims for this game; keep this
     on file for follow-up analysis.
 
+- `ZXD4P4` hand 10 (Game 10): canonical candidate for deeper study.
+  - Date: 2026-06-09
+  - Snapshot link: `https://dc3systems.com/karbosh/admin/history/ZXD4P4/2008994620/1781027426968/snapshot/hands/10`
+  - Hypothesis: if partner is known to be the only player left with trump, leading
+    the `9♦` may be a weak/non-optimal choice and should be re-evaluated with
+    dedicated Monte Carlo rollout.
+
 ## 2026-06-05 Lead Policy
 
 VQS26P showed a recurring lead-policy weakness: when no card met the safe-lead
