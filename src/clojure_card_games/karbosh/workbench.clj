@@ -481,6 +481,8 @@
         (map-indexed #(completed-trick-row-html session %1 %2) completed)]
        [:p {:class "empty"} "No completed tricks yet."])]))
 
+(declare unseen-summary-html)
+
 (defn workbench-board-html [session]
   (let [state (get-in session [:room :game])]
     [:section {:class "panel wb-panel wb-board-panel"}
@@ -495,6 +497,8 @@
       (admin/stat-card "Bid" (admin/bid-label (game/current-bid state)))
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
+     (when (= :ai (:view-mode session))
+       (unseen-summary-html session))
      [:div {:class "wb-board"}
       [:div {:class "wb-felt"}]
       (for [player game/players]
@@ -531,12 +535,60 @@
       (str/join " " (map cards/suit->str suits))
       "--")))
 
+(defn exhausted-hidden-cards [state observer]
+  (let [unseen-counts (analysis/unseen-card-counts state observer)]
+    (hand-order/sorted-hand
+     (filter #(zero? (get unseen-counts % 0))
+             (distinct (cards/deck)))
+     (:trump state))))
+
+(defn compact-card-list-html [cards]
+  (if (seq cards)
+    (into [:span {:class "wb-card-strip"}]
+          (map admin/card-html cards))
+    "--"))
+
+(defn void-probabilities [state observer]
+  (let [unseen-counts (bot/unseen-card-counts state observer)
+        voids (bot/known-voids state)]
+    (into {}
+          (map (fn [player]
+                 [player
+                  (into {}
+                        (map (fn [suit]
+                               [suit (bot/soft-void-confidence
+                                      bot/action-inference-play-config
+                                      state
+                                      observer
+                                      unseen-counts
+                                      voids
+                                      player
+                                      suit)]))
+                        cards/suits)]))
+          game/players)))
+
+(defn likely-void-label [void-probs player]
+  (let [likely (->> cards/suits
+                    (keep (fn [suit]
+                            (let [p (get-in void-probs [player suit] 0)]
+                              (when (>= p 0.65)
+                                (str (cards/suit->str suit)
+                                     " "
+                                     (percent-label (bot/round-probability p))))))))]
+    (if (seq likely)
+      (str/join " " likely)
+      "--")))
+
+(defn void-summary-label [voids void-probs player]
+  (str "Known voids " (void-label voids player)
+       " / Likely voids " (likely-void-label void-probs player)))
+
 (defn ai-view-player-html [session player]
   (let [state (get-in session [:room :game])
         observer (:observer session)
         hand (get-in state [:players player :hand])
-        voids (trick-lab/void-constraints (:completed-tricks state)
-                                          (:trump state))]
+        voids (bot/known-voids state)
+        void-probs (void-probabilities state observer)]
     [:article {:class (str "wb-player"
                            (when (= player (:current-player state)) " current")
                            (when (= player observer) " observer"))}
@@ -555,13 +607,17 @@
      [:dl {:class "wb-facts"}
       [:div [:dt "Cards"] [:dd (count hand)]]
       [:div [:dt "Known voids"] [:dd (void-label voids player)]]
+      [:div [:dt "Likely voids"] [:dd (likely-void-label void-probs player)]]
       [:div [:dt "Team"] [:dd (game/player-team state player)]]]]))
 
 (defn unseen-summary-html [session]
   (let [state (get-in session [:room :game])
         observer (:observer session)
         unseen (analysis/unseen-cards state observer)
-        counts (analysis/effective-suit-counts (:trump state) unseen)]
+        counts (analysis/effective-suit-counts (:trump state) unseen)
+        exhausted (exhausted-hidden-cards state observer)
+        voids (bot/known-voids state)
+        void-probs (void-probabilities state observer)]
     [:section {:class "wb-side-panel"}
      [:h3 "AI View"]
      [:p {:class "empty"} "Cards not visible to the selected observer, grouped by effective suit."]
@@ -569,7 +625,16 @@
       (for [suit cards/suits]
         [:span
          (admin/suit-html suit)
-         [:strong (get counts suit 0)]])]]))
+         [:strong (get counts suit 0)]])]
+     [:dl {:class "wb-facts wb-ai-summary"}
+      [:div
+       [:dt "Hidden exhausted"]
+       [:dd (compact-card-list-html exhausted)]]]
+     [:div {:class "wb-suit-counts wb-void-inference"}
+      (for [player game/players]
+        [:span
+         [:em (player-short-label session player)]
+         [:strong (void-summary-label voids void-probs player)]])]]))
 
 (defn workbench-table-html [session]
   (let [mode (:view-mode session)]

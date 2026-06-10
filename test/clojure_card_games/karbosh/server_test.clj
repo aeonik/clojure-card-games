@@ -410,7 +410,14 @@
 
 (deftest admin-workbench-seat-click-switches-to-player-view-test
   (let [old-rooms @server/rooms
-        room (room/fill-bots (room/new-room "ABC123" 9))]
+        room (-> (room/fill-bots (room/new-room "ABC123" 9))
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :trump] :♣)
+                 (assoc-in [:game :completed-tricks]
+                           [[{:player :player1 :card [:A :♣]}
+                             {:player :player2 :card [:A :♣]}
+                             {:player :player3 :card [9 :♠]}
+                             {:player :player4 :card [10 :♥]}]]))]
     (try
       (reset! server/rooms {"ABC123" room})
       (with-redefs [server/admin-user (constantly "admin")
@@ -432,7 +439,11 @@
                                         "host" "dc3systems.com"}})]
           (is (= 200 (:status view-response)))
           (is (re-find #"Return to God&apos;s eye view" (:body view-response)))
-          (is (re-find #"name=\"view-mode\"[^>]*value=\"god\"" (:body view-response))))
+          (is (re-find #"name=\"view-mode\"[^>]*value=\"god\"" (:body view-response)))
+          (is (re-find #"Hidden exhausted" (:body view-response)))
+          (is (re-find #"A♣" (:body view-response)))
+          (is (re-find #"Likely voids" (:body view-response)))
+          (is (re-find #"♣ 100\.0%" (:body view-response))))
         (let [toggle-response (server/handler
                                {:request-method :post
                                 :uri "/karbosh/admin/workbench/ABC123"
