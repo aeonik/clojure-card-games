@@ -1,0 +1,77 @@
+{;; Karbosh bot policy weights.
+ ;;
+ ;; This file is the single source of truth for bid and play tuning. It is
+ ;; loaded and validated by clojure-card-games.karbosh.bot.config at load
+ ;; time, so a missing, extra, or mistyped key fails fast instead of
+ ;; silently changing bot behavior. Tune here, run the seeded sims, and
+ ;; commit the diff alongside the matchup results.
+ :bid
+ {:default
+  {:bid-4-strength 3000
+   :bid-5-strength 4300
+   :bid-6-strength 6500
+   :high-trump-strength 600
+   :karbosh-min-trumps 6
+   :karbosh-min-high-trumps 6
+   :karbosh-min-bowers 2
+   :karbosh-min-winners 7
+   :karbosh-target-prob 0.72
+   :karbosh-desperate-target-prob 0.66
+   :karbosh-protect-target-prob 0.80
+   :karbosh-score-context-band 12
+   :karbosh-failure-opponent-tricks 1.2
+   :karbosh-prob-intercept -3.9
+   :karbosh-prob-trump-weight 0.22
+   :karbosh-prob-high-trump-weight 0.38
+   :karbosh-prob-bower-weight 0.55
+   :karbosh-prob-right-bower-weight 0.20
+   :karbosh-prob-left-bower-weight 0.16
+   :karbosh-prob-off-ace-weight 0.18
+   :karbosh-prob-low-trump-weight -0.20
+   :karbosh-prob-off-junk-weight -0.35
+   :karbosh-prob-missing-bower-weight -0.18
+   :karbosh-prob-donation-help-weight 0.70
+   :karbosh-prob-donation-pair-weight 0.40
+   :karbosh-donation-qualification-prob 0.50
+   :karbosh-donor-hand-size 8
+   :double-karbosh-score-context-band 12
+   :conservative-bid-min-controls {4 3
+                                   5 4
+                                   6 6}}}
+
+ :play
+ {:classic
+  {:lead-risk-tolerance 0.32
+   :win-risk-tolerance 0.22
+   :lead-risk-penalty 900
+   :win-risk-penalty 700
+   :defender-high-trump-preservation-penalty 2000
+   :team-ev-trick-weight 1000
+   :team-ev-partner-ruff-weight 1300
+   :team-ev-opponent-ruff-penalty 900
+   :team-ev-risk-penalty 700
+   :team-ev-high-trump-spend-penalty 650
+   :team-ev-card-spend-rate 0.12
+   :team-ev-safe-card-bonus 150
+   :team-ev-backup-secure-trump-spend-discount 0.5
+   :team-ev-secure-trump-protection-weight 4000
+   :ditch-policy :future-suit-equity
+   :ditch-future-suit-equity-weight 50
+   :soft-void-trump-threshold 0.65
+   :action-inference-confidence 0.0
+   :karbosh-lead-risk-tolerance 0.03
+   :karbosh-win-risk-tolerance 0.01
+   :karbosh-lead-risk-penalty 6500
+   :karbosh-win-risk-penalty 6500}
+
+  ;; The default play config is :classic with these overrides applied.
+  :default-overrides
+  {:lead-risk-tolerance 0.05}
+
+  ;; The action-inference config is the default config with these overrides.
+  :action-inference-overrides
+  {:action-inference-confidence 1.0}}
+
+ :strategies
+ {:bid :karbosh-probability
+  :play :hybrid-preservation}}
