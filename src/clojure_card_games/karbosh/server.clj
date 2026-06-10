@@ -1457,18 +1457,10 @@
   (let [room-id (normalize-room-id room-id)
         room (get @rooms room-id)]
     (when room
-      (if (audit/played-room? room)
-        (do
-          (save-room! room)
-          (metric! (case reason
-                     :idle :idle-room-unloads
-                     :room-unloads)))
-        (do
-          (delete-durable-room! room-id)
-          (audit/prune-room-records! (audit-dir) room-id)
-          (metric! (case reason
-                     :idle :idle-room-prunes
-                     :room-prunes))))
+      (save-room! room)
+      (metric! (case reason
+                 :idle :idle-room-unloads
+                 :room-unloads))
       (swap! rooms dissoc room-id)
       (swap! bot-turns dissoc room-id)
       room)))

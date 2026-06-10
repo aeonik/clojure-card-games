@@ -347,6 +347,25 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-index-renders-durable-zero-hand-room-test
+  (let [old-rooms @server/rooms
+        room (room/new-room "EMPTY1" 9)]
+    (try
+      (storage/write-room! (server/room-dir) room)
+      (reset! server/rooms {})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/workbench/"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/EMPTY1\""
+                       (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-index-room-query-redirects-test
   (with-redefs [server/admin-user (constantly "admin")
                 server/admin-password (constantly "secret")]
@@ -1121,7 +1140,7 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
-(deftest idle-delete-prunes-zero-hand-archive-test
+(deftest idle-sweep-unloads-zero-hand-room-without-deleting-it-test
   (let [old-rooms @server/rooms
         dir (.toFile (Files/createTempDirectory "karbosh-idle-prune-test"
                                                 (make-array FileAttribute 0)))
@@ -1136,8 +1155,9 @@
       (with-redefs [server/audit-dir (constantly (.getPath dir))]
         (is (= room (server/unload-room! "EMPTY1" :idle)))
         (is (not (contains? @server/rooms "EMPTY1")))
-        (is (not (.exists file)))
-        (is (not (storage/room-exists? (server/room-dir) "EMPTY1"))))
+        (is (.exists file))
+        (is (storage/room-exists? (server/room-dir) "EMPTY1"))
+        (is (= "EMPTY1" (:id (storage/read-room (server/room-dir) "EMPTY1")))))
       (finally
         (reset! server/rooms old-rooms)))))
 
@@ -1153,6 +1173,21 @@
         (is (not (contains? @server/rooms "PLAYED")))
         (is (storage/room-exists? (server/room-dir) "PLAYED"))
         (is (= "PLAYED" (:id (storage/read-room (server/room-dir) "PLAYED")))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest idle-sweep-keeps-zero-hand-room-durable-test
+  (let [old-rooms @server/rooms
+        room (-> (room/new-room "EMPTY1" 9)
+                 (assoc :empty-since 0
+                        :connections {}))]
+    (try
+      (reset! server/rooms {"EMPTY1" room})
+      (with-redefs [server/idle-room-ms (constantly 1000)]
+        (is (= ["EMPTY1"] (server/close-idle-rooms!)))
+        (is (not (contains? @server/rooms "EMPTY1")))
+        (is (storage/room-exists? (server/room-dir) "EMPTY1"))
+        (is (= "EMPTY1" (:id (storage/read-room (server/room-dir) "EMPTY1")))))
       (finally
         (reset! server/rooms old-rooms)))))
 
