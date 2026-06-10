@@ -258,6 +258,11 @@
          :accepted (count worlds)
          :attempts attempts
          :seed (:seed options)
+         :baseline (mapv #(trick-lab/evaluate-candidate (:room session)
+                                                        state
+                                                        actor
+                                                        %)
+                         candidates)
          :results (trick-lab/summarize-monte-carlo (:room session)
                                                    state
                                                    actor
@@ -424,13 +429,17 @@
 (defn percent-label [x]
   (admin/probability-label x))
 
-(defn maybe-risk [state player card actual-turn?]
+(defn card-analysis-state [state player actual-turn?]
+  (if actual-turn?
+    state
+    (assoc state
+           :current-player player
+           :trick-leader player
+           :current-trick [])))
+
+(defn probabilistic-card-risk [state player card actual-turn?]
   (when (:trump state)
-    (let [analysis-state (if actual-turn?
-                           state
-                           (assoc state
-                                  :current-player player
-                                  :current-trick []))
+    (let [analysis-state (card-analysis-state state player actual-turn?)
           analyses (try
                      (bot/card-analyses analysis-state player [card])
                      (catch Exception _
@@ -439,14 +448,49 @@
               :prob-pending-opponent-can-beat-card
               bot/round-probability))))
 
-(defn card-with-risk-html [state player card]
-  (let [actual-turn? (= player (:current-player state))
-        risk (maybe-risk state player card actual-turn?)]
+(defn exact-card-risk [session player card actual-turn?]
+  (let [state (get-in session [:room :game])
+        analysis-state (card-analysis-state state player actual-turn?)
+        legal-cards (set (trick-lab/legal-cards analysis-state player))]
+    (when (and (:trump analysis-state)
+               (contains? legal-cards card))
+      (try
+        (let [{:keys [actor-wins? team-wins? winner winner-team]}
+              (trick-lab/evaluate-candidate (:room session)
+                                            analysis-state
+                                            player
+                                            card)]
+          {:risk (bot/round-probability (if actor-wins? 0.0 1.0))
+           :team-risk (bot/round-probability (if team-wins? 0.0 1.0))
+           :winner winner
+           :winner-team winner-team})
+        (catch Exception _
+          nil)))))
+
+(defn risk-line-html [label risk]
+  [:small {:class "wb-risk-line"}
+   [:span label]
+   [:b (if (number? risk)
+         (percent-label risk)
+         "--")]])
+
+(defn card-risk-lines-html [prob-risk exact-risk]
+  [:span {:class "wb-risk-lines"
+          :title (when exact-risk
+                   (str "Exact winner: " (some-> (:winner exact-risk) name)
+                        ", team risk "
+                        (percent-label (:team-risk exact-risk))))}
+   (risk-line-html "AI" prob-risk)
+   (risk-line-html "EX" (:risk exact-risk))])
+
+(defn card-with-risk-html [session player card]
+  (let [state (get-in session [:room :game])
+        actual-turn? (= player (:current-player state))
+        prob-risk (probabilistic-card-risk state player card actual-turn?)
+        exact-risk (exact-card-risk session player card actual-turn?)]
     [:span {:class "wb-card-risk"}
      (admin/card-html card)
-     [:small (if (number? risk)
-               (percent-label risk)
-               "--")]]))
+     (card-risk-lines-html prob-risk exact-risk)]))
 
 (defn sorted-hand [state cards]
   (if-let [trump (:trump state)]
@@ -482,14 +526,14 @@
       [:ol {:class "wb-board-trick is-empty"}
        [:li "No cards played"]])))
 
-(defn board-card-with-risk-html [state player card]
-  (let [actual-turn? (= player (:current-player state))
-        risk (maybe-risk state player card actual-turn?)]
+(defn board-card-with-risk-html [session player card]
+  (let [state (get-in session [:room :game])
+        actual-turn? (= player (:current-player state))
+        prob-risk (probabilistic-card-risk state player card actual-turn?)
+        exact-risk (exact-card-risk session player card actual-turn?)]
     [:span {:class "wb-board-card-risk"}
      (admin/card-html card)
-     [:small (if (number? risk)
-               (percent-label risk)
-               "--")]]))
+     (card-risk-lines-html prob-risk exact-risk)]))
 
 (defn board-hand-html [session player hand]
   (let [state (get-in session [:room :game])
@@ -498,7 +542,7 @@
     (if (seq hand)
       (if visible?
         (into [:div {:class "wb-board-hand"}]
-              (map #(board-card-with-risk-html state player %)
+              (map #(board-card-with-risk-html session player %)
                    (sorted-hand state hand)))
         (into [:div {:class "wb-board-hand is-hidden"}]
               (repeat (count hand) [:span {:class "wb-board-card-back"}])))
@@ -630,7 +674,7 @@
      [:div {:class "wb-cards"}
       (if (seq hand)
         (for [card (sorted-hand state hand)]
-          (card-with-risk-html state player card))
+          (card-with-risk-html session player card))
         [:span {:class "empty"} "--"])]
      [:footer
       [:span (str (count hand) " cards")]
@@ -724,7 +768,7 @@
      (if (= player observer)
        [:div {:class "wb-cards"}
         (for [card (sorted-hand state hand)]
-          (card-with-risk-html state player card))]
+          (card-with-risk-html session player card))]
        [:div {:class "wb-hidden-hand"}
         (repeat (count hand) [:span {:class "wb-card-back"}])])
      [:dl {:class "wb-facts"}
@@ -881,7 +925,21 @@
        :trick-playing (card-controls-html state :play-card)
        [:p {:class "empty"} "No manual action is available in this phase."])]))
 
-(defn mc-result-row-html [session {:keys [card samples team-wins actor-wins winners]}]
+(defn average-label [sum samples]
+  (if (pos? (or samples 0))
+    (format "%.2f" (/ (double (or sum 0)) samples))
+    "--"))
+
+(defn trick-counts-label [tricks]
+  (str (get tricks 1 0) " / " (get tricks 2 0)))
+
+(defn mc-result-row-html
+  [session {:keys [card
+                   samples
+                   team-wins
+                   actor-wins
+                   winners
+                   actor-team-tricks-total]}]
   (let [view (game/admin-view (get-in session [:room :game])
                               (get-in session [:room :seats]))
         rate #(if (pos? samples)
@@ -892,11 +950,38 @@
      (admin/table-cell "Card" (admin/card-html card))
      (admin/table-cell "Team wins" (rate team-wins))
      (admin/table-cell "Actor wins" (rate actor-wins))
+     (admin/table-cell "Avg team tricks"
+                       (average-label actor-team-tricks-total samples))
      (admin/table-cell "Top winner" (if top-winner
                                       (str (admin/player-label view top-winner)
                                            " x"
                                            top-n)
                                       "--"))]))
+
+(defn baseline-row-html [session {:keys [card winner winner-team final-hand]}]
+  (let [view (game/admin-view (get-in session [:room :game])
+                              (get-in session [:room :seats]))]
+    [:tr
+     (admin/table-cell "Card" (admin/card-html card))
+     (admin/table-cell "Trick winner" (admin/player-label view winner))
+     (admin/table-cell "Winner team" (admin/team-label winner-team))
+     (admin/table-cell "Final tricks"
+                       (trick-counts-label (:tricks final-hand)))
+     (admin/table-cell "Actor team tricks"
+                       (:actor-team-tricks final-hand))]))
+
+(defn baseline-table-html [session baseline]
+  [:table {:class "admin-table wb-baseline-table"}
+   [:thead
+    [:tr
+     [:th "Card"]
+     [:th "Trick winner"]
+     [:th "Winner team"]
+     [:th "Final tricks"]
+     [:th "Actor team tricks"]]]
+   [:tbody
+    (for [result baseline]
+      (baseline-row-html session result))]])
 
 (defn exact-result-row-html [{:keys [card future-tricks]}]
   [:tr
@@ -940,12 +1025,16 @@
          (admin/stat-card "Samples" (str (:accepted analysis) " / " (:samples analysis)))
          (admin/stat-card "Attempts" (:attempts analysis))
          (admin/stat-card "Seed" (:seed analysis))]
+        [:h3 "Exact current-hand baseline"]
+        (baseline-table-html session (:baseline analysis))
+        [:h3 "Monte Carlo sampled worlds"]
         [:table {:class "admin-table"}
          [:thead
           [:tr
            [:th "Card"]
            [:th "Team wins"]
            [:th "Actor wins"]
+           [:th "Avg team tricks"]
            [:th "Top winner"]]]
          [:tbody
           (for [result (sort-by (fn [{:keys [samples team-wins]}]

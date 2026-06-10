@@ -1354,6 +1354,14 @@
     (format "%.1f%%" (* 100.0 (/ (double n) total)))
     "--"))
 
+(defn average-label [n total]
+  (if (pos? (or total 0))
+    (format "%.2f" (/ (double (or n 0)) total))
+    "--"))
+
+(defn trick-counts-label [tricks]
+  (str (get tricks 1 0) " / " (get tricks 2 0)))
+
 (defn winner-count-label [view winners]
   (let [[winner n] (first (sort-by (comp - val) winners))]
     (if winner
@@ -1376,18 +1384,29 @@
       (when (= player winner)
         [:strong "Won"])])])
 
-(defn known-result-row-html [view {:keys [card winner winner-team team-wins? trick]}]
+(defn known-result-row-html
+  [view {:keys [card winner winner-team team-wins? trick final-hand]}]
   [:tr
    (table-cell "Lead" (card-html card))
    (table-cell "Winner" (player-label view winner))
    (table-cell "Team" (team-label winner-team))
    (table-cell "Actor team?" (if team-wins? "Yes" "No"))
+   (table-cell "Final tricks" (trick-counts-label (:tricks final-hand)))
    (table-cell "Policy trick"
                [:div {:class "analysis-mini-trick"}
                 (for [{:keys [card]} trick]
                   (card-html card))])])
 
-(defn monte-carlo-row-html [view known-by-card probability-by-card {:keys [card samples team-wins actor-wins winners]}]
+(defn monte-carlo-row-html
+  [view
+   known-by-card
+   probability-by-card
+   {:keys [card
+           samples
+           team-wins
+           actor-wins
+           winners
+           actor-team-tricks-total]}]
   (let [known (get known-by-card card)
         probability (get probability-by-card card)
         hypergeom (get-in probability [:hypergeom])]
@@ -1399,6 +1418,8 @@
                       (team-label (:winner-team known))))
      (table-cell "Team wins" (rate-label team-wins samples))
      (table-cell "Actor wins" (rate-label actor-wins samples))
+     (table-cell "Avg team tricks"
+                 (average-label actor-team-tricks-total samples))
      (table-cell "Top winner" (winner-count-label view winners))
      (table-cell "P beat" (probability-label (:prob-can-beat hypergeom)))
      (table-cell "Higher unseen"
@@ -1427,6 +1448,7 @@
        [:th "Known result"]
        [:th "Team wins"]
        [:th "Actor wins"]
+       [:th "Avg team tricks"]
        [:th "Top winner"]
        [:th "P beat"]
        [:th "Higher unseen"]]]
@@ -1442,6 +1464,7 @@
      [:th "Winner"]
      [:th "Team"]
      [:th "Actor team?"]
+     [:th "Final tricks"]
      [:th "Policy trick"]]]
    [:tbody
     (for [result results]

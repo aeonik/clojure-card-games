@@ -209,18 +209,52 @@
             (recur (play-card state player card))
             state))))))
 
+(defn complete-hand-with-policy [room state]
+  (loop [state state
+         steps 0]
+    (cond
+      (not= :trick-playing (:phase state))
+      state
+
+      (> steps 80)
+      state
+
+      :else
+      (let [player (:current-player state)
+            card (choose-card room state player)]
+        (if (and player card)
+          (recur (play-card state player card) (inc steps))
+          state)))))
+
+(defn opponent-team [team]
+  (if (= 1 team) 2 1))
+
+(defn trick-count [state team]
+  (get-in state [:tricks-this-hand team] 0))
+
+(defn final-hand-summary [state actor-team]
+  (let [opponent-team (opponent-team actor-team)]
+    {:phase (:phase state)
+     :tricks (:tricks-this-hand state)
+     :scores (:scores state)
+     :actor-team-tricks (trick-count state actor-team)
+     :opponent-team-tricks (trick-count state opponent-team)}))
+
 (defn evaluate-candidate [room state player card]
-  (let [finished (complete-trick-with-policy room (play-card state player card))
-        trick (peek (:completed-tricks finished))
+  (let [actor-team (game/player-team state player)
+        trick-finished (complete-trick-with-policy room (play-card state player card))
+        hand-finished (complete-hand-with-policy room trick-finished)
+        trick (peek (:completed-tricks trick-finished))
         winner (rules/resolve-trick trick (:trump state))
         winner-team (game/player-team state winner)]
     {:card card
      :winner winner
      :winner-team winner-team
-     :actor-team (game/player-team state player)
+     :actor-team actor-team
      :actor-wins? (= player winner)
      :team-wins? (= (game/player-team state player) winner-team)
-     :trick trick}))
+     :trick trick
+     :final-hand (final-hand-summary hand-finished actor-team)}))
 
 (defn hand-sizes [state]
   (into {}
@@ -273,12 +307,24 @@
     {:worlds (mapv :world accepted)
      :attempts attempts-used}))
 
-(defn increment-outcome [summary {:keys [winner team-wins? actor-wins?]}]
+(defn increment-outcome [summary {:keys [winner
+                                         team-wins?
+                                         actor-wins?
+                                         final-hand]}]
   (-> summary
       (update :samples (fnil inc 0))
       (update :team-wins (fnil + 0) (if team-wins? 1 0))
       (update :actor-wins (fnil + 0) (if actor-wins? 1 0))
-      (update-in [:winners winner] (fnil inc 0))))
+      (update-in [:winners winner] (fnil inc 0))
+      (update :actor-team-tricks-total
+              (fnil + 0)
+              (or (:actor-team-tricks final-hand) 0))
+      (update :opponent-team-tricks-total
+              (fnil + 0)
+              (or (:opponent-team-tricks final-hand) 0))
+      (update-in [:actor-team-trick-counts
+                  (or (:actor-team-tricks final-hand) 0)]
+                 (fnil inc 0))))
 
 (defn summarize-monte-carlo [room state actor candidates worlds]
   (let [initial (into {}
@@ -287,7 +333,10 @@
                                     :samples 0
                                     :team-wins 0
                                     :actor-wins 0
-                                    :winners {}}]))
+                                    :winners {}
+                                    :actor-team-tricks-total 0
+                                    :opponent-team-tricks-total 0
+                                    :actor-team-trick-counts {}}]))
                       candidates)
         world-outcomes (parallel/mapv-maybe-parallel
                         16
