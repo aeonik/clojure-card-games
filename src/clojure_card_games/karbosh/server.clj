@@ -1365,6 +1365,17 @@
   (or (room-by-id room-id)
       (some-> (historical-room-record room-id) :room)))
 
+(defn load-workbench-bookmarks! [room-id]
+  (doseq [record (audit/room-records (audit-dir) room-id)]
+    (when-let [bookmark (workbench/bookmark-from-record record)]
+      (workbench/install-bookmark! bookmark))))
+
+(defn persist-workbench-bookmark! [session]
+  (when-let [bookmark-id (:last-bookmark-id session)]
+    (when-let [bookmark (workbench/bookmark-by-id (get-in session [:room :id])
+                                                  bookmark-id)]
+      (audit/append-record! (audit-dir) (workbench/bookmark-record bookmark)))))
+
 (defn admin-workbench-index-response [request]
   (cond
     (not (admin-password))
@@ -1392,8 +1403,10 @@
 
     :else
     (if-let [room (workbench-source-room room-id)]
-      (html-response
-       (workbench/render (workbench/ensure-session! room-id room)))
+      (do
+        (load-workbench-bookmarks! room-id)
+        (html-response
+         (workbench/render (workbench/ensure-session! room-id room))))
       (response 404 "Room not found"))))
 
 (defn admin-workbench-action-response [request room-id]
@@ -1406,8 +1419,10 @@
 
     :else
     (if-let [room (workbench-source-room room-id)]
-      (do
-        (workbench/handle-action! room-id room (form-params request))
+      (let [params (form-params request)
+            session (workbench/handle-action! room-id room params)]
+        (when (= "bookmark" (:action params))
+          (persist-workbench-bookmark! session))
         (redirect-response (str "/karbosh/admin/workbench/" room-id)))
       (response 404 "Room not found"))))
 

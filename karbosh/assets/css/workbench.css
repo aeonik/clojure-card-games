@@ -548,6 +548,40 @@
   margin: 3px 0 9px;
   color: rgba(255, 255, 255, 0.62);
 }
+.wb-bookmark {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 10px;
+}
+.wb-bookmark-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  justify-content: space-between;
+}
+.wb-bookmark-head span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+}
+.wb-bookmark-coordinate {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.wb-bookmark-coordinate dd {
+  overflow-wrap: anywhere;
+}
+.wb-bookmark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.wb-bookmark-actions a {
+  color: #6fd0c7;
+  font-weight: 800;
+}
 .wb-message {
   border-color: rgba(111, 208, 199, 0.28);
   background: rgba(111, 208, 199, 0.09);

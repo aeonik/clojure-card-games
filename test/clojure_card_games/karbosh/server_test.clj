@@ -456,6 +456,108 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-bookmark-records-reproducible-frozen-coordinate-test
+  (let [old-rooms @server/rooms
+        room (-> (room/fill-bots (room/new-room "ABC123" 111))
+                 (assoc :game-index 3)
+                 (assoc-in [:game :initial-seed] 222)
+                 (assoc-in [:game :hand-index] 4)
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :trump] :♠)
+                 (assoc-in [:game :current-player] :player3)
+                 (assoc-in [:game :completed-tricks]
+                           [[{:player :player1 :card [:A :♠]}
+                             {:player :player2 :card [10 :♠]}]])
+                 (assoc-in [:game :current-trick]
+                           [{:player :player3 :card [:Q :♠]}
+                            {:player :player4 :card [:K :♠]}])
+                 (assoc-in [:game :hand-deals]
+                           [{:hand-index 0 :seed 111 :hands {}}
+                            {:hand-index 4 :seed 12345 :hands {}}
+                            {:hand-index 4 :seed 98765 :hands {}}]))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/workbench/ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"
+                                   "origin" "https://debug-browser.example"}
+                         :body "action=bookmark&note=interesting+state"})
+              bookmark (first (get @workbench/bookmarks* "ABC123"))
+              coordinate (:coordinate bookmark)]
+          (is (= 303 (:status response)))
+          (is (= {:room-id "ABC123"
+                  :room-seed 111
+                  :game-index 3
+                  :game-seed 222
+                  :game-started-at (:game-started-at room)
+                  :hand-index 4
+                  :hand-number 5
+                  :hand-seed 98765
+                  :hand-deal-seeds [12345 98765]
+                  :phase :trick-playing
+                  :current-player :player3
+                  :trick-index 1
+                  :trick-number 2
+                  :completed-tricks 1
+                  :current-trick-cards 2}
+                 coordinate))
+          (is (= :player3
+                 (get-in (:room bookmark) [:game :current-player])))
+          (is (= (:id bookmark)
+                 (->> (audit/room-records (server/audit-dir) "ABC123")
+                      (keep workbench/bookmark-from-record)
+                      first
+                      :id)))
+          (swap! workbench/sessions*
+                 assoc-in
+                 ["ABC123" :room :game :current-player]
+                 :player6)
+          (let [restore-response (server/handler
+                                  {:request-method :post
+                                   :uri "/karbosh/admin/workbench/ABC123"
+                                   :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                             "host" "dc3systems.com"
+                                             "origin" "https://debug-browser.example"}
+                                   :body (str "action=restore-bookmark&bookmark-id="
+                                              (:id bookmark))})]
+            (is (= 303 (:status restore-response)))
+            (is (= :player3
+                   (get-in @workbench/sessions* ["ABC123" :room :game :current-player])))
+            (is (= 4
+                   (get-in @workbench/sessions* ["ABC123" :room :game :hand-index])))
+            (is (= :player3
+                   (get-in @server/rooms ["ABC123" :game :current-player]))))
+          (let [view-response (server/handler
+                               {:request-method :get
+                                :uri "/karbosh/admin/workbench/ABC123"
+                                :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                          "host" "dc3systems.com"}})]
+            (is (= 200 (:status view-response)))
+            (is (re-find #"Game 4 / Hand 5 / Trick playing" (:body view-response)))
+            (is (re-find #"Hand seed" (:body view-response)))
+            (is (re-find #"98765" (:body view-response)))
+            (is (re-find #"12345 -&gt; 98765" (:body view-response)))
+            (is (.contains (:body view-response)
+                           (str "/karbosh/admin/history/ABC123/222/"
+                                (:game-started-at room)
+                                "/snapshot/hands/4")))
+            (is (re-find #"Restore frozen point" (:body view-response))))
+          (workbench/clear!)
+          (let [loaded-response (server/handler
+                                 {:request-method :get
+                                  :uri "/karbosh/admin/workbench/ABC123"
+                                  :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                            "host" "dc3systems.com"}})]
+            (is (= 200 (:status loaded-response)))
+            (is (re-find #"interesting state" (:body loaded-response)))
+            (is (re-find #"Restore frozen point" (:body loaded-response))))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest origin-allowlist-test
   (with-redefs [server/allowed-origins (constantly #{"https://dc3systems.com"})]
     (is (server/origin-allowed?

@@ -16,6 +16,9 @@
 (defonce sessions* (atom {}))
 (defonce bookmarks* (atom {}))
 
+(def bookmark-schema :karbosh.workbench/bookmark.v1)
+(def bookmark-record-type :workbench-bookmark)
+
 (def default-monte-carlo-samples 300)
 (def max-exact-remaining-cards 12)
 
@@ -293,19 +296,98 @@
                                              team)}))
                         candidates)}))))
 
+(defn current-hand-deals [state]
+  (filterv #(= (:hand-index state) (:hand-index %))
+           (:hand-deals state)))
+
+(defn bookmark-coordinate [room]
+  (let [state (:game room)
+        deals (current-hand-deals state)
+        completed-tricks (count (:completed-tricks state))
+        current-trick-cards (count (:current-trick state))]
+    {:room-id (:id room)
+     :room-seed (:seed room)
+     :game-index (:game-index room)
+     :game-seed (:initial-seed state)
+     :game-started-at (or (:game-started-at room)
+                          (:created-at room))
+     :hand-index (:hand-index state)
+     :hand-number (inc (or (:hand-index state) 0))
+     :hand-seed (some-> deals last :seed)
+     :hand-deal-seeds (mapv :seed deals)
+     :phase (:phase state)
+     :current-player (:current-player state)
+     :trick-index completed-tricks
+     :trick-number (inc completed-tricks)
+     :completed-tricks completed-tricks
+     :current-trick-cards current-trick-cards}))
+
+(defn bookmark-room-id [bookmark]
+  (or (get-in bookmark [:coordinate :room-id])
+      (:room-id bookmark)
+      (get-in bookmark [:room :id])))
+
+(defn bookmark-id [created-at coordinate]
+  (str (:room-id coordinate)
+       "-"
+       (:game-seed coordinate)
+       "-"
+       (:hand-index coordinate)
+       "-"
+       (:trick-index coordinate)
+       "-"
+       (:current-trick-cards coordinate)
+       "-"
+       created-at))
+
 (defn add-bookmark [session {:keys [note]}]
   (let [room (:room session)
-        state (:game room)
-        bookmark {:id (str (System/currentTimeMillis))
-                  :created-at (System/currentTimeMillis)
-                  :room-id (:id room)
-                  :hand-index (:hand-index state)
-                  :phase (:phase state)
-                  :current-player (:current-player state)
+        now (System/currentTimeMillis)
+        coordinate (bookmark-coordinate room)
+        bookmark {:id (bookmark-id now coordinate)
+                  :created-at now
+                  :coordinate coordinate
                   :note (str/trim (or note ""))
                   :room room}]
     (swap! bookmarks* update (:id room) (fnil conj []) bookmark)
-    (set-message session "Bookmarked current workbench state.")))
+    (-> session
+        (assoc :last-bookmark-id (:id bookmark))
+        (set-message "Bookmarked current workbench state."))))
+
+(defn bookmark-record [bookmark]
+  {:schema bookmark-schema
+   :type bookmark-record-type
+   :logged-at (:created-at bookmark)
+   :room-id (bookmark-room-id bookmark)
+   :bookmark bookmark})
+
+(defn bookmark-from-record [record]
+  (when (and (= bookmark-record-type (:type record))
+             (= bookmark-schema (:schema record)))
+    (:bookmark record)))
+
+(defn install-bookmark! [bookmark]
+  (when-let [room-id (bookmark-room-id bookmark)]
+    (swap! bookmarks*
+           update
+           room-id
+           (fn [bookmarks]
+             (let [bookmarks (vec (or bookmarks []))]
+               (if (some #(= (:id bookmark) (:id %)) bookmarks)
+                 bookmarks
+                 (conj bookmarks bookmark))))))
+  bookmark)
+
+(defn bookmark-by-id [room-id bookmark-id]
+  (some #(when (= bookmark-id (:id %)) %)
+        (get @bookmarks* room-id)))
+
+(defn restore-bookmark [session {:keys [bookmark-id]}]
+  (if-let [bookmark (bookmark-by-id (get-in session [:room :id]) bookmark-id)]
+    (-> session
+        (push-room (:room bookmark))
+        (set-message (str "Restored bookmark " bookmark-id ".")))
+    (set-message session "Bookmark not found.")))
 
 (defn handle-action! [room-id source-room params]
   (let [action (:action params)
@@ -330,6 +412,7 @@
                                      (exact-analysis session)
                                      :message "Ran exact solve guard from frozen state.")
                       "bookmark" (add-bookmark session params)
+                      "restore-bookmark" (restore-bookmark session params)
                       (set-message session "Unknown workbench action."))]
         (swap! sessions* assoc room-id updated)
         updated)
@@ -851,6 +934,72 @@
        :else
        [:p {:class "empty"} "Unknown analysis result."])]))
 
+(defn bookmark-value [value]
+  (cond
+    (nil? value) "--"
+    (keyword? value) (admin/kw-label value)
+    (sequential? value) (if (seq value)
+                          (str/join " -> " (map str value))
+                          "--")
+    :else (str value)))
+
+(defn bookmark-fact-html [label value]
+  [:div
+   [:dt label]
+   [:dd (bookmark-value value)]])
+
+(defn bookmark-hand-url [{:keys [room-id game-seed game-started-at hand-index]}]
+  (when (and room-id game-seed game-started-at (some? hand-index))
+    (str "/karbosh/admin/history/"
+         room-id
+         "/"
+         game-seed
+         "/"
+         game-started-at
+         "/snapshot/hands/"
+         hand-index)))
+
+(defn bookmark-coordinate-html [{:keys [created-at coordinate]}]
+  (let [{:keys [game-index game-seed hand-number hand-seed hand-deal-seeds
+                phase current-player trick-number completed-tricks
+                current-trick-cards room-seed game-started-at]} coordinate]
+    [:dl {:class "wb-facts wb-bookmark-coordinate"}
+     (bookmark-fact-html "Created"
+                         (str (java.time.Instant/ofEpochMilli created-at)))
+     (bookmark-fact-html "Room seed" room-seed)
+     (bookmark-fact-html "Started" game-started-at)
+     (bookmark-fact-html "Game" (str (inc (or game-index 0)) " / " game-seed))
+     (bookmark-fact-html "Hand" hand-number)
+     (bookmark-fact-html "Hand seed" hand-seed)
+     (bookmark-fact-html "Deal seeds" hand-deal-seeds)
+     (bookmark-fact-html "Phase" phase)
+     (bookmark-fact-html "Current" current-player)
+     (bookmark-fact-html "Trick"
+                         (str trick-number
+                              " ("
+                              completed-tricks
+                              " complete, "
+                              current-trick-cards
+                              " played)"))]))
+
+(defn bookmark-row-html [{:keys [id note coordinate] :as bookmark}]
+  [:li {:class "wb-bookmark"}
+   [:div {:class "wb-bookmark-head"}
+    [:strong (str "Game " (inc (or (:game-index coordinate) 0))
+                  " / Hand " (:hand-number coordinate)
+                  " / " (admin/kw-label (:phase coordinate)))]
+    [:span id]]
+   (bookmark-coordinate-html bookmark)
+   (when-not (str/blank? note)
+     [:p note])
+   [:div {:class "wb-bookmark-actions"}
+    [:form {:class "wb-action-form wb-bookmark-restore" :method "post"}
+     [:input {:type "hidden" :name "action" :value "restore-bookmark"}]
+     [:input {:type "hidden" :name "bookmark-id" :value id}]
+     [:button {:type "submit"} "Restore frozen point"]]
+    (when-let [url (bookmark-hand-url coordinate)]
+      [:a {:href url} "Immutable hand"])]])
+
 (defn bookmark-panel-html [session]
   (let [room-id (get-in session [:room :id])
         bookmarks (get @bookmarks* room-id)]
@@ -866,11 +1015,8 @@
       [:button {:type "submit"} "Bookmark"]]
      (if (seq bookmarks)
        [:ol {:class "compact-list wb-bookmarks"}
-        (for [{:keys [id hand-index phase note]} (reverse bookmarks)]
-          [:li
-           [:strong (str "Hand " (inc hand-index) " / " (admin/kw-label phase))]
-           [:span id]
-           [:p note]])]
+        (for [bookmark (reverse bookmarks)]
+          (bookmark-row-html bookmark))]
        [:p {:class "empty"} "No bookmarks in this local workbench session yet."])]))
 
 (defn workbench-main [session]
