@@ -179,6 +179,14 @@
     (.toggle classes "karbosh-fast-mode" (fast-speed? speed-mode))
     (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? speed-mode))))
 
+(defn public-rooms-visible? [{:keys [view join-modal]}]
+  (and (nil? view)
+       (nil? join-modal)))
+
+(defn entered-public-rooms? [old new]
+  (and (public-rooms-visible? new)
+       (not (public-rooms-visible? old))))
+
 (defn timing-ms [k]
   (get (case (normalize-speed-mode (:speed-mode @app))
          :ultra-fast ultra-fast-timings
@@ -556,6 +564,7 @@
          select-join-player!
          prepare-shared-room!
          load-public-rooms!
+         load-public-rooms-if-needed!
          join-room!)
 
 (defn joinable-seat-count [preview]
@@ -1781,7 +1790,7 @@
 
 (defn set-room-visibility! [public?]
   (send! {:op :set-room-visibility :public? public?})
-  (js/setTimeout load-public-rooms! 500))
+  (js/setTimeout load-public-rooms-if-needed! 500))
 
 (defn clear-hand-animation! []
   (when (:hand-animating? @app)
@@ -1925,7 +1934,8 @@
   (d/render (el "game-root") (game-hiccup state))
   (d/render (el "modal-root") (modal-hiccup state))
   (when-let [root (el "public-rooms-root")]
-    (d/render root (public-rooms-hiccup (:public-rooms state))))
+    (d/render root (when (public-rooms-visible? state)
+                     (public-rooms-hiccup (:public-rooms state)))))
   (maybe-fit-seat-names!))
 
 (defonce ^:private render-scheduled? (volatile! false))
@@ -1946,6 +1956,8 @@
   (add-watch app ::render
              (fn [_ _ old new]
                (when (not= old new)
+                 (when (entered-public-rooms? old new)
+                   (load-public-rooms-if-needed!))
                  (schedule-render!))))
   (schedule-render!))
 
@@ -2169,19 +2181,25 @@
                (-> (.text response)
                    (.then (fn [body]
                             (let [data (reader/read-string body)]
-                              (swap! app assoc
-                                     :public-rooms
-                                     (if (:ok data)
-                                       {:loading? false
-                                        :rooms (:rooms data)
-                                        :error nil}
-                                       {:loading? false
-                                        :rooms []
-                                        :error "Could not load public rooms."}))))))))
+                              (when (public-rooms-visible? @app)
+                                (swap! app assoc
+                                       :public-rooms
+                                       (if (:ok data)
+                                         {:loading? false
+                                          :rooms (:rooms data)
+                                          :error nil}
+                                         {:loading? false
+                                          :rooms []
+                                          :error "Could not load public rooms."})))))))))
       (.catch (fn [_]
-                (swap! app assoc :public-rooms {:loading? false
-                                                :rooms []
-                                                :error "Could not load public rooms."})))))
+                (when (public-rooms-visible? @app)
+                  (swap! app assoc :public-rooms {:loading? false
+                                                  :rooms []
+                                                  :error "Could not load public rooms."}))))))
+
+(defn load-public-rooms-if-needed! []
+  (when (public-rooms-visible? @app)
+    (load-public-rooms!)))
 
 (defn prepare-shared-room! [room]
   (set! (.-value (el "join-room-id")) room)
@@ -2200,16 +2218,16 @@
   (bind-controls!)
   (start-render-loop!)
   (render-recent-rooms!)
-  (load-public-rooms!)
   (when perf?
     (start-perf-overlay!))
-  (js/setInterval load-public-rooms! 8000)
   (if-let [room (query-room-param)]
     (if (and (stored-player)
              (same-room-id? room (stored-room-id)))
       (restore-saved-room! room)
       (prepare-shared-room! room))
-    (when-let [room (stored-room-id)]
-      (set! (.-value (el "join-room-id")) room))))
+    (do
+      (when-let [room (stored-room-id)]
+        (set! (.-value (el "join-room-id")) room))
+      (load-public-rooms-if-needed!))))
 
 (set! (.-onload js/window) init!)
