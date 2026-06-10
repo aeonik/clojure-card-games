@@ -587,12 +587,12 @@
   (let [analysis (:analysis session)
         results (some-> analysis :results vals)]
     [:section {:class "panel wb-panel"}
-     [:div {:class "section-heading"}
+      [:div {:class "section-heading"}
       [:div
        [:p "Frozen branch"]
        [:h2 "Monte Carlo and exact solve"]]
-      [:div {:class "admin-actions"}
-       [:form {:class "wb-inline" :method "post"}
+      [:div {:class "admin-actions wb-analysis-actions"}
+        [:form {:class "wb-inline" :method "post"}
         [:input {:type "hidden" :name "action" :value "monte-carlo"}]
         [:label
          [:span "Samples"]
@@ -713,6 +713,7 @@
    ".wb-bookmark-form textarea{min-height:86px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:#111827;color:white;padding:10px;font:inherit}"
    ".wb-bookmarks p{margin:3px 0 9px;color:rgba(255,255,255,.62)}"
    ".wb-message{border-color:rgba(111,208,199,.28);background:rgba(111,208,199,.09);color:#bdf4ef}"
+   ".wb-analysis-actions{align-items:flex-end}"
    "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
    "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}"))
 
