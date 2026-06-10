@@ -650,21 +650,19 @@
                         cards/suits)]))
           game/players)))
 
-(defn likely-void-label [void-probs player]
-  (let [likely (->> cards/suits
-                    (keep (fn [suit]
-                            (let [p (get-in void-probs [player suit] 0)]
-                              (when (>= p 0.65)
-                                (str (cards/suit->str suit)
-                                     " "
-                                     (percent-label (bot/round-probability p))))))))]
-    (if (seq likely)
-      (str/join " " likely)
-      "--")))
+(defn void-odds-label [void-probs player]
+  (str/join " "
+            (map (fn [suit]
+                   (str (cards/suit->str suit)
+                        " "
+                        (percent-label
+                         (bot/round-probability
+                          (get-in void-probs [player suit] 0)))))
+                 cards/suits)))
 
 (defn void-summary-label [voids void-probs player]
   (str "Known voids " (void-label voids player)
-       " / Likely voids " (likely-void-label void-probs player)))
+       " / Void odds " (void-odds-label void-probs player)))
 
 (defn ai-view-player-html [session player]
   (let [state (get-in session [:room :game])
@@ -690,7 +688,7 @@
      [:dl {:class "wb-facts"}
       [:div [:dt "Cards"] [:dd (count hand)]]
       [:div [:dt "Known voids"] [:dd (void-label voids player)]]
-      [:div [:dt "Likely voids"] [:dd (likely-void-label void-probs player)]]
+      [:div [:dt "Void odds"] [:dd (void-odds-label void-probs player)]]
       [:div [:dt "Team"] [:dd (game/player-team state player)]]]]))
 
 (defn unseen-summary-html [session]
