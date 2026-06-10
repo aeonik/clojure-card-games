@@ -316,6 +316,12 @@
     (is (server/origin-allowed?
          {:headers {"origin" "https://dc3systems.com:443"
                     "host" "dc3systems.com:443"}}))
+    (is (server/origin-allowed?
+         {:headers {"origin" "http://localhost:8091"
+                    "host" "127.0.0.1:8091"}}))
+    (is (server/origin-allowed?
+         {:headers {"origin" "http://127.0.0.1:8091"
+                    "host" "localhost:8091"}}))
     (is (not (server/origin-allowed?
               {:headers {"origin" "https://evil.example"
                          "host" "dc3systems.com"}})))

@@ -184,6 +184,32 @@
           [(str "https://" host)
            (str "http://" host)])))
 
+(defn authority-uri [authority]
+  (try
+    (URI. (str "http://" (str/trim (or authority ""))))
+    (catch Exception _
+      nil)))
+
+(defn loopback-host? [host]
+  (contains? #{"localhost" "127.0.0.1" "::1"}
+             (some-> host str/lower-case)))
+
+(defn compatible-origin-port? [origin-port request-port]
+  (or (= origin-port request-port)
+      (= -1 origin-port)
+      (= -1 request-port)))
+
+(defn loopback-origin? [raw-origin request-host]
+  (when-let [origin (try
+                     (URI. raw-origin)
+                     (catch Exception _
+                       nil))]
+    (when-let [host-uri (authority-uri request-host)]
+      (and (#{"http" "https"} (some-> (.getScheme origin) str/lower-case))
+           (loopback-host? (.getHost origin))
+           (loopback-host? (.getHost host-uri))
+           (compatible-origin-port? (.getPort origin) (.getPort host-uri))))))
+
 (defn origin-allowed? [request]
   (let [raw-origin (get-in request [:headers "origin"])
         origin (canonical-origin raw-origin)
@@ -194,7 +220,8 @@
         (contains? configured origin)
         (and (empty? configured)
              host
-             (contains? (same-host-origins host) origin)))))
+             (or (contains? (same-host-origins host) origin)
+                 (loopback-origin? raw-origin host))))))
 
 (defn utf8-bytes [s]
   (.getBytes (str s) StandardCharsets/UTF_8))
