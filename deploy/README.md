@@ -119,7 +119,7 @@ KARBOSH_DEPLOY_HOST=dc3systems.com
 KARBOSH_APP_DIR=~/apps/clojure-card-games/
 KARBOSH_STATIC_DIR=/var/www/dc3systems.com/public_html/karbosh/
 KARBOSH_HEALTH_URL=https://dc3systems.com/karbosh/api/health
-KARBOSH_RESTART_COMMAND='systemctl --user restart karbosh.service'
+KARBOSH_RESTART_COMMAND='sudo systemctl restart karbosh.service'
 ```
 
 ## Production Environment

@@ -162,7 +162,7 @@
   (rsync! "deps.edn" "build.clj" (app-dst))
   (doseq [dir ["src" "build" "deploy" "karbosh"]]
     (rsync-delete! (str dir "/") (str (app-dst) dir "/")))
-  (ssh! (env "KARBOSH_RESTART_COMMAND" "systemctl --user restart karbosh.service"))
+  (ssh! (env "KARBOSH_RESTART_COMMAND" "sudo systemctl restart karbosh.service"))
   (smoke nil))
 
 (defn rollback [{:keys [release confirm]}]
@@ -171,5 +171,5 @@
                     {:required-confirm "ROLLBACK_KARBOSH"})))
   (let [current (env "KARBOSH_CURRENT_LINK" "~/apps/karbosh/current")]
     (ssh! (str "ln -sfn ~/apps/karbosh/releases/" release " " current " && "
-               (env "KARBOSH_RESTART_COMMAND" "systemctl --user restart karbosh.service")))
+               (env "KARBOSH_RESTART_COMMAND" "sudo systemctl restart karbosh.service")))
     (smoke nil)))
