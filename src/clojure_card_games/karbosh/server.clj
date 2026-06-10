@@ -28,7 +28,10 @@
   (atom {:started-at (System/currentTimeMillis)}))
 
 (def reloadable-namespaces
-  '[clojure-card-games.karbosh.shared.cards
+  '[clojure-card-games.cards
+    clojure-card-games.deck
+    clojure-card-games.trick
+    clojure-card-games.karbosh.shared.cards
     clojure-card-games.karbosh.shared.rules
     clojure-card-games.karbosh.shared.game
     clojure-card-games.karbosh.audit
