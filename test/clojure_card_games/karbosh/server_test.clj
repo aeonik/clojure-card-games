@@ -7,7 +7,8 @@
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.server :as server]
             [clojure-card-games.karbosh.shared.game :as game]
-            [clojure-card-games.karbosh.storage :as storage])
+            [clojure-card-games.karbosh.storage :as storage]
+            [clojure-card-games.karbosh.workbench :as workbench])
   (:import [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]))
 
@@ -80,6 +81,7 @@
                                                         (make-array FileAttribute 0)))]
       (with-redefs [server/room-dir (constantly (.getPath room-dir))
                     server/audit-dir (constantly (.getPath audit-dir))]
+        (workbench/clear!)
         (test)))))
 
 (deftest bot-turn-delay-test
@@ -251,6 +253,48 @@
       (finally
         (reset! server/rooms old-rooms)
         (reset! server/bot-turns old-bot-turns)))))
+
+(deftest admin-workbench-renders-frozen-room-test
+  (let [old-rooms @server/rooms
+        room (room/fill-bots (room/new-room "ABC123" 9))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/workbench/ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"Workbench ABC123" (:body response)))
+          (is (re-find #"God&#39;s eye view" (:body response)))
+          (is (re-find #"AI strategy controls" (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-workbench-manual-actions-do-not-touch-live-room-test
+  (let [old-rooms @server/rooms
+        room (room/fill-bots (room/new-room "ABC123" 9))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/workbench/ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}
+                         :body "action=manual&bid-type=pass"})]
+          (is (= 303 (:status response)))
+          (is (= "/karbosh/admin/workbench/ABC123"
+                 (get-in response [:headers "Location"])))
+          (is (= :player2
+                 (get-in @workbench/sessions* ["ABC123" :room :game :current-player])))
+          (is (= :player1
+                 (get-in @server/rooms ["ABC123" :game :current-player])))))
+      (finally
+        (reset! server/rooms old-rooms)))))
 
 (deftest origin-allowlist-test
   (with-redefs [server/allowed-origins (constantly #{"https://dc3systems.com"})]

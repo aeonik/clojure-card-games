@@ -11,6 +11,7 @@
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.storage :as storage]
+            [clojure-card-games.karbosh.workbench :as workbench]
             [org.httpkit.server :as http])
   (:import [java.net URI URLDecoder]
            [java.nio.charset StandardCharsets]
@@ -37,6 +38,7 @@
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.trick-lab
     clojure-card-games.karbosh.admin
+    clojure-card-games.karbosh.workbench
     clojure-card-games.karbosh.server])
 
 (declare broadcast-room!)
@@ -240,6 +242,17 @@
                      (decode-query-value v)]))))
         (str/split (or query-string "") #"&")))
 
+(defn request-body-string [request]
+  (when-let [body (:body request)]
+    (cond
+      (string? body) body
+      (instance? java.io.InputStream body) (slurp body)
+      :else (str body))))
+
+(defn form-params [request]
+  (merge (query-params (:query-string request))
+         (query-params (request-body-string request))))
+
 (defn selected-admin-room-id [request]
   (some-> (query-params (:query-string request))
           :room
@@ -311,6 +324,13 @@
               {:room-id (normalize-room-id (decode-query-value room-id))
                :hand-index hand-index
                :trick-index trick-index})))))))
+
+(defn admin-workbench-id [uri]
+  (let [prefix "/karbosh/admin/workbench/"]
+    (when (str/starts-with? uri prefix)
+      (let [[room-id & extra] (str/split (subs uri (count prefix)) #"/")]
+        (when (and room-id (nil? extra))
+          (normalize-room-id (decode-query-value room-id)))))))
 
 (defn admin-history-path? [uri]
   (= uri "/karbosh/admin/history"))
@@ -1178,6 +1198,42 @@
           (response 404 "Hand not found")))
       (response 404 "Room not found"))))
 
+(defn workbench-source-room [room-id]
+  (or (room-by-id room-id)
+      (some-> (historical-room-record room-id) :room)))
+
+(defn admin-workbench-response [request room-id]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    :else
+    (if-let [room (workbench-source-room room-id)]
+      (html-response
+       (workbench/render (workbench/ensure-session! room-id room)))
+      (response 404 "Room not found"))))
+
+(defn admin-workbench-action-response [request room-id]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-unauthorized-response)
+
+    (not (origin-allowed? request))
+    (response 403 "Forbidden")
+
+    :else
+    (if-let [room (workbench-source-room room-id)]
+      (do
+        (workbench/handle-action! room-id room (form-params request))
+        (redirect-response (str "/karbosh/admin/workbench/" room-id)))
+      (response 404 "Room not found"))))
+
 (defn send-edn! [out message]
   (metric! :outgoing-messages)
   (async/put! out message))
@@ -1704,6 +1760,7 @@
         snapshot-edn-room-id (admin-room-snapshot-edn-id uri)
         room-hand-detail-id (admin-room-hand-detail-id uri)
         room-trick-analysis-id (admin-room-trick-analysis-id uri)
+        workbench-id (admin-workbench-id uri)
         game-snapshot-id (admin-game-snapshot-id uri)
         game-snapshot-edn-id (admin-game-snapshot-edn-id uri)
         game-hand-detail-id (admin-game-hand-detail-id uri)
@@ -1726,6 +1783,12 @@
 
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
+
+      (and (= request-method :get) workbench-id)
+      (admin-workbench-response request workbench-id)
+
+      (and (= request-method :post) workbench-id)
+      (admin-workbench-action-response request workbench-id)
 
       (and (= request-method :get) game-trick-analysis-id)
       (admin-game-trick-analysis-response request game-trick-analysis-id)

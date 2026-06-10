@@ -1452,6 +1452,8 @@
        [:h1 (str "Room " (:id room) " History")]]
       [:div {:class "admin-actions"}
        [:a {:href (str "/karbosh/admin?room=" (:id room))} "Dashboard"]
+       [:a {:href (str "/karbosh/admin/workbench/" (:id room))}
+        "Workbench"]
        [:a {:href (str "/karbosh/admin/rooms/" (:id room) "/snapshot.edn")}
         "Raw EDN"]
        [:a {:href "/karbosh/"} "Back to game"]]]
@@ -1628,6 +1630,8 @@
          [:a {:href "/karbosh/admin"} "All rooms"]
          [:a {:href (str "/karbosh/admin/rooms/" (:id room) "/snapshot")}
           "Snapshot"]
+         [:a {:href (str "/karbosh/admin/workbench/" (:id room))}
+          "Workbench"]
          (delete-room-control (:id room))]]
        [:div {:class "stats room-stats"}
         (stat-card "Phase" (kw-label (:phase view)))
