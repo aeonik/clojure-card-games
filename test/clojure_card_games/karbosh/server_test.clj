@@ -325,6 +325,10 @@
           (is (re-find #"is-winning" (:body response)))
           (is (re-find #"wb-board-card-risk" (:body response)))
           (is (re-find #"name=\"observer\" value=\"player1\"" (:body response)))
+          (is (re-find #"\.wb-board-player2\{left:20px;bottom:118px\}"
+                       (:body response)))
+          (is (re-find #"\.wb-board-player6\{right:20px;bottom:118px\}"
+                       (:body response)))
           (is (re-find #"God&#39;s eye view" (:body response)))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
@@ -421,7 +425,24 @@
                          :body "action=view&view-mode=ai&observer=player4"})]
           (is (= 303 (:status response)))
           (is (= :ai (get-in @workbench/sessions* ["ABC123" :view-mode])))
-          (is (= :player4 (get-in @workbench/sessions* ["ABC123" :observer])))))
+          (is (= :player4 (get-in @workbench/sessions* ["ABC123" :observer]))))
+        (let [view-response (server/handler
+                             {:request-method :get
+                              :uri "/karbosh/admin/workbench/ABC123"
+                              :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                        "host" "dc3systems.com"}})]
+          (is (= 200 (:status view-response)))
+          (is (re-find #"Return to God&#39;s eye view" (:body view-response)))
+          (is (re-find #"name=\"view-mode\" value=\"god\"" (:body view-response))))
+        (let [toggle-response (server/handler
+                               {:request-method :post
+                                :uri "/karbosh/admin/workbench/ABC123"
+                                :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                          "host" "dc3systems.com"
+                                          "origin" "https://debug-browser.example"}
+                                :body "action=view&view-mode=god&observer=player4"})]
+          (is (= 303 (:status toggle-response)))
+          (is (= :god (get-in @workbench/sessions* ["ABC123" :view-mode])))))
       (finally
         (reset! server/rooms old-rooms)))))
 

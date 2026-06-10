@@ -426,19 +426,24 @@
         seat (get-in session [:room :seats player])
         hand (get-in state [:players player :hand])
         active? (contains? (set (game/trick-players state)) player)
-        bid (latest-bid state player)]
+        bid (latest-bid state player)
+        selected? (and (= :ai (:view-mode session))
+                       (= player (:observer session)))
+        target-mode (if selected? :god :ai)]
     [:form {:class (str "wb-board-seat wb-board-" (name player)
                         (when (= player (:current-player state)) " current")
                         (when (= player (:dealer state)) " dealer")
-                        (when (= player (:observer session)) " observer")
+                        (when selected? " observer")
                         (when-not active? " inactive"))
             :method "post"}
      [:input {:type "hidden" :name "action" :value "view"}]
-     [:input {:type "hidden" :name "view-mode" :value "ai"}]
+     [:input {:type "hidden" :name "view-mode" :value (name target-mode)}]
      [:input {:type "hidden" :name "observer" :value (name player)}]
      [:button {:class "wb-board-seat-button"
                :type "submit"
-               :title (str "Inspect " (seat-name session player) " view")}
+               :title (if selected?
+                        "Return to God's eye view"
+                        (str "Inspect " (seat-name session player) " view"))}
      (when (= player (:dealer state))
        [:span {:class "wb-board-dealer"}])
      [:strong (player-short-label session player)]
@@ -828,11 +833,11 @@
    ".wb-board-card-back{display:inline-block;width:20px;height:28px;border:1px solid rgba(255,255,255,.18);border-radius:4px;background:linear-gradient(135deg,#1c365e,#18213a)}"
    ".wb-board-hand.is-hidden{gap:2px}.wb-board-hand.is-empty{color:rgba(255,255,255,.48);font-size:.58rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}"
    ".wb-board-player1{left:50%;bottom:14px;transform:translateX(-50%)}"
-   ".wb-board-player2{right:20px;bottom:118px}"
-   ".wb-board-player3{right:20px;top:118px}"
+   ".wb-board-player2{left:20px;bottom:118px}"
+   ".wb-board-player3{left:20px;top:118px}"
    ".wb-board-player4{left:50%;top:14px;transform:translateX(-50%)}"
-   ".wb-board-player5{left:20px;top:118px}"
-   ".wb-board-player6{left:20px;bottom:118px}"
+   ".wb-board-player5{right:20px;top:118px}"
+   ".wb-board-player6{right:20px;bottom:118px}"
    ".wb-board-center{position:absolute;z-index:1;left:50%;top:51%;width:min(43%,390px);transform:translate(-50%,-50%);display:grid;gap:8px;justify-items:center;text-align:center}"
    ".wb-board-center>span{color:rgba(255,255,255,.58);font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}"
    ".wb-board-trick{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:0;padding:0;list-style:none}"
@@ -882,8 +887,8 @@
    ".wb-bookmarks p{margin:3px 0 9px;color:rgba(255,255,255,.62)}"
    ".wb-message{border-color:rgba(111,208,199,.28);background:rgba(111,208,199,.09);color:#bdf4ef}"
    ".wb-analysis-actions{align-items:flex-end}"
-   "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-trick-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:610px}.wb-board-seat{width:184px}.wb-board-seat-button{min-height:104px}.wb-board-player2,.wb-board-player3{right:12px}.wb-board-player5,.wb-board-player6{left:12px}.wb-board-card-risk .card{width:22px;min-width:22px;height:30px;font-size:.58rem}.wb-board-card-risk small{font-size:.4rem}.wb-board-center{width:38%}}"
-   "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:620px}.wb-felt{width:74%}.wb-board-seat{width:146px}.wb-board-seat-button{min-height:96px;padding:7px}.wb-board-seat strong{font-size:.68rem}.wb-board-seat span,.wb-board-seat em,.wb-board-seat small{font-size:.46rem}.wb-board-card-risk .card{width:19px;min-width:19px;height:27px;font-size:.5rem}.wb-board-card-risk small{font-size:.35rem}.wb-board-card-back{width:16px;height:23px}.wb-board-hand{gap:2px;padding-right:16px}.wb-board-player2,.wb-board-player3{right:6px}.wb-board-player5,.wb-board-player6{left:6px}.wb-board-player3,.wb-board-player5{top:102px}.wb-board-player2,.wb-board-player6{bottom:102px}.wb-board-center{width:42%}.wb-board-trick{gap:6px}.wb-board-play{min-width:34px}.wb-board-play>.wb-board-play-label{max-width:50px;font-size:.46rem}.wb-board-play .card{width:30px;min-width:30px;height:42px;font-size:.72rem}.wb-trick-history-grid{grid-template-columns:1fr}}"))
+   "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-trick-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:610px}.wb-board-seat{width:184px}.wb-board-seat-button{min-height:104px}.wb-board-player2,.wb-board-player3{left:12px}.wb-board-player5,.wb-board-player6{right:12px}.wb-board-card-risk .card{width:22px;min-width:22px;height:30px;font-size:.58rem}.wb-board-card-risk small{font-size:.4rem}.wb-board-center{width:38%}}"
+   "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:620px}.wb-felt{width:74%}.wb-board-seat{width:146px}.wb-board-seat-button{min-height:96px;padding:7px}.wb-board-seat strong{font-size:.68rem}.wb-board-seat span,.wb-board-seat em,.wb-board-seat small{font-size:.46rem}.wb-board-card-risk .card{width:19px;min-width:19px;height:27px;font-size:.5rem}.wb-board-card-risk small{font-size:.35rem}.wb-board-card-back{width:16px;height:23px}.wb-board-hand{gap:2px;padding-right:16px}.wb-board-player2,.wb-board-player3{left:6px}.wb-board-player5,.wb-board-player6{right:6px}.wb-board-player3,.wb-board-player5{top:102px}.wb-board-player2,.wb-board-player6{bottom:102px}.wb-board-center{width:42%}.wb-board-trick{gap:6px}.wb-board-play{min-width:34px}.wb-board-play>.wb-board-play-label{max-width:50px;font-size:.46rem}.wb-board-play .card{width:30px;min-width:30px;height:42px;font-size:.72rem}.wb-trick-history-grid{grid-template-columns:1fr}}"))
 
 (defn workbench-main [session]
   (let [room-id (get-in session [:room :id])]
