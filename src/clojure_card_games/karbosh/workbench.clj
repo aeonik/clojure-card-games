@@ -616,17 +616,20 @@
        [:strong (seat-name session player)]
        [:label
         [:span "Bid"]
-        [:select {:name "bid-strategy"}
+        [:select {:name "bid-strategy"
+                  :onchange "this.form.submit()"}
          (for [strategy (sort-by name (keys bot/bid-strategies))]
            (strategy-option (player-bid-strategy session player) strategy))]]
        [:label
         [:span "Play"]
-        [:select {:name "play-strategy"}
+        [:select {:name "play-strategy"
+                  :onchange "this.form.submit()"}
          (for [strategy (sort-by name (keys bot/play-strategies))]
            (strategy-option (player-play-strategy session player) strategy))]]
        [:label
         [:span "Ditch"]
-        [:select {:name "ditch-policy"}
+        [:select {:name "ditch-policy"
+                  :onchange "this.form.submit()"}
          (for [policy (sort-by name bot/ditch-policies)]
            (strategy-option (player-ditch-policy session player) policy))]]
        [:button {:type "submit"} "Apply"]])]])
@@ -821,7 +824,6 @@
       (:message session)]
      (workbench-board-html session)
      (manual-controls-html session)
-     (workbench-table-html session)
      (strategy-controls-html session)
      (analysis-panel-html session)
      (bookmark-panel-html session)]))

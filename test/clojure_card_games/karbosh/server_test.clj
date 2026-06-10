@@ -329,7 +329,6 @@
                        (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/workbench\.css\" rel=\"stylesheet\""
                        (:body response)))
-          (is (re-find #"God&apos;s eye view" (:body response)))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))

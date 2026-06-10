@@ -151,15 +151,15 @@
 .wb-board-card-risk {
   display: grid;
   justify-items: center;
-  gap: 1px;
+  gap: 3px;
 }
 .wb-board-card-risk .card {
-  width: 30px;
-  min-width: 30px;
-  height: 40px;
+  width: 38px;
+  min-width: 38px;
+  height: 50px;
   margin: 0;
   color: #141821;
-  font-size: 0.72rem;
+  font-size: 0.9rem;
   border-radius: 4px;
 }
 .wb-board-card-risk .card.heart,
@@ -169,15 +169,17 @@
 .wb-board-card-risk small {
   position: static;
   color: #f5c85b;
-  font-size: 0.55rem;
+  font-size: 0.62rem;
   line-height: 1;
   letter-spacing: 0;
   text-transform: none;
+  padding: 1px 2px;
+  margin-top: 1px;
 }
 .wb-board-card-back {
   display: inline-block;
-  width: 24px;
-  height: 33px;
+  width: 30px;
+  height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 4px;
   background: linear-gradient(135deg, #1c365e, #18213a);
@@ -199,11 +201,11 @@
 }
 .wb-board-player2 {
   left: 20px;
-  bottom: 118px;
+  bottom: 72px;
 }
 .wb-board-player3 {
   left: 20px;
-  top: 118px;
+  top: 72px;
 }
 .wb-board-player4 {
   left: 50%;
@@ -212,11 +214,11 @@
 }
 .wb-board-player5 {
   right: 20px;
-  top: 118px;
+  top: 72px;
 }
 .wb-board-player6 {
   right: 20px;
-  bottom: 118px;
+  bottom: 72px;
 }
 .wb-board-center {
   position: absolute;
@@ -256,7 +258,7 @@
   display: grid;
   justify-items: center;
   gap: 4px;
-  min-width: 48px;
+  min-width: 60px;
 }
 .wb-board-play > .wb-board-play-label {
   max-width: 86px;
@@ -271,11 +273,11 @@
   white-space: nowrap;
 }
 .wb-board-play .card {
-  width: 38px;
-  min-width: 38px;
-  height: 52px;
+  width: 47px;
+  min-width: 47px;
+  height: 65px;
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 1.02rem;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
 }
 .wb-board-play .card.heart,
@@ -333,10 +335,10 @@
   font-size: 0.48rem;
 }
 .wb-trick-history-card .card {
-  width: 34px;
-  min-width: 34px;
-  height: 48px;
-  font-size: 0.95rem;
+  width: 42px;
+  min-width: 42px;
+  height: 60px;
+  font-size: 1.05rem;
 }
 .wb-grid {
   display: grid;
@@ -388,20 +390,22 @@
 .wb-card-risk {
   display: grid;
   justify-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 .wb-card-risk .card {
-  width: 38px;
-  min-width: 38px;
-  height: 52px;
-  font-size: 0.9rem;
+  width: 47px;
+  min-width: 47px;
+  height: 65px;
+  font-size: 1rem;
   margin: 0;
 }
 .wb-card-risk small {
   color: #f5c85b;
-  font-size: 0.75rem;
+  font-size: 0.86rem;
   font-weight: 900;
   line-height: 1;
+  padding: 1px 2px;
+  margin-top: 1px;
 }
 .wb-hidden-hand {
   display: flex;
@@ -411,8 +415,8 @@
 }
 .wb-card-back {
   display: inline-block;
-  width: 38px;
-  height: 52px;
+  width: 47px;
+  height: 65px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
   background: linear-gradient(135deg, #1c365e, #18213a);
@@ -546,14 +550,22 @@
   .wb-board-player6 {
     right: 12px;
   }
+  .wb-board-player2,
+  .wb-board-player6 {
+    bottom: 72px;
+  }
+  .wb-board-player3,
+  .wb-board-player5 {
+    top: 72px;
+  }
   .wb-board-card-risk .card {
-    width: 26px;
-    min-width: 26px;
-    height: 35px;
-    font-size: 0.66rem;
+    width: 33px;
+    min-width: 33px;
+    height: 44px;
+    font-size: 0.78rem;
   }
   .wb-board-card-risk small {
-    font-size: 0.52rem;
+    font-size: 0.6rem;
   }
   .wb-board-center {
     width: 38%;
@@ -571,8 +583,8 @@
     padding: 8px;
   }
   .wb-card-back {
-    width: 30px;
-    height: 42px;
+    width: 38px;
+    height: 52px;
   }
   .wb-facts {
     grid-template-columns: 1fr;
@@ -605,14 +617,14 @@
     width: 23px;
     min-width: 23px;
     height: 31px;
-    font-size: 0.62rem;
+    font-size: 0.74rem;
   }
   .wb-board-card-risk small {
-    font-size: 0.45rem;
+    font-size: 0.52rem;
   }
   .wb-board-card-back {
-    width: 16px;
-    height: 23px;
+    width: 20px;
+    height: 27px;
   }
   .wb-board-hand {
     gap: 2px;
@@ -626,13 +638,17 @@
   .wb-board-player6 {
     right: 6px;
   }
-  .wb-board-player3,
-  .wb-board-player5 {
-    top: 102px;
+  .wb-board-player2 {
+    bottom: 64px;
   }
-  .wb-board-player2,
+  .wb-board-player3 {
+    top: 64px;
+  }
+  .wb-board-player5 {
+    top: 64px;
+  }
   .wb-board-player6 {
-    bottom: 102px;
+    bottom: 64px;
   }
   .wb-board-center {
     width: 42%;
@@ -641,17 +657,17 @@
     gap: 6px;
   }
   .wb-board-play {
-    min-width: 34px;
+    min-width: 42px;
   }
   .wb-board-play > .wb-board-play-label {
     max-width: 50px;
     font-size: 0.46rem;
   }
   .wb-board-play .card {
-    width: 34px;
-    min-width: 34px;
-    height: 46px;
-    font-size: 0.8rem;
+    width: 42px;
+    min-width: 42px;
+    height: 58px;
+    font-size: 0.86rem;
   }
   .wb-trick-history-grid {
     grid-template-columns: 1fr;
