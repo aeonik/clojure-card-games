@@ -296,7 +296,16 @@
 
 (deftest admin-workbench-renders-frozen-room-test
   (let [old-rooms @server/rooms
-        room (room/fill-bots (room/new-room "ABC123" 9))]
+        room (-> (room/fill-bots (room/new-room "ABC123" 9))
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :trump] :♠)
+                 (assoc-in [:game :current-trick]
+                           [{:player :player1 :card [:A :♠]}
+                            {:player :player2 :card [10 :♠]}])
+                 (assoc-in [:game :completed-tricks]
+                           [[{:player :player4 :card [:J :♠]}
+                             {:player :player5 :card [:Q :♠]}
+                             {:player :player6 :card [9 :♠]}]]))]
     (try
       (reset! server/rooms {"ABC123" room})
       (with-redefs [server/admin-user (constantly "admin")
@@ -308,6 +317,12 @@
                                    "host" "dc3systems.com"}})]
           (is (= 200 (:status response)))
           (is (re-find #"Workbench ABC123" (:body response)))
+          (is (re-find #"Board state" (:body response)))
+          (is (re-find #"Current trick" (:body response)))
+          (is (re-find #"A♠" (:body response)))
+          (is (re-find #"Played tricks" (:body response)))
+          (is (re-find #"Trick 1" (:body response)))
+          (is (re-find #"is-winning" (:body response)))
           (is (re-find #"God&#39;s eye view" (:body response)))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally

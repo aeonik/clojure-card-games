@@ -374,6 +374,100 @@
   (or (get-in session [:room :seats player :name])
       (some-> player name)))
 
+(defn player-short-label [session player]
+  (let [label (seat-name session player)]
+    (if (> (count label) 18)
+      (str (subs label 0 17) "...")
+      label)))
+
+(defn latest-bid [state player]
+  (last (filter #(= player (:player %))
+                (game/bids-this-hand state))))
+
+(defn board-play-html [session winning-play {:keys [player card] :as play}]
+  [:li {:class (str "wb-board-play"
+                    (when (= play winning-play) " is-winning"))}
+   [:span (player-short-label session player)]
+   (admin/card-html card)])
+
+(defn board-trick-html [session trick]
+  (let [state (get-in session [:room :game])
+        winning-play (rules/winning-play trick (:trump state))]
+    (if (seq trick)
+      (into [:ol {:class "wb-board-trick"}]
+            (map #(board-play-html session winning-play %) trick))
+      [:ol {:class "wb-board-trick is-empty"}
+       [:li "No cards played"]])))
+
+(defn board-seat-html [session player]
+  (let [state (get-in session [:room :game])
+        seat (get-in session [:room :seats player])
+        hand (get-in state [:players player :hand])
+        active? (contains? (set (game/trick-players state)) player)
+        bid (latest-bid state player)]
+    [:div {:class (str "wb-board-seat wb-board-" (name player)
+                       (when (= player (:current-player state)) " current")
+                       (when (= player (:dealer state)) " dealer")
+                       (when-not active? " inactive"))}
+     (when (= player (:dealer state))
+       [:span {:class "wb-board-dealer"}])
+     [:strong (player-short-label session player)]
+     [:span (str "Team " (game/player-team state player)
+                 " / "
+                 (count hand)
+                 " cards")]
+     [:em (if bid (admin/bid-label bid) "--")]
+     (when (:bot? seat)
+       [:small "Bot"])]))
+
+(defn completed-trick-row-html [session idx trick]
+  (let [state (get-in session [:room :game])
+        winning-play (rules/winning-play trick (:trump state))
+        winner (:player winning-play)]
+    [:article {:class "wb-trick-history-card"}
+     [:header
+      [:strong (str "Trick " (inc idx))]
+      [:span (if winner
+               (str "Won by " (seat-name session winner))
+               "--")]]
+     (board-trick-html session trick)]))
+
+(defn played-tricks-html [session]
+  (let [state (get-in session [:room :game])
+        completed (:completed-tricks state)]
+    [:section {:class "wb-trick-history"}
+     [:div {:class "section-heading"}
+      [:div
+       [:p "Play by play"]
+       [:h3 "Played tricks"]]]
+     (if (seq completed)
+       [:div {:class "wb-trick-history-grid"}
+        (map-indexed #(completed-trick-row-html session %1 %2) completed)]
+       [:p {:class "empty"} "No completed tricks yet."])]))
+
+(defn workbench-board-html [session]
+  (let [state (get-in session [:room :game])]
+    [:section {:class "panel wb-panel wb-board-panel"}
+     [:div {:class "section-heading"}
+      [:div
+       [:p "Frozen table"]
+       [:h2 "Board state"]]]
+     [:div {:class "stats room-stats"}
+      (admin/stat-card "Phase" (admin/kw-label (:phase state)))
+      (admin/stat-card "Current" (seat-name session (:current-player state)))
+      (admin/stat-card "Trump" (admin/suit-html (:trump state)))
+      (admin/stat-card "Bid" (admin/bid-label (game/current-bid state)))
+      (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
+      (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
+     [:div {:class "wb-board"}
+      [:div {:class "wb-felt"}]
+      (for [player game/players]
+        (board-seat-html session player))
+      [:div {:class "wb-board-center"}
+       [:span "Current trick"]
+       (board-trick-html session (:current-trick state))]]
+     (played-tricks-html session)]))
+
 (defn player-row-html [session player]
   (let [state (get-in session [:room :game])
         seat (get-in session [:room :seats player])
@@ -446,7 +540,7 @@
     [:section {:class "panel wb-panel"}
      [:div {:class "section-heading"}
       [:div
-       [:p "Frozen table"]
+       [:p "Hands"]
        [:h2 (if (= :ai mode) "AI view" "God's eye view")]]
       [:form {:class "wb-inline" :method "post"}
        [:input {:type "hidden" :name "action" :value "view"}]
@@ -681,6 +775,38 @@
    ".wb-inline,.wb-action-form{display:inline-flex;gap:8px;align-items:end;margin:0}"
    ".wb-inline label{display:grid;gap:3px;color:rgba(255,255,255,.5);font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
    ".wb-inline select,.wb-inline input,.wb-strategy-card select{min-height:32px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:#111827;color:white;padding:0 8px}"
+   ".wb-board-panel .room-stats{margin-bottom:12px}"
+   ".wb-board{position:relative;min-height:520px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:radial-gradient(circle at 50% 48%,rgba(41,115,98,.62),rgba(21,37,64,.9) 63%,rgba(12,17,33,.95));overflow:hidden}"
+   ".wb-felt{position:absolute;left:50%;top:54%;width:min(68%,520px);aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(43,109,91,.86),rgba(35,89,79,.62));box-shadow:0 0 0 18px rgba(112,74,157,.24),inset 0 0 42px rgba(0,0,0,.25)}"
+   ".wb-board-seat{position:absolute;z-index:2;display:grid;gap:2px;width:154px;min-height:74px;padding:9px 10px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:rgba(10,15,28,.86);box-shadow:0 10px 24px rgba(0,0,0,.22)}"
+   ".wb-board-seat.current{border-color:rgba(245,200,91,.78);box-shadow:0 0 0 1px rgba(245,200,91,.28),0 10px 24px rgba(0,0,0,.25)}"
+   ".wb-board-seat.dealer{border-top-color:rgba(245,200,91,.9)}"
+   ".wb-board-seat.inactive{opacity:.56}"
+   ".wb-board-seat strong{color:white;font-size:.86rem;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".wb-board-seat span,.wb-board-seat em,.wb-board-seat small{color:rgba(255,255,255,.58);font-size:.56rem;font-style:normal;font-weight:900;letter-spacing:.06em;text-transform:uppercase}"
+   ".wb-board-seat em{color:#f5c85b}.wb-board-seat small{position:absolute;right:8px;bottom:6px;color:rgba(111,208,199,.75)}"
+   ".wb-board-dealer{position:absolute;left:7px;top:7px;width:9px;height:9px;border-radius:999px;background:#f5c85b;box-shadow:0 0 0 2px rgba(245,200,91,.2)}"
+   ".wb-board-player1{left:50%;bottom:16px;transform:translateX(-50%)}"
+   ".wb-board-player2{right:28px;bottom:100px}"
+   ".wb-board-player3{right:28px;top:94px}"
+   ".wb-board-player4{left:50%;top:16px;transform:translateX(-50%)}"
+   ".wb-board-player5{left:28px;top:94px}"
+   ".wb-board-player6{left:28px;bottom:100px}"
+   ".wb-board-center{position:absolute;z-index:1;left:50%;top:54%;width:min(56%,430px);transform:translate(-50%,-50%);display:grid;gap:8px;justify-items:center;text-align:center}"
+   ".wb-board-center>span{color:rgba(255,255,255,.58);font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}"
+   ".wb-board-trick{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:0;padding:0;list-style:none}"
+   ".wb-board-trick.is-empty{color:rgba(255,255,255,.48);font-weight:800;letter-spacing:.06em;text-transform:uppercase}"
+   ".wb-board-play{display:grid;justify-items:center;gap:4px;min-width:48px}"
+   ".wb-board-play>span{max-width:86px;color:rgba(255,255,255,.68);font-size:.58rem;font-weight:900;letter-spacing:.05em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+   ".wb-board-play .card{margin:0;box-shadow:0 3px 8px rgba(0,0,0,.24)}"
+   ".wb-board-play.is-winning .card{border-color:#f5c85b;box-shadow:0 0 0 3px rgba(245,200,91,.36),0 4px 10px rgba(0,0,0,.28)}"
+   ".wb-trick-history{margin-top:14px}"
+   ".wb-trick-history .section-heading{margin-bottom:8px}"
+   ".wb-trick-history-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}"
+   ".wb-trick-history-card{border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(0,0,0,.14);padding:8px;min-width:0}"
+   ".wb-trick-history-card header{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}"
+   ".wb-trick-history-card header strong{color:white;font-size:.78rem}.wb-trick-history-card header span{color:rgba(255,255,255,.54);font-size:.65rem;font-weight:800}"
+   ".wb-trick-history-card .wb-board-trick{justify-content:flex-start;gap:6px}.wb-trick-history-card .wb-board-play{min-width:38px}.wb-trick-history-card .wb-board-play>span{max-width:54px;font-size:.48rem}.wb-trick-history-card .card{width:30px;min-width:30px;height:42px;font-size:.75rem}"
    ".wb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}"
    ".wb-player{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px;min-width:0}"
    ".wb-player.current{border-color:rgba(245,200,91,.72);box-shadow:0 0 0 1px rgba(245,200,91,.18)}"
@@ -714,8 +840,8 @@
    ".wb-bookmarks p{margin:3px 0 9px;color:rgba(255,255,255,.62)}"
    ".wb-message{border-color:rgba(111,208,199,.28);background:rgba(111,208,199,.09);color:#bdf4ef}"
    ".wb-analysis-actions{align-items:flex-end}"
-   "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
-   "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}"))
+   "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-trick-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:500px}.wb-board-seat{width:138px}.wb-board-player2,.wb-board-player3{right:14px}.wb-board-player5,.wb-board-player6{left:14px}}"
+   "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:455px}.wb-felt{width:78%}.wb-board-seat{width:118px;min-height:60px;padding:7px}.wb-board-seat strong{font-size:.68rem}.wb-board-seat span,.wb-board-seat em,.wb-board-seat small{font-size:.46rem}.wb-board-player2,.wb-board-player3{right:6px}.wb-board-player5,.wb-board-player6{left:6px}.wb-board-player3,.wb-board-player5{top:80px}.wb-board-player2,.wb-board-player6{bottom:78px}.wb-board-center{width:58%}.wb-board-trick{gap:6px}.wb-board-play{min-width:34px}.wb-board-play>span{max-width:50px;font-size:.46rem}.wb-board-play .card{width:30px;min-width:30px;height:42px;font-size:.72rem}.wb-trick-history-grid{grid-template-columns:1fr}}"))
 
 (defn workbench-main [session]
   (let [room-id (get-in session [:room :id])]
@@ -731,6 +857,7 @@
        [:a {:href "/karbosh/admin/logout"} "Logout"]]]
      [:section {:class "panel wb-message"}
       (:message session)]
+     (workbench-board-html session)
      (manual-controls-html session)
      (workbench-table-html session)
      (strategy-controls-html session)
