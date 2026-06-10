@@ -7,7 +7,7 @@
             [clojure-card-games.karbosh.shared.rules :as rules]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.trick-lab :as trick-lab]
-            [clojure-card-games.karbosh.hiccup :as h])
+            [clojure-card-games.karbosh.page :as page])
   (:import [java.lang.management ManagementFactory]
            [java.time Instant]))
 
@@ -514,9 +514,6 @@
       [:p "Recent"]
       [:h2 "Known rooms"]]]
     (workbench-room-table rooms records)]])
-
-(def workbench-index-styles
-  ".jump-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.jump-form input{min-height:32px;min-width:min(220px,100%);border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#111827;color:white;font:inherit;padding:0 10px;text-transform:uppercase}")
 
 (defn record-game-seed [record]
   (get-in record [:room :game :initial-seed]))
@@ -1352,8 +1349,6 @@
        [:section {:class "panel"}
         [:p {:class "empty"} "Hand not found."]])]))
 
-(declare styles admin-layout-styles admin-card-styles snapshot-styles)
-
 (defn rate-label [n total]
   (if (pos? (or total 0))
     (format "%.1f%%" (* 100.0 (/ (double n) total)))
@@ -1523,21 +1518,13 @@
           [:p {:class "empty"} (.getMessage e)]]))]))
 
 (defn render-trick-analysis [room hand-index trick-index snapshot-base-url options]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title (str "Karbosh Trick Lab " (:id room))]
-      [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
-     [:body
-      (analysis-console-main room
-                             hand-index
-                             trick-index
-                             snapshot-base-url
-                             options)]])))
+  (page/render {:title (str "Karbosh Trick Lab " (:id room))
+                :stylesheets ["admin.css" "snapshot.css"]}
+               (analysis-console-main room
+                                      hand-index
+                                      trick-index
+                                      snapshot-base-url
+                                      options)))
 
 (defn room-snapshot-main [room snapshot-base-url]
   (let [state (:game room)
@@ -1572,139 +1559,18 @@
      (room-games-table-html room)
      (hand-summary-list-html view snapshot-base-url hands)]))
 
-(def snapshot-styles
-  (str
-   ".play-list{margin:0;padding-left:0;list-style:none}"
-   ".play-list li,.play-line{display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);margin:0;padding:7px 0}"
-   ".event-kind{min-width:74px;color:rgba(255,255,255,.48);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}"
-   ".hand-detail h3{color:white;margin:18px 0 8px}"
-   ".trick-timeline{display:grid;gap:12px}"
-   ".trick-detail{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.13);padding:10px}"
-   ".trick-detail .trick{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:8px;align-items:stretch}"
-   ".trick-detail .trick-card{display:flex;flex-direction:column;width:auto;min-width:0;padding:8px}"
-   ".trick-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:8px}"
-   ".trick-heading strong{color:white}"
-   ".trick-heading span{color:rgba(255,255,255,.55);font-size:.78rem;font-weight:700}"
-   ".trick-card{position:relative}"
-   ".trick-card.winner{border-color:rgba(245,200,91,.65);background:rgba(245,200,91,.12)}"
-   ".trick-card .play-player{color:rgba(255,255,255,.68);font-size:.72rem;font-weight:800;line-height:1.1;margin-bottom:5px}"
-   ".trick-card strong{display:block;color:#f5c85b;font-size:.58rem;letter-spacing:.1em;line-height:1.1;margin-top:4px;text-transform:uppercase}"
-   ".ai-policy-summary{margin:0 0 12px}"
-   ".ai-policy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:7px}"
-   ".ai-policy-card{border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(0,0,0,.13);padding:8px;min-width:0}"
-   ".ai-policy-card h4{margin:0 0 7px;color:white;font-size:.72rem;font-weight:900;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".ai-policy-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;min-width:0}"
-   ".ai-policy-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-width:0}"
-   ".ai-policy-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(255,255,255,.045);color:rgba(255,255,255,.76);font-size:.58rem;font-weight:800;line-height:1.05;padding:4px 6px}"
-   ".ai-policy-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".ai-policy-chip strong{color:#f5c85b;font-size:.54rem;letter-spacing:.04em}"
-   ".ai-decision{margin-top:7px;border:1px solid rgba(111,208,199,.16);border-radius:6px;background:rgba(10,16,28,.52);overflow:hidden}"
-   ".ai-decision[open]{border-color:rgba(111,208,199,.36);box-shadow:0 0 0 1px rgba(111,208,199,.05)}"
-   ".ai-decision summary{cursor:pointer;list-style:none;color:rgba(255,255,255,.74);font-size:.62rem;font-weight:700;line-height:1.2}"
-   ".ai-decision summary::-webkit-details-marker{display:none}"
-   ".ai-decision-summary{display:flex;align-items:center;gap:6px;padding:6px}"
-   ".ai-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;border-radius:999px;background:rgba(111,208,199,.16);color:#6fd0c7;font-size:.55rem;font-weight:900;letter-spacing:.08em}"
-   ".ai-summary-text{display:grid;gap:1px;min-width:0}"
-   ".ai-summary-text strong{color:#f5c85b;font-size:.64rem;letter-spacing:0;text-transform:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".ai-summary-text em{color:rgba(255,255,255,.5);font-size:.56rem;font-style:normal;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".ai-decision-body{display:grid;gap:7px;border-top:1px solid rgba(255,255,255,.08);padding:7px;color:rgba(255,255,255,.72);font-size:.66rem;line-height:1.25}"
-   ".ai-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:5px}"
-   ".ai-fact{border:1px solid rgba(255,255,255,.08);border-radius:5px;background:rgba(255,255,255,.035);padding:5px;min-width:0}"
-   ".ai-fact>span,.ai-subhead{display:block;color:rgba(255,255,255,.45);font-size:.52rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase}"
-   ".ai-fact>strong{display:block;color:white;font-size:.66rem;font-weight:800;margin-top:4px;min-width:0;overflow-wrap:anywhere}"
-   ".ai-selected{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}"
-   ".ai-selected .card{width:24px;min-width:24px;height:32px;margin:0;border-radius:4px;font-size:.68rem}"
-   ".ai-pill{display:inline-flex;align-items:center;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.72);font-size:.55rem;font-weight:800;line-height:1;padding:3px 5px}"
-   ".ai-pill.good,.ai-candidate.good{border-color:rgba(111,208,199,.42);background:rgba(111,208,199,.1);color:#bdf4ef}"
-   ".ai-pill.winning,.ai-candidate.winning{border-color:rgba(245,200,91,.42);background:rgba(245,200,91,.1);color:#f8d778}"
-   ".ai-pill.trump{border-color:rgba(255,125,139,.4);background:rgba(255,125,139,.1);color:#ffb8c1}"
-   ".ai-probability-panel,.ai-candidate-panel{display:grid;gap:5px;min-width:0}"
-   ".ai-candidates{display:flex;flex-wrap:wrap;gap:4px;margin-top:1px}"
-   ".ai-candidate{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:3px;background:rgba(255,255,255,.04);min-width:0}"
-   ".ai-candidate .card{width:20px;min-width:20px;height:28px;margin:0;border-radius:4px;font-size:.62rem}"
-   ".ai-candidate small{display:grid;gap:1px;color:rgba(255,255,255,.58);font-size:.54rem;font-weight:700;line-height:1.1;white-space:nowrap}"
-   ".ai-hypergeom{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:4px;margin:0;padding:0}"
-   ".ai-hypergeom div{border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:5px;background:rgba(255,255,255,.035);min-width:0}"
-   ".ai-hypergeom dt{color:rgba(255,255,255,.45);font-size:.52rem;font-weight:800;letter-spacing:.06em;line-height:1;text-transform:uppercase}"
-   ".ai-hypergeom dd{margin:4px 0 0;color:white;font-size:.66rem;font-weight:800;overflow-wrap:anywhere}"
-   ".ai-decision-table-panel{margin:0 0 14px;overflow-x:auto}"
-   ".ai-decision-table .ai-selected .card{width:24px;min-width:24px;height:32px;margin:0;border-radius:4px;font-size:.68rem}"
-   ".hand-summary-panel{overflow:hidden}"
-   ".hand-summary-list{display:grid;gap:10px}"
-   ".hand-summary-card{border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(0,0,0,.12);padding:8px}"
-   ".hand-summary-row{display:grid;grid-template-columns:minmax(74px,1.1fr) minmax(66px,.8fr) minmax(28px,.35fr) minmax(84px,.9fr) minmax(86px,.9fr) minmax(84px,.9fr) minmax(58px,.55fr);gap:8px;align-items:center;color:rgba(255,255,255,.76);font-size:.82rem;line-height:1.1;white-space:nowrap}"
-   ".hand-summary-card:hover{background:rgba(111,208,199,.06)}"
-   ".hand-summary-title{color:white;font-weight:800}"
-   ".hand-summary-row .suit{font-size:1rem}"
-   ".hand-explain-link{color:#6fd0c7;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-align:right;text-transform:uppercase}"
-   ".hand-summary-hands{margin-top:7px}"
-   ".hand-summary-subhead,.trick-chip-label{color:rgba(255,255,255,.42);font-size:.56rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
-   ".hand-summary-subhead{margin-bottom:4px}"
-   ".hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px}"
-   ".hand-detail .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}"
-   ".starting-hand-row{display:block;border-bottom:1px solid rgba(255,255,255,.08);padding:3px 0;min-width:0}"
-   ".starting-hand-row h4{margin:0 0 3px;color:rgba(255,255,255,.62);font-size:.62rem;font-weight:800;letter-spacing:.08em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".starting-hand-cards{display:flex;flex-wrap:nowrap;gap:2px;min-width:0}"
-   ".hand-summary-card .starting-hands-strip .card{width:24px;min-width:24px;height:32px;border-radius:4px;font-size:.68rem}"
-   ".trick-chip-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}"
-   ".trick-chip-label{display:inline-flex;align-items:center;padding:0 2px}"
-   ".trick-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.13);border-radius:5px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.68);font-size:.66rem;line-height:1;padding:5px 6px;text-decoration:none}"
-   ".trick-chip:hover{border-color:rgba(111,208,199,.45);background:rgba(111,208,199,.1)}"
-   ".trick-chip strong{color:#f5c85b;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase}"
-   ".trick-chip.current strong{color:#6fd0c7}"
-   ".trick-analysis-link{display:inline-flex;align-items:center;border:1px solid rgba(111,208,199,.35);border-radius:999px;background:rgba(111,208,199,.09);color:#6fd0c7;font-size:.58rem;font-weight:900;letter-spacing:.08em;line-height:1;padding:5px 8px;text-decoration:none;text-transform:uppercase}"
-   ".trick-analysis-link:hover{background:rgba(111,208,199,.16);border-color:rgba(111,208,199,.55)}"
-   ".analysis-console{overflow-x:auto}"
-   ".analysis-console-form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:0 0 12px}"
-   ".analysis-console-form label{display:grid;gap:4px;color:rgba(255,255,255,.55);font-size:.62rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
-   ".analysis-console-form input{width:118px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(0,0,0,.18);color:white;font:inherit;font-size:.78rem;line-height:1;padding:7px}"
-   ".analysis-console-form button{border:1px solid rgba(111,208,199,.42);border-radius:6px;background:rgba(111,208,199,.14);color:#bdf4ef;font-size:.68rem;font-weight:900;letter-spacing:.08em;line-height:1;padding:9px 12px;text-transform:uppercase}"
-   ".analysis-trick,.analysis-mini-trick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}"
-   ".analysis-play{display:grid;grid-template-columns:minmax(7.2rem,1fr) auto auto;gap:8px;align-items:center;min-width:10.5rem;border:1px solid rgba(255,255,255,.1);border-radius:7px;background:rgba(255,255,255,.04);padding:7px}"
-   ".analysis-play.winner{border-color:rgba(245,200,91,.5);background:rgba(245,200,91,.1)}"
-   ".analysis-play>span{color:rgba(255,255,255,.68);font-size:.64rem;font-weight:800;line-height:1.1}"
-   ".analysis-play strong{color:#f5c85b;font-size:.54rem;letter-spacing:.08em;text-transform:uppercase}"
-   ".analysis-console .stat .card,.analysis-play .card,.analysis-table .card,.analysis-mini-trick .card{background:#f8f5ed;color:#141821}"
-   ".analysis-console .stat .card.heart,.analysis-console .stat .card.diamond,.analysis-play .card.heart,.analysis-play .card.diamond,.analysis-table .card.heart,.analysis-table .card.diamond,.analysis-mini-trick .card.heart,.analysis-mini-trick .card.diamond{color:#c62f43}"
-   ".analysis-console .stat .card,.analysis-play .card{width:34px;min-width:34px;height:46px;margin:0;border-radius:5px;font-size:.88rem}"
-   ".analysis-table .card,.analysis-mini-trick .card{width:30px;min-width:30px;height:40px;margin:0;border-radius:5px;font-size:.8rem}"
-   ".starting-hands-strip{display:grid;gap:7px}"
-   ".starting-hands-strip .card{width:28px;min-width:28px;height:38px;margin:0;padding:0;border-radius:4px;font-size:.78rem}"
-   ".starting-hands-strip .empty{font-size:.72rem}"
-   ".initial-hands{margin-top:14px}"
-   ".initial-hands summary{cursor:pointer;color:#6fd0c7;font-weight:700;margin-bottom:10px}"
-   "@media(max-width:720px){.play-list li,.play-line{align-items:flex-start;flex-direction:column;gap:4px}.trick-heading{align-items:flex-start;flex-direction:column;gap:4px}.trick-detail{padding:7px}.trick-detail .trick{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.trick-detail .trick-card{padding:5px}.trick-card .play-player{font-size:.6rem;margin-bottom:3px}.trick-card strong{font-size:.48rem}.trick-analysis-link{font-size:.5rem;padding:4px 6px}.analysis-console-form{gap:6px}.analysis-console-form input{width:88px;padding:6px}.analysis-console-form button{padding:8px 10px}.analysis-play{grid-template-columns:minmax(54px,1fr) auto;gap:4px}.analysis-play strong{grid-column:1/-1}.analysis-table{font-size:clamp(.48rem,1.65vw,.62rem)}.analysis-table .card,.analysis-mini-trick .card{width:20px;min-width:20px;height:27px;font-size:.56rem}.ai-policy-grid{grid-template-columns:1fr;gap:5px}.ai-policy-card{padding:6px}.ai-policy-card h4{font-size:.62rem;margin-bottom:5px}.ai-policy-columns{gap:5px}.ai-policy-chip{font-size:.5rem;padding:3px 5px}.ai-policy-chip strong{font-size:.48rem}.ai-decision{margin-top:5px;border-radius:5px}.ai-decision-summary{gap:4px;padding:5px}.ai-badge{min-width:22px;font-size:.46rem}.ai-summary-text strong{font-size:.55rem}.ai-summary-text em{font-size:.48rem}.ai-decision-body{gap:5px;padding:5px;font-size:.56rem}.ai-facts{grid-template-columns:1fr;gap:4px}.ai-fact,.ai-hypergeom div{padding:4px}.ai-fact>span,.ai-subhead,.ai-hypergeom dt{font-size:.45rem;letter-spacing:.04em}.ai-fact>strong,.ai-hypergeom dd{font-size:.56rem}.ai-selected{gap:3px}.ai-selected .card{width:20px;min-width:20px;height:28px;font-size:.58rem}.ai-pill{font-size:.46rem;padding:2px 4px}.ai-hypergeom{grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.ai-candidates{gap:3px}.ai-candidate{gap:3px;padding:2px}.ai-candidate .card{width:18px;min-width:18px;height:25px;font-size:.54rem}.ai-candidate small{font-size:.46rem}.hand-summary-list{gap:7px}.hand-summary-card{padding:6px}.hand-summary-row{grid-template-columns:minmax(38px,.8fr) minmax(42px,.7fr) minmax(20px,.3fr) minmax(54px,.8fr) minmax(56px,.8fr) minmax(54px,.8fr) minmax(42px,.5fr);gap:3px;font-size:clamp(.46rem,1.85vw,.64rem);line-height:1.05}.hand-summary-row .suit{font-size:.76rem}.hand-explain-link{font-size:clamp(.42rem,1.55vw,.55rem);letter-spacing:.03em}.hand-summary-card .starting-hands-strip,.hand-detail .starting-hands-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.starting-hand-row{padding:2px 0}.starting-hand-row h4{font-size:.48rem;margin-bottom:2px;letter-spacing:.04em}.hand-summary-card .starting-hands-strip .card,.hand-detail .starting-hands-strip .card{width:16px;min-width:16px;height:22px;font-size:.48rem}.trick-chip-list{gap:3px;margin-top:5px}.trick-chip{font-size:.54rem;padding:4px}.trick-chip strong{font-size:.5rem}.ai-decision-table{font-size:clamp(.48rem,1.6vw,.62rem)}}"))
-
-(declare styles admin-layout-styles admin-card-styles)
-
 (defn render-room-snapshot
   ([room]
    (render-room-snapshot room (str "/karbosh/admin/rooms/" (:id room) "/snapshot")))
   ([room snapshot-base-url]
-   (str
-    "<!doctype html>"
-    (h/render
-     [:html {:lang "en"}
-      [:head
-       [:meta {:charset "utf-8"}]
-       [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-       [:title (str "Karbosh Room " (:id room) " History")]
-       [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
-      [:body
-       (room-snapshot-main room snapshot-base-url)]]))))
+   (page/render {:title (str "Karbosh Room " (:id room) " History")
+                 :stylesheets ["admin.css" "snapshot.css"]}
+                (room-snapshot-main room snapshot-base-url))))
 
 (defn render-room-hand-detail [room hand-index snapshot-base-url]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title (str "Karbosh Room " (:id room) " Hand " (inc hand-index))]
-      [:style (str styles admin-layout-styles admin-card-styles snapshot-styles)]]
-     [:body
-      (room-hand-detail-main room hand-index snapshot-base-url)]])))
+  (page/render {:title (str "Karbosh Room " (:id room) " Hand " (inc hand-index))
+                :stylesheets ["admin.css" "snapshot.css"]}
+               (room-hand-detail-main room hand-index snapshot-base-url)))
 
 (defn selected-room [rooms selected-room-id]
   (or (live-room rooms selected-room-id)
@@ -1811,27 +1677,7 @@
           [:p {:class "empty"} "No room selected."]])]))
 
 (defn render-dashboard-main-html [opts]
-  (h/render (render-dashboard-main opts)))
-
-(def styles
-  "body{margin:0;background:#111521;color:rgba(255,255,255,.78);font:15px/1.5 Arial,sans-serif}a{color:#6fd0c7;text-decoration:none}main{max-width:1320px;margin:0 auto;padding:24px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}.top h1{margin:.1rem 0 0;color:white}.top p,.section-heading p{margin:0;color:rgba(255,255,255,.5);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.panel{border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:16px;margin-bottom:16px}.section-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:12px}.section-heading h2{margin:0;color:white}.admin-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}.inline-form{display:inline;margin:0}button{min-height:32px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.06);color:white;cursor:pointer;font-size:.68rem;font-weight:700;letter-spacing:.1em;padding:0 10px;text-transform:uppercase}button.danger{border-color:rgba(255,154,168,.55);background:rgba(255,154,168,.12);color:#ffbac3}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);padding:10px}.stat span{display:block;color:rgba(255,255,255,.5);font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.stat strong{display:block;color:white;font-size:1.2rem;line-height:1.25}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:8px;text-align:left}th{color:rgba(255,255,255,.52);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}.selected{background:rgba(111,208,199,.12)}.room-stats{margin-bottom:16px}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hands article{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px}.hands strong{display:block;color:white;margin-bottom:6px}.card{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:46px;margin:0 4px 6px 0;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#f8f5ed;color:#141821;font-weight:800}.card.heart,.card.diamond{color:#c62f43}.trick{display:flex;flex-wrap:wrap;gap:10px}.trick>div{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:8px}.trick span{display:block;color:rgba(255,255,255,.55);font-size:.72rem;font-weight:700}.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.compact-list{margin:0;padding-left:20px}.compact-list li{margin:6px 0}.compact-list span{display:inline-block;min-width:95px;color:rgba(255,255,255,.55)}.compact-list strong{color:white}.compact-list em{color:rgba(255,255,255,.55);font-style:normal}.empty{color:rgba(255,255,255,.45)}")
-
-(def admin-layout-styles
-  (str
-   "*,*::before,*::after{box-sizing:border-box}"
-   "main,.panel,.stats,.stat,.two-col,.two-col>*{min-width:0}"
-   ".panel{max-width:100%;overflow-x:auto}"
-   ".stat strong{font-size:clamp(.95rem,1.4vw,1.2rem);overflow-wrap:anywhere;word-break:break-word}"
-   "table{max-width:100%;table-layout:auto}"
-   "th,td{vertical-align:top;overflow-wrap:anywhere;word-break:break-word}"
-   "td a{overflow-wrap:anywhere;word-break:break-word}"
-   "td:last-child a{display:inline-block;max-width:100%}"
-   "@media(max-width:900px){main{padding:12px}.top,.section-heading{align-items:flex-start;flex-direction:column}.admin-actions{justify-content:flex-start}.two-col{grid-template-columns:1fr}.panel table:not(.admin-table){min-width:680px}}"
-   "@media(max-width:720px){body{font-size:13px;line-height:1.32}main{max-width:none;padding:8px}.top{gap:6px;margin-bottom:8px}.top h1{font-size:1.35rem;line-height:1.1}.panel{padding:8px;margin-bottom:8px;overflow-x:hidden}.section-heading{gap:6px;margin-bottom:8px}.section-heading h2{font-size:1.12rem}.admin-actions{gap:6px}.admin-actions a{display:inline-flex;align-items:center;min-height:26px;font-size:.72rem}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.stat{padding:6px}.stat span{font-size:.48rem;letter-spacing:.08em}.stat strong{font-size:.85rem;line-height:1.12}.room-stats{margin-bottom:8px}.hands{grid-template-columns:1fr;gap:8px}.hands article{padding:8px}.trick{gap:7px}.trick>div{padding:6px}.admin-table{display:table;width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;font-size:clamp(.5rem,1.65vw,.68rem);line-height:1.12}.admin-table thead{display:table-header-group}.admin-table tbody{display:table-row-group}.admin-table tr{display:table-row;border:0;background:transparent;padding:0}.admin-table tr.selected{background:rgba(111,208,199,.14)}.admin-table th,.admin-table td{display:table-cell;border-bottom:1px solid rgba(255,255,255,.08);padding:.22rem .16rem;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}.admin-table th{font-size:.48rem;letter-spacing:.05em;line-height:1.08}.admin-table td::before{content:none}.admin-table td[data-label=\"Hand\"],.admin-table td[data-label=\"Hands\"],.admin-table td[data-label=\"Conns\"],.admin-table td[data-label=\"Cards\"]{text-align:center}.admin-table td[data-label=\"Links\"] a{display:inline;max-width:none}.admin-table button{min-height:22px;border-radius:5px;padding:0 .28rem;font-size:.5rem;letter-spacing:.04em}.compact-list{padding-left:0;list-style:none}.compact-list span{min-width:0}.stat .suit{font-size:1.5rem}}"
-   "@media(max-width:380px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-table{font-size:clamp(.46rem,1.55vw,.6rem)}.admin-table th,.admin-table td{padding:.18rem .12rem}.admin-table button{min-height:20px;padding:0 .2rem;font-size:.46rem}}"))
-
-(def admin-card-styles
-  ".suit{color:#f7f8ff;font-weight:900}.suit.heart,.suit.diamond{color:#ff7d8b}.stat .suit{font-size:2.05rem;line-height:1}.card{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:38px;min-width:38px;height:52px;margin:0 4px 6px 0;padding:0;border:1px solid rgba(0,0,0,.24);border-radius:6px;background:#f8f5ed;color:#141821;font-size:.95rem;font-weight:800;line-height:1;letter-spacing:0;vertical-align:middle;white-space:nowrap}.card.heart,.card.diamond{color:#c62f43}.trick .card,.compact-list .card,.hands .card{display:inline-flex;width:38px;min-width:38px;height:52px;color:#141821;font-size:.95rem;font-weight:800;line-height:1}.trick .card.heart,.trick .card.diamond,.compact-list .card.heart,.compact-list .card.diamond,.hands .card.heart,.hands .card.diamond{color:#c62f43}.trick-card{width:92px;min-width:92px}.trick-card .play-player{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trick>div:not(.trick-card) .card{display:inline-flex;width:38px;min-width:38px;height:52px}")
+  (page/html (render-dashboard-main opts)))
 
 (defn render-dashboard [{:keys [rooms
                                 selected-room-id
@@ -1841,53 +1687,26 @@
                                 open-websocket-count
                                 limits
                                 started-at]}]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title "Karbosh Admin"]
-      [:style (str styles admin-layout-styles admin-card-styles)]]
-     [:body
-      (render-dashboard-main {:rooms rooms
-                              :selected-room-id selected-room-id
-                              :historical-room-records historical-room-records
-                              :metrics metrics
-                              :pending-bot-count pending-bot-count
-                              :open-websocket-count open-websocket-count
-                              :limits limits
-                              :started-at started-at})
-      [:script {:src "/karbosh/assets/js/admin.js?v=20260608-history-preserve"}]]])))
+  (page/render {:title "Karbosh Admin"
+                :stylesheets ["admin.css"]}
+               (render-dashboard-main {:rooms rooms
+                                       :selected-room-id selected-room-id
+                                       :historical-room-records historical-room-records
+                                       :metrics metrics
+                                       :pending-bot-count pending-bot-count
+                                       :open-websocket-count open-websocket-count
+                                       :limits limits
+                                       :started-at started-at})
+               [:script {:src "/karbosh/assets/js/admin.js?v=20260608-history-preserve"}]))
 
 (defn render-history [{:keys [rooms records]}]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title "Karbosh Game History"]
-      [:style (str styles admin-layout-styles admin-card-styles)]]
-     [:body
-      (render-history-main {:rooms rooms
-                            :records records})]])))
+  (page/render {:title "Karbosh Game History"
+                :stylesheets ["admin.css"]}
+               (render-history-main {:rooms rooms
+                                     :records records})))
 
 (defn render-workbench-index [{:keys [rooms records]}]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title "Karbosh AI Workbench"]
-      [:style (str styles
-                   admin-layout-styles
-                   admin-card-styles
-                   workbench-index-styles)]]
-     [:body
-      (render-workbench-index-main {:rooms rooms
-                                    :records records})]])))
+  (page/render {:title "Karbosh AI Workbench"
+                :stylesheets ["admin.css" "workbench-index.css"]}
+               (render-workbench-index-main {:rooms rooms
+                                             :records records})))

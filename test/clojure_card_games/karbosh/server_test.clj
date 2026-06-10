@@ -324,12 +324,12 @@
           (is (re-find #"Trick 1" (:body response)))
           (is (re-find #"is-winning" (:body response)))
           (is (re-find #"wb-board-card-risk" (:body response)))
-          (is (re-find #"name=\"observer\" value=\"player1\"" (:body response)))
-          (is (re-find #"\.wb-board-player2\{left:20px;bottom:118px\}"
+          (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
+          (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
                        (:body response)))
-          (is (re-find #"\.wb-board-player6\{right:20px;bottom:118px\}"
+          (is (re-find #"href=\"/karbosh/assets/css/workbench\.css\" rel=\"stylesheet\""
                        (:body response)))
-          (is (re-find #"God&#39;s eye view" (:body response)))
+          (is (re-find #"God&apos;s eye view" (:body response)))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))
@@ -432,8 +432,8 @@
                               :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
                                         "host" "dc3systems.com"}})]
           (is (= 200 (:status view-response)))
-          (is (re-find #"Return to God&#39;s eye view" (:body view-response)))
-          (is (re-find #"name=\"view-mode\" value=\"god\"" (:body view-response))))
+          (is (re-find #"Return to God&apos;s eye view" (:body view-response)))
+          (is (re-find #"name=\"view-mode\"[^>]*value=\"god\"" (:body view-response))))
         (let [toggle-response (server/handler
                                {:request-method :post
                                 :uri "/karbosh/admin/workbench/ABC123"
@@ -670,7 +670,10 @@
                        (:body response)))
           (is (re-find #"T1" (:body response)))
           (is (re-find #"class=\"suit heart\">♥" (:body response)))
-          (is (re-find #"\.suit\.heart,\.suit\.diamond" (:body response)))
+          (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
+                       (:body response)))
+          (is (re-find #"href=\"/karbosh/assets/css/snapshot\.css\" rel=\"stylesheet\""
+                       (:body response)))
           (is (re-find #"Raw EDN" (:body response)))
           (is (= 200 (:status detail-response)))
           (is (re-find #"Karbosh hand detail" (:body detail-response)))
@@ -689,8 +692,8 @@
           (is (re-find #"5.0%" (:body detail-response)))
           (is (re-find #"Starting Hands" (:body detail-response)))
           (is (re-find #"starting-hands-strip" (:body detail-response)))
-          (is (.contains (:body detail-response)
-                         ".hand-detail .starting-hands-strip{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}"))
+          (is (re-find #"href=\"/karbosh/assets/css/snapshot\.css\" rel=\"stylesheet\""
+                       (:body detail-response)))
           (is (re-find #"starting-hand-row" (:body detail-response)))
           (is (re-find #"Analyze" (:body detail-response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0/tricks/0/analysis\""
@@ -1509,13 +1512,7 @@
     (is (re-find #"src=\"/karbosh/assets/js/admin.js\?v=20260608-history-preserve\"" html))
     (is (re-find #"class=\"admin-table\"" html))
     (is (re-find #"data-label=\"Room\"" html))
-    (is (re-find #"\.admin-table\{display:table" html))
-    (is (re-find #"\.admin-table thead\{display:table-header-group\}" html))
-    (is (re-find #"\.admin-table td::before\{content:none\}" html))
-    (is (re-find #"\.trick>div" html))
-    (is (re-find #"\.trick \.card" html))
-    (is (re-find #"\.compact-list \.card" html))
-    (is (not (re-find #"\.trick&gt;div" html)))
+    (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\"" html))
     (is (re-find #">Delete</button>" html))))
 
 (deftest websocket-limit-test

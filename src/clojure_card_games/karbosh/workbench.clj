@@ -4,7 +4,7 @@
             [clojure-card-games.karbosh.admin :as admin]
             [clojure-card-games.karbosh.analysis :as analysis]
             [clojure-card-games.karbosh.bot :as bot]
-            [clojure-card-games.karbosh.hiccup :as h]
+            [clojure-card-games.karbosh.page :as page]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
@@ -805,91 +805,6 @@
            [:p note]])]
        [:p {:class "empty"} "No bookmarks in this local workbench session yet."])]))
 
-(def workbench-styles
-  (str
-   ".wb-panel{overflow-x:visible}"
-   ".wb-inline,.wb-action-form{display:inline-flex;gap:8px;align-items:end;margin:0}"
-   ".wb-inline label{display:grid;gap:3px;color:rgba(255,255,255,.5);font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
-   ".wb-inline select,.wb-inline input,.wb-strategy-card select{min-height:32px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:#111827;color:white;padding:0 8px}"
-   ".wb-board-panel .room-stats{margin-bottom:12px}"
-   ".wb-board{position:relative;min-height:650px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:radial-gradient(circle at 50% 50%,rgba(41,115,98,.62),rgba(21,37,64,.9) 63%,rgba(12,17,33,.95));overflow:hidden}"
-   ".wb-felt{position:absolute;left:50%;top:51%;width:min(58%,500px);aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(43,109,91,.86),rgba(35,89,79,.62));box-shadow:0 0 0 18px rgba(112,74,157,.24),inset 0 0 42px rgba(0,0,0,.25)}"
-   ".wb-board-seat{position:absolute;z-index:2;display:block;width:224px;margin:0;padding:0;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:rgba(10,15,28,.86);box-shadow:0 10px 24px rgba(0,0,0,.22)}"
-   ".wb-board-seat-button{all:unset;box-sizing:border-box;display:grid;gap:4px;width:100%;min-height:112px;padding:9px 10px;cursor:pointer}"
-   ".wb-board-seat-button:focus-visible{outline:2px solid rgba(111,208,199,.9);outline-offset:2px}"
-   ".wb-board-seat.current{border-color:rgba(245,200,91,.78);box-shadow:0 0 0 1px rgba(245,200,91,.28),0 10px 24px rgba(0,0,0,.25)}"
-   ".wb-board-seat.observer{border-color:rgba(111,208,199,.78);box-shadow:0 0 0 1px rgba(111,208,199,.22),0 10px 24px rgba(0,0,0,.25)}"
-   ".wb-board-seat.dealer{border-top-color:rgba(245,200,91,.9)}"
-   ".wb-board-seat.inactive{opacity:.56}"
-   ".wb-board-seat strong{color:white;font-size:.86rem;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".wb-board-seat span,.wb-board-seat em,.wb-board-seat small{color:rgba(255,255,255,.58);font-size:.56rem;font-style:normal;font-weight:900;letter-spacing:.06em;text-transform:uppercase}"
-   ".wb-board-seat em{color:#f5c85b}.wb-board-seat small{position:absolute;right:8px;bottom:6px;color:rgba(111,208,199,.75)}"
-   ".wb-board-dealer{position:absolute;left:7px;top:7px;width:9px;height:9px;border-radius:999px;background:#f5c85b;box-shadow:0 0 0 2px rgba(245,200,91,.2)}"
-   ".wb-board-hand{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;padding-right:22px}"
-   ".wb-board-card-risk{display:grid;justify-items:center;gap:1px}"
-   ".wb-board-card-risk .card{width:25px;min-width:25px;height:34px;margin:0;color:#141821;font-size:.66rem;border-radius:4px}"
-   ".wb-board-card-risk .card.heart,.wb-board-card-risk .card.diamond{color:#c62f43}"
-   ".wb-board-card-risk small{position:static;color:#f5c85b;font-size:.43rem;line-height:1;letter-spacing:0;text-transform:none}"
-   ".wb-board-card-back{display:inline-block;width:20px;height:28px;border:1px solid rgba(255,255,255,.18);border-radius:4px;background:linear-gradient(135deg,#1c365e,#18213a)}"
-   ".wb-board-hand.is-hidden{gap:2px}.wb-board-hand.is-empty{color:rgba(255,255,255,.48);font-size:.58rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}"
-   ".wb-board-player1{left:50%;bottom:14px;transform:translateX(-50%)}"
-   ".wb-board-player2{left:20px;bottom:118px}"
-   ".wb-board-player3{left:20px;top:118px}"
-   ".wb-board-player4{left:50%;top:14px;transform:translateX(-50%)}"
-   ".wb-board-player5{right:20px;top:118px}"
-   ".wb-board-player6{right:20px;bottom:118px}"
-   ".wb-board-center{position:absolute;z-index:1;left:50%;top:51%;width:min(43%,390px);transform:translate(-50%,-50%);display:grid;gap:8px;justify-items:center;text-align:center}"
-   ".wb-board-center>span{color:rgba(255,255,255,.58);font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}"
-   ".wb-board-trick{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin:0;padding:0;list-style:none}"
-   ".wb-board-trick.is-empty{color:rgba(255,255,255,.48);font-weight:800;letter-spacing:.06em;text-transform:uppercase}"
-   ".wb-board-play{display:grid;justify-items:center;gap:4px;min-width:48px}"
-   ".wb-board-play>.wb-board-play-label{max-width:86px;color:rgba(255,255,255,.68);font-size:.58rem;font-weight:900;letter-spacing:.05em;line-height:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-   ".wb-board-play .card{margin:0;box-shadow:0 3px 8px rgba(0,0,0,.24)}"
-   ".wb-board-play .card.heart,.wb-board-play .card.diamond{color:#c62f43}"
-   ".wb-board-play.is-winning .card{border-color:#f5c85b;box-shadow:0 0 0 3px rgba(245,200,91,.36),0 4px 10px rgba(0,0,0,.28)}"
-   ".wb-trick-history{margin-top:14px}"
-   ".wb-trick-history .section-heading{margin-bottom:8px}"
-   ".wb-trick-history-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}"
-   ".wb-trick-history-card{border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(0,0,0,.14);padding:8px;min-width:0}"
-   ".wb-trick-history-card header{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}"
-   ".wb-trick-history-card header strong{color:white;font-size:.78rem}.wb-trick-history-card header span{color:rgba(255,255,255,.54);font-size:.65rem;font-weight:800}"
-   ".wb-trick-history-card .wb-board-trick{justify-content:flex-start;gap:6px}.wb-trick-history-card .wb-board-play{min-width:38px}.wb-trick-history-card .wb-board-play>.wb-board-play-label{max-width:54px;font-size:.48rem}.wb-trick-history-card .card{width:30px;min-width:30px;height:42px;font-size:.75rem}"
-   ".wb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}"
-   ".wb-player{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.16);padding:10px;min-width:0}"
-   ".wb-player.current{border-color:rgba(245,200,91,.72);box-shadow:0 0 0 1px rgba(245,200,91,.18)}"
-   ".wb-player.observer{border-color:rgba(111,208,199,.55)}"
-   ".wb-player header,.wb-player footer{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}"
-   ".wb-player strong{display:block;color:white;font-size:.95rem;line-height:1.1}"
-   ".wb-player header span,.wb-player footer span,.wb-policy{color:rgba(255,255,255,.52);font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}"
-   ".wb-cards{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}"
-   ".wb-card-risk{display:grid;justify-items:center;gap:2px}"
-   ".wb-card-risk .card{margin:0}"
-   ".wb-card-risk small{color:#f5c85b;font-size:.56rem;font-weight:900;line-height:1}"
-   ".wb-hidden-hand{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}"
-   ".wb-card-back{display:inline-block;width:38px;height:52px;border:1px solid rgba(255,255,255,.18);border-radius:6px;background:linear-gradient(135deg,#1c365e,#18213a)}"
-   ".wb-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0 0}"
-   ".wb-facts div,.wb-suit-counts span{border:1px solid rgba(255,255,255,.1);border-radius:6px;background:rgba(255,255,255,.04);padding:6px}"
-   ".wb-facts dt{color:rgba(255,255,255,.45);font-size:.52rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
-   ".wb-facts dd{margin:2px 0 0;color:white;font-weight:800}"
-   ".wb-side-panel{margin-bottom:10px}"
-   ".wb-suit-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}"
-   ".wb-suit-counts strong{float:right;color:white}"
-   ".wb-strategy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}"
-   ".wb-strategy-card{display:grid;gap:7px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(0,0,0,.14);padding:10px}"
-   ".wb-strategy-card label{display:grid;gap:3px}"
-   ".wb-strategy-card label span{color:rgba(255,255,255,.48);font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
-   ".wb-action-row{display:flex;flex-wrap:wrap;gap:8px}"
-   ".wb-action-row.suits button{min-width:54px;font-size:1.5rem;color:#f7f8ff}"
-   ".wb-action-row.suits form:nth-child(1) button,.wb-action-row.suits form:nth-child(2) button{color:#ff7d8b}"
-   ".wb-action-row.cards button{min-width:48px;font-size:.95rem}"
-   ".wb-bookmark-form{display:grid;gap:8px}"
-   ".wb-bookmark-form textarea{min-height:86px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:#111827;color:white;padding:10px;font:inherit}"
-   ".wb-bookmarks p{margin:3px 0 9px;color:rgba(255,255,255,.62)}"
-   ".wb-message{border-color:rgba(111,208,199,.28);background:rgba(111,208,199,.09);color:#bdf4ef}"
-   ".wb-analysis-actions{align-items:flex-end}"
-   "@media(max-width:980px){.wb-grid,.wb-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-trick-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:610px}.wb-board-seat{width:184px}.wb-board-seat-button{min-height:104px}.wb-board-player2,.wb-board-player3{left:12px}.wb-board-player5,.wb-board-player6{right:12px}.wb-board-card-risk .card{width:22px;min-width:22px;height:30px;font-size:.58rem}.wb-board-card-risk small{font-size:.4rem}.wb-board-center{width:38%}}"
-   "@media(max-width:720px){.wb-grid,.wb-strategy-grid{grid-template-columns:1fr}.wb-inline{flex-wrap:wrap}.wb-player{padding:8px}.wb-card-back{width:30px;height:42px}.wb-facts{grid-template-columns:1fr}.wb-suit-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.wb-board{min-height:620px}.wb-felt{width:74%}.wb-board-seat{width:146px}.wb-board-seat-button{min-height:96px;padding:7px}.wb-board-seat strong{font-size:.68rem}.wb-board-seat span,.wb-board-seat em,.wb-board-seat small{font-size:.46rem}.wb-board-card-risk .card{width:19px;min-width:19px;height:27px;font-size:.5rem}.wb-board-card-risk small{font-size:.35rem}.wb-board-card-back{width:16px;height:23px}.wb-board-hand{gap:2px;padding-right:16px}.wb-board-player2,.wb-board-player3{left:6px}.wb-board-player5,.wb-board-player6{right:6px}.wb-board-player3,.wb-board-player5{top:102px}.wb-board-player2,.wb-board-player6{bottom:102px}.wb-board-center{width:42%}.wb-board-trick{gap:6px}.wb-board-play{min-width:34px}.wb-board-play>.wb-board-play-label{max-width:50px;font-size:.46rem}.wb-board-play .card{width:30px;min-width:30px;height:42px;font-size:.72rem}.wb-trick-history-grid{grid-template-columns:1fr}}"))
-
 (defn workbench-main [session]
   (let [room-id (get-in session [:room :id])]
     [:main {:id "admin-main"}
@@ -912,17 +827,6 @@
      (bookmark-panel-html session)]))
 
 (defn render [session]
-  (str
-   "<!doctype html>"
-   (h/render
-    [:html {:lang "en"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-      [:title (str "Karbosh Workbench " (get-in session [:room :id]))]
-      [:style (str admin/styles
-                   admin/admin-layout-styles
-                   admin/admin-card-styles
-                   workbench-styles)]]
-     [:body
-      (workbench-main session)]])))
+  (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
+                :stylesheets ["admin.css" "workbench.css"]}
+               (workbench-main session)))

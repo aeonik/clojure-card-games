@@ -4,7 +4,7 @@
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.hand-order :as hand-order]
             [clojure-card-games.karbosh.shared.rules :as rules]
-            [clojure-card-games.karbosh.hiccup :as h]))
+            [replicant.dom :as d]))
 
 (def fast-mode-storage-key "karbosh-fast-mode")
 (def room-history-storage-key "karbosh-room-history")
@@ -116,9 +116,7 @@
       (.closest node selector))))
 
 (defn html! [node content]
-  (set! (.-innerHTML node) (if (string? content)
-                             content
-                             (h/render content))))
+  (d/render node (if (= "" content) nil content)))
 
 (defn text! [node content]
   (set! (.-textContent node) content))
@@ -517,7 +515,8 @@
                           (when selected? " is-selected")
                           (when joinable? " is-joinable"))
               :type "button"
-              :data-join-player (kw-name id)}
+              :data-join-player (kw-name id)
+              :on {:click (fn [_] (select-join-player! id))}}
      [:span "Seat " (last (kw-name id))]
      [:strong (preview-seat-name player)]
      [:em (str (team-label team) " / " (preview-seat-status player))]]))
@@ -655,34 +654,25 @@
                 [:input {:id "join-modal-name"
                          :type "text"
                          :maxlength "24"
-                         :value (player-name)}]]
+                         :value (player-name)
+                         :replicant/on-mount (fn [{:replicant/keys [node]}]
+                                               (.focus node)
+                                               (.select node))
+                         :on {:keydown (fn [event]
+                                         (when (= "Enter" (.-key event))
+                                           (join-from-modal!)))}}]]
                [:div {:class "join-modal-actions"}
-                [:button {:id "join-modal-cancel" :type "button"} "Cancel"]
+                [:button {:id "join-modal-cancel"
+                          :type "button"
+                          :on {:click close-join-modal!}}
+                 "Cancel"]
                 [:button {:id "join-modal-submit"
                           :type "button"
-                          :disabled (join-modal-disabled? loading? player error)}
+                          :disabled (join-modal-disabled? loading? player error)
+                          :on {:click join-from-modal!}}
                  "Join Table"]]
                ]]
-             "")))
-  (when (:join-modal @app)
-    (when-let [cancel (el "join-modal-cancel")]
-      (.addEventListener cancel "click" close-join-modal!))
-    (when-let [submit (el "join-modal-submit")]
-      (.addEventListener submit "click" join-from-modal!))
-    (let [buttons (.querySelectorAll (el "modal-root") "[data-join-player]")]
-      (dotimes [n (.-length buttons)]
-        (let [button (.item buttons n)]
-          (.addEventListener button "click"
-                             (fn []
-                               (select-join-player!
-                                (keyword (.getAttribute button "data-join-player"))))))))
-    (when-let [input (el "join-modal-name")]
-      (.focus input)
-      (.select input)
-      (.addEventListener input "keydown"
-                         (fn [event]
-                           (when (= "Enter" (.-key event))
-                             (join-from-modal!)))))))
+             ""))))
 
 (defn select-join-player! [player]
   (swap! app assoc-in [:join-modal :player] player)
@@ -1088,15 +1078,14 @@
   (or (open-seat-popover-html view room-id copied-player player)
       (occupied-seat-popover-html view player)))
 
-(defn render-seat-popover! []
-  (when-let [root (el "seat-popover-root")]
-    (let [{:keys [view room-id seat-popover-player
-                  seat-invite-copied-player]} @app]
-      (html! root (or (seat-popover-html view
-                                          room-id
-                                          seat-invite-copied-player
-                                          seat-popover-player)
-                      "")))))
+(defn seat-popover-root-html []
+  (let [{:keys [view room-id seat-popover-player
+                seat-invite-copied-player]} @app]
+    [:div {:id "seat-popover-root"}
+     (seat-popover-html view
+                        room-id
+                        seat-invite-copied-player
+                        seat-popover-player)]))
 
 (defn card-button [{:keys [card index disabled? dragging?]}]
   [:button {:class (str "card-button" (card-suit-class card)
@@ -1373,9 +1362,8 @@
                   pending-auto?)
                   [:div {:class "controls"}
                    (render-controls view)]]
-                 [:div {:id "seat-popover-root"}]
+                 (seat-popover-root-html)
                  (mobile-seat-roster-html view)]])))
-    (render-seat-popover!)
     (schedule-fit-seat-names!)
     (render-trump-picker!)))
 
@@ -1383,13 +1371,13 @@
   (swap! app assoc
          :seat-popover-player player
          :seat-invite-copied-player nil)
-  (render-seat-popover!))
+  (render-game!))
 
 (defn close-seat-popover! []
   (swap! app assoc
          :seat-popover-player nil
          :seat-invite-copied-player nil)
-  (render-seat-popover!))
+  (render-game!))
 
 (defn card-event [view card]
   (case (:phase view)
@@ -1742,12 +1730,12 @@
     (when-let [clipboard (.-clipboard js/navigator)]
       (.writeText clipboard url))
     (swap! app assoc :seat-invite-copied-player player)
-    (render-seat-popover!)
+    (render-game!)
     (js/setTimeout
      (fn []
        (when (= player (:seat-invite-copied-player @app))
          (swap! app assoc :seat-invite-copied-player nil)
-         (render-seat-popover!)))
+         (render-game!)))
      1800)))
 
 (defn selected-seat-bot-name [player]

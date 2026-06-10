@@ -10,7 +10,7 @@
             [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
-            [clojure-card-games.karbosh.hiccup :as h]
+            [clojure-card-games.karbosh.page :as page]
             [clojure-card-games.karbosh.storage :as storage]
             [clojure-card-games.karbosh.workbench :as workbench]
             [org.httpkit.server :as http])
@@ -38,6 +38,7 @@
     clojure-card-games.karbosh.bot
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.trick-lab
+    clojure-card-games.karbosh.page
     clojure-card-games.karbosh.admin
     clojure-card-games.karbosh.workbench
     clojure-card-games.karbosh.server])
@@ -357,46 +358,31 @@
 
 (defn admin-login-html [request failed?]
   (let [return-to (safe-admin-return (:return (query-params (:query-string request))))]
-    (str
-     "<!doctype html>"
-     (h/render
-      [:html {:lang "en"}
-       [:head
-        [:meta {:charset "utf-8"}]
-        [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
-        [:title "Karbosh Admin Login"]
-        [:style
-         (str
-          "body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111521;color:white;font:15px/1.5 Arial,sans-serif}"
-          "main{width:min(420px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:22px}"
-          "p{margin:0 0 14px;color:rgba(255,255,255,.62)}h1{margin:0 0 6px;font-size:1.55rem}"
-          "form{display:grid;gap:12px}label{display:grid;gap:5px;color:rgba(255,255,255,.55);font-size:.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
-          "input{min-height:38px;border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#111827;color:white;font:inherit;padding:0 10px}"
-          "button{min-height:38px;border:1px solid rgba(111,208,199,.42);border-radius:6px;background:rgba(111,208,199,.14);color:#bdf4ef;cursor:pointer;font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}"
-          ".error{color:#ffbac3}")]]
-       [:body
-        [:main
-         [:h1 "Karbosh Admin"]
-         [:p "Use a local admin cookie instead of browser Basic auth."]
-         (when failed?
-           [:p {:class "error"} "Login failed."])
-         [:form {:method "post"
-                 :action "/karbosh/admin/login"
-                 :autocomplete "off"
+    (page/render
+     {:title "Karbosh Admin Login"
+      :stylesheets ["admin-login.css"]}
+     [:main
+      [:h1 "Karbosh Admin"]
+      [:p "Use a local admin cookie instead of browser Basic auth."]
+      (when failed?
+        [:p {:class "error"} "Login failed."])
+      [:form {:method "post"
+              :action "/karbosh/admin/login"
+              :autocomplete "off"
+              :data-lpignore "true"
+              :data-1p-ignore "true"}
+       [:input {:type "hidden"
+                :name "return"
+                :value return-to}]
+       [:label
+        [:span "Admin password"]
+        [:input {:type "password"
+                 :name "karbosh_admin_password"
+                 :autocomplete "new-password"
                  :data-lpignore "true"
-                 :data-1p-ignore "true"}
-          [:input {:type "hidden"
-                   :name "return"
-                   :value return-to}]
-          [:label
-           [:span "Admin password"]
-           [:input {:type "password"
-                    :name "karbosh_admin_password"
-                    :autocomplete "new-password"
-                    :data-lpignore "true"
-                    :data-1p-ignore "true"
-                    :autofocus true}]]
-          [:button {:type "submit"} "Start admin session"]]]]]))))
+                 :data-1p-ignore "true"
+                 :autofocus true}]]
+       [:button {:type "submit"} "Start admin session"]]])))
 
 (defn admin-login-response [request]
   (if (admin-password)
