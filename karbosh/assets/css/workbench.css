@@ -98,6 +98,9 @@
     0 0 0 1px rgba(111, 208, 199, 0.22),
     0 10px 24px rgba(0, 0, 0, 0.25);
 }
+.wb-board-seat.ai-view .wb-board-seat-button {
+  min-height: 146px;
+}
 .wb-board-seat.dealer {
   border-top-color: rgba(245, 200, 91, 0.9);
 }
@@ -152,6 +155,66 @@
   display: grid;
   justify-items: center;
   gap: 3px;
+}
+.wb-board-voids {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 6px;
+  border: 1px solid rgba(111, 208, 199, 0.18);
+  border-radius: 6px;
+  background: rgba(5, 10, 20, 0.36);
+}
+.wb-board-seat .wb-board-voids-label {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.wb-board-void-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+.wb-board-seat .wb-void-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 3px;
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.1;
+  text-transform: none;
+}
+.wb-board-seat .wb-void-chip.likely {
+  border-color: rgba(245, 200, 91, 0.26);
+  background: rgba(245, 200, 91, 0.08);
+  color: #f4d27c;
+}
+.wb-board-seat .wb-void-chip.certain {
+  border-color: rgba(111, 208, 199, 0.34);
+  background: rgba(111, 208, 199, 0.1);
+  color: #9be9e2;
+}
+.wb-board-seat .wb-void-chip-suit {
+  color: inherit;
+  font-size: 0.65rem;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.wb-board-seat .wb-void-chip b {
+  color: inherit;
+  font-size: 0.5rem;
+  font-weight: 900;
 }
 .wb-board-card-risk .card {
   width: 38px;
@@ -460,7 +523,26 @@
   font-weight: 800;
 }
 .wb-side-panel {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+.wb-ai-overview {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(111, 208, 199, 0.12);
+  border-radius: 8px;
+  background: rgba(111, 208, 199, 0.045);
+}
+.wb-ai-overview h3 {
+  margin: 0 0 3px;
+}
+.wb-ai-overview .empty {
+  margin: 0;
+}
+.wb-hidden-counts span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .wb-suit-counts {
   display: grid;
@@ -470,24 +552,6 @@
 .wb-suit-counts strong {
   float: right;
   color: white;
-}
-.wb-void-inference span {
-  display: grid;
-  gap: 3px;
-}
-.wb-void-inference em {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 0.56rem;
-  font-style: normal;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-.wb-void-inference strong {
-  float: none;
-  font-size: 0.68rem;
-  line-height: 1.15;
 }
 .wb-strategy-grid {
   display: grid;
@@ -607,6 +671,15 @@
   .wb-board-seat-button {
     min-height: 104px;
   }
+  .wb-board-seat.ai-view .wb-board-seat-button {
+    min-height: 136px;
+  }
+  .wb-board-voids {
+    padding: 5px;
+  }
+  .wb-board-seat .wb-void-chip {
+    padding: 2px 3px;
+  }
   .wb-board-player2,
   .wb-board-player3 {
     left: 12px;
@@ -670,6 +743,9 @@
     min-height: 96px;
     padding: 7px;
   }
+  .wb-board-seat.ai-view .wb-board-seat-button {
+    min-height: 124px;
+  }
   .wb-board-seat strong {
     font-size: 0.68rem;
   }
@@ -694,6 +770,20 @@
   .wb-board-hand {
     gap: 2px;
     padding-right: 16px;
+  }
+  .wb-board-voids {
+    gap: 3px;
+    padding: 4px;
+  }
+  .wb-board-seat .wb-board-voids-label {
+    font-size: 0.42rem;
+  }
+  .wb-board-seat .wb-void-chip,
+  .wb-board-seat .wb-void-chip b {
+    font-size: 0.43rem;
+  }
+  .wb-board-seat .wb-void-chip-suit {
+    font-size: 0.54rem;
   }
   .wb-board-player2,
   .wb-board-player3 {

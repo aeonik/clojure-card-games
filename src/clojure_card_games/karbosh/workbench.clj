@@ -504,7 +504,26 @@
               (repeat (count hand) [:span {:class "wb-board-card-back"}])))
       [:div {:class "wb-board-hand is-empty"} "--"])))
 
-(defn board-seat-html [session player]
+(defn board-void-chip-html [void-probs player suit]
+  (let [probability (bot/round-probability
+                     (get-in void-probs [player suit] 0))]
+    [:span {:class (str "wb-void-chip"
+                        (when (>= probability 0.65) " likely")
+                        (when (= probability 1.0) " certain"))}
+     [:span {:class "wb-void-chip-suit"} (admin/suit-html suit)]
+     [:b (percent-label probability)]]))
+
+(defn board-void-stats-html [{:keys [void-probs]} player]
+  [:div {:class "wb-board-voids"}
+   [:span {:class "wb-board-voids-label"} "Void odds"]
+   (into [:span {:class "wb-board-void-chips"}]
+         (map #(board-void-chip-html void-probs player %)
+              cards/suits))])
+
+(defn board-seat-html
+  ([session player]
+   (board-seat-html session player nil))
+  ([session player inference]
   (let [state (get-in session [:room :game])
         seat (get-in session [:room :seats player])
         hand (get-in state [:players player :hand])
@@ -517,6 +536,7 @@
                         (when (= player (:current-player state)) " current")
                         (when (= player (:dealer state)) " dealer")
                         (when selected? " observer")
+                        (when (= :ai (:view-mode session)) " ai-view")
                         (when-not active? " inactive"))
             :method "post"}
      [:input {:type "hidden" :name "action" :value "view"}]
@@ -535,9 +555,11 @@
                  (count hand)
                  " cards")]
      [:em (if bid (admin/bid-label bid) "--")]
+     (when (and (= :ai (:view-mode session)) inference)
+       (board-void-stats-html inference player))
      (board-hand-html session player hand)
      (when (:bot? seat)
-       [:small "Bot"])]]))
+       [:small "Bot"])]])))
 
 (defn completed-trick-row-html [session idx trick]
   (let [state (get-in session [:room :game])
@@ -564,10 +586,12 @@
         (map-indexed #(completed-trick-row-html session %1 %2) completed)]
        [:p {:class "empty"} "No completed tricks yet."])]))
 
-(declare unseen-summary-html)
+(declare unseen-summary-html workbench-inference)
 
 (defn workbench-board-html [session]
-  (let [state (get-in session [:room :game])]
+  (let [state (get-in session [:room :game])
+        inference (when (= :ai (:view-mode session))
+                    (workbench-inference session))]
     [:section {:class "panel wb-panel wb-board-panel"}
      [:div {:class "section-heading"}
       [:div
@@ -580,12 +604,12 @@
       (admin/stat-card "Bid" (admin/bid-label (game/current-bid state)))
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
-     (when (= :ai (:view-mode session))
-       (unseen-summary-html session))
+     (when inference
+       (unseen-summary-html session inference))
      [:div {:class "wb-board"}
       [:div {:class "wb-felt"}]
       (for [player game/players]
-        (board-seat-html session player))
+        (board-seat-html session player inference))
       [:div {:class "wb-board-center"}
        [:span "Current trick"]
        (board-trick-html session (:current-trick state))]]
@@ -631,6 +655,16 @@
           (map admin/card-html cards))
     "--"))
 
+(defn hand-has-effective-suit? [state player suit]
+  (boolean
+   (some #(= suit (rules/effective-suit % (:trump state)))
+         (get-in state [:players player :hand]))))
+
+(defn exact-hand-void-probability [state player suit]
+  (if (hand-has-effective-suit? state player suit)
+    0.0
+    1.0))
+
 (defn void-probabilities [state observer]
   (let [unseen-counts (bot/unseen-card-counts state observer)
         voids (bot/known-voids state)]
@@ -639,16 +673,28 @@
                  [player
                   (into {}
                         (map (fn [suit]
-                               [suit (bot/soft-void-confidence
-                                      bot/action-inference-play-config
-                                      state
-                                      observer
-                                      unseen-counts
-                                      voids
-                                      player
-                                      suit)]))
+                               [suit (if (= player observer)
+                                       (exact-hand-void-probability
+                                        state
+                                        player
+                                        suit)
+                                       (bot/soft-void-confidence
+                                        bot/action-inference-play-config
+                                        state
+                                        observer
+                                        unseen-counts
+                                        voids
+                                        player
+                                        suit))]))
                         cards/suits)]))
           game/players)))
+
+(defn workbench-inference [session]
+  (let [state (get-in session [:room :game])
+        observer (:observer session)
+        voids (bot/known-voids state)]
+    {:voids voids
+     :void-probs (void-probabilities state observer)}))
 
 (defn void-odds-label [void-probs player]
   (str/join " "
@@ -659,10 +705,6 @@
                          (bot/round-probability
                           (get-in void-probs [player suit] 0)))))
                  cards/suits)))
-
-(defn void-summary-label [voids void-probs player]
-  (str "Known voids " (void-label voids player)
-       " / Void odds " (void-odds-label void-probs player)))
 
 (defn ai-view-player-html [session player]
   (let [state (get-in session [:room :game])
@@ -691,31 +733,30 @@
       [:div [:dt "Void odds"] [:dd (void-odds-label void-probs player)]]
       [:div [:dt "Team"] [:dd (game/player-team state player)]]]]))
 
-(defn unseen-summary-html [session]
-  (let [state (get-in session [:room :game])
-        observer (:observer session)
-        unseen (analysis/unseen-cards state observer)
-        counts (analysis/effective-suit-counts (:trump state) unseen)
-        exhausted (exhausted-hidden-cards state observer)
-        voids (bot/known-voids state)
-        void-probs (void-probabilities state observer)]
-    [:section {:class "wb-side-panel"}
-     [:h3 "AI View"]
-     [:p {:class "empty"} "Cards not visible to the selected observer, grouped by effective suit."]
-     [:div {:class "wb-suit-counts"}
-      (for [suit cards/suits]
-        [:span
-         (admin/suit-html suit)
-         [:strong (get counts suit 0)]])]
-     [:dl {:class "wb-facts wb-ai-summary"}
-      [:div
-       [:dt "Hidden exhausted"]
-       [:dd (compact-card-list-html exhausted)]]]
-     [:div {:class "wb-suit-counts wb-void-inference"}
-      (for [player game/players]
-        [:span
-         [:em (player-short-label session player)]
-         [:strong (void-summary-label voids void-probs player)]])]]))
+(defn unseen-summary-html
+  ([session]
+   (unseen-summary-html session (workbench-inference session)))
+  ([session _inference]
+   (let [state (get-in session [:room :game])
+         observer (:observer session)
+         unseen (analysis/unseen-cards state observer)
+         counts (analysis/effective-suit-counts (:trump state) unseen)
+         exhausted (exhausted-hidden-cards state observer)]
+     [:section {:class "wb-side-panel wb-ai-overview"}
+      [:div {:class "wb-ai-overview-head"}
+       [:div
+        [:h3 (str "AI View: " (seat-name session observer))]
+        [:p {:class "empty"}
+         "Hidden card counts by effective suit. Player-specific void odds are shown on the table."]]]
+      [:div {:class "wb-suit-counts wb-hidden-counts"}
+       (for [suit cards/suits]
+         [:span
+          (admin/suit-html suit)
+          [:strong (get counts suit 0)]])]
+      [:dl {:class "wb-facts wb-ai-summary"}
+       [:div
+        [:dt "Hidden exhausted"]
+        [:dd (compact-card-list-html exhausted)]]]])))
 
 (defn workbench-table-html [session]
   (let [mode (:view-mode session)]

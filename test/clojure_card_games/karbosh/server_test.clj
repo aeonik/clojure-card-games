@@ -442,8 +442,10 @@
           (is (re-find #"name=\"view-mode\"[^>]*value=\"god\"" (:body view-response)))
           (is (re-find #"Hidden exhausted" (:body view-response)))
           (is (re-find #"A♣" (:body view-response)))
+          (is (re-find #"wb-board-voids" (:body view-response)))
           (is (re-find #"Void odds" (:body view-response)))
-          (is (re-find #"♣ 100\.0%" (:body view-response))))
+          (is (re-find #"suit club\">♣</span></span><b>100\.0%"
+                       (:body view-response))))
         (let [toggle-response (server/handler
                                {:request-method :post
                                 :uri "/karbosh/admin/workbench/ABC123"
