@@ -284,7 +284,8 @@
                         {:request-method :post
                          :uri "/karbosh/admin/workbench/ABC123"
                          :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
-                                   "host" "dc3systems.com"}
+                                   "host" "dc3systems.com"
+                                   "origin" "https://debug-browser.example"}
                          :body "action=manual&bid-type=pass"})]
           (is (= 303 (:status response)))
           (is (= "/karbosh/admin/workbench/ABC123"

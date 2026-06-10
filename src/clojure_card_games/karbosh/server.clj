@@ -1251,9 +1251,6 @@
     (not (admin-authorized? request))
     (admin-unauthorized-response)
 
-    (not (origin-allowed? request))
-    (response 403 "Forbidden")
-
     :else
     (if-let [room (workbench-source-room room-id)]
       (do
