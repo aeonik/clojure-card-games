@@ -421,6 +421,103 @@
    [:p {:class "empty"}
     "Historical archive is available on the full history page."]])
 
+(def max-workbench-room-records 25)
+
+(defn workbench-room-records [rooms records]
+  (let [loaded (->> rooms
+                    (filter live-room-entry?)
+                    (map (fn [[room-id room]]
+                           {:room-id room-id
+                            :room room
+                            :source "Loaded"
+                            :last-seen (or (:updated-at room)
+                                           (:created-at room))})))
+        loaded-ids (set (map :room-id loaded))
+        archived (->> records
+                      (remove #(contains? loaded-ids (:room-id %)))
+                      (map (fn [{:keys [room-id room logged-at]}]
+                             {:room-id room-id
+                              :room room
+                              :source "Archive"
+                              :last-seen logged-at})))]
+    (->> (concat loaded archived)
+         (sort-by #(or (:last-seen %) 0) >)
+         (take max-workbench-room-records)
+         vec)))
+
+(defn workbench-room-row [{:keys [room-id room source last-seen]}]
+  (let [state (:game room)]
+    [:tr
+     (table-cell "Room" room-id)
+     (table-cell "Source" source)
+     (table-cell "Phase" (kw-label (:phase state)))
+     (table-cell "Score" (score-label (:scores state)))
+     (table-cell "Games" (room-game-count room))
+     (table-cell "Hands" (room-hand-count room))
+     (table-cell "Last seen" (time-label last-seen))
+     (table-cell "Links"
+                 [:a {:href (str "/karbosh/admin/workbench/" room-id)}
+                  "Workbench"]
+                 " / "
+                 [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")}
+                  "Snapshot"])]))
+
+(defn workbench-room-table [rooms records]
+  (let [records (workbench-room-records rooms records)]
+    (if (seq records)
+      [:table {:class "admin-table"}
+       [:thead
+        [:tr
+         [:th "Room"]
+         [:th "Source"]
+         [:th "Phase"]
+         [:th "Score"]
+         [:th "Games"]
+         [:th "Hands"]
+         [:th "Last seen"]
+         [:th "Links"]]]
+       [:tbody
+        (for [record records]
+          (workbench-room-row record))]]
+      [:p {:class "empty"} "No loaded or archived rooms found."])))
+
+(defn render-workbench-index-main [{:keys [rooms records]}]
+  [:main {:id "admin-main"}
+   [:div {:class "top"}
+    [:div
+     [:p "Karbosh admin"]
+     [:h1 "AI workbench"]]
+    [:div {:class "admin-actions"}
+     [:a {:href "/karbosh/admin"} "Dashboard"]
+     [:a {:href "/karbosh/admin/history"} "History"]
+     [:a {:href "/karbosh/"} "Back to game"]
+     [:a {:href "/karbosh/admin/logout"} "Logout"]]]
+   [:section {:class "panel"}
+    [:div {:class "section-heading"}
+     [:div
+      [:p "Load"]
+      [:h2 "Open a room"]]]
+    [:form {:class "jump-form"
+            :method "get"
+            :action "/karbosh/admin/workbench"}
+     [:input {:type "text"
+              :name "room"
+              :placeholder "Room id"
+              :autocomplete "off"
+              :spellcheck "false"}]
+     [:button {:type "submit"} "Open workbench"]]
+    [:p {:class "empty"}
+     "Create or join multiplayer rooms from the game page, then open an active or archived room here. The workbench uses a frozen debug copy."]]
+   [:section {:class "panel"}
+    [:div {:class "section-heading"}
+     [:div
+      [:p "Recent"]
+      [:h2 "Known rooms"]]]
+    (workbench-room-table rooms records)]])
+
+(def workbench-index-styles
+  ".jump-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.jump-form input{min-height:32px;min-width:min(220px,100%);border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#111827;color:white;font:inherit;padding:0 10px;text-transform:uppercase}")
+
 (defn record-game-seed [record]
   (get-in record [:room :game :initial-seed]))
 
@@ -1684,6 +1781,7 @@
        [:p "Karbosh admin"]
        [:h1 "Runtime dashboard"]]
       [:div {:class "admin-actions"}
+       [:a {:href "/karbosh/admin/workbench"} "Workbench"]
        [:a {:href "/karbosh/"} "Back to game"]
        [:a {:href "/karbosh/admin/logout"} "Logout"]]]
 
@@ -1776,3 +1874,20 @@
      [:body
       (render-history-main {:rooms rooms
                             :records records})]])))
+
+(defn render-workbench-index [{:keys [rooms records]}]
+  (str
+   "<!doctype html>"
+   (h/render
+    [:html {:lang "en"}
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+      [:title "Karbosh AI Workbench"]
+      [:style (str styles
+                   admin-layout-styles
+                   admin-card-styles
+                   workbench-index-styles)]]
+     [:body
+      (render-workbench-index-main {:rooms rooms
+                                    :records records})]])))

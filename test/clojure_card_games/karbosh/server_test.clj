@@ -313,6 +313,38 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-index-renders-room-picker-test
+  (let [old-rooms @server/rooms
+        room (room/fill-bots (room/new-room "ABC123" 9))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :get
+                         :uri "/karbosh/admin/workbench/"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}})]
+          (is (= 200 (:status response)))
+          (is (re-find #"AI workbench" (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/ABC123\""
+                       (:body response)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-workbench-index-room-query-redirects-test
+  (with-redefs [server/admin-user (constantly "admin")
+                server/admin-password (constantly "secret")]
+    (let [response (server/handler
+                    {:request-method :get
+                     :uri "/karbosh/admin/workbench"
+                     :query-string "room=abc123"
+                     :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                               "host" "dc3systems.com"}})]
+      (is (= 303 (:status response)))
+      (is (= "/karbosh/admin/workbench/ABC123"
+             (get-in response [:headers "Location"]))))))
+
 (deftest admin-workbench-manual-actions-do-not-touch-live-room-test
   (let [old-rooms @server/rooms
         room (room/fill-bots (room/new-room "ABC123" 9))]

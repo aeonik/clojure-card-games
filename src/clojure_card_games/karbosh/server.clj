@@ -505,6 +505,10 @@
         (when (and room-id (nil? extra))
           (normalize-room-id (decode-query-value room-id)))))))
 
+(defn admin-workbench-index-path? [uri]
+  (or (= uri "/karbosh/admin/workbench")
+      (= uri "/karbosh/admin/workbench/")))
+
 (defn admin-history-path? [uri]
   (= uri "/karbosh/admin/history"))
 
@@ -1375,6 +1379,23 @@
   (or (room-by-id room-id)
       (some-> (historical-room-record room-id) :room)))
 
+(defn admin-workbench-index-response [request]
+  (cond
+    (not (admin-password))
+    (admin-disabled-response)
+
+    (not (admin-authorized? request))
+    (admin-login-redirect-response request)
+
+    :else
+    (if-let [room-id (some-> (query-params (:query-string request))
+                             :room
+                             normalize-room-id)]
+      (redirect-response (str "/karbosh/admin/workbench/" room-id))
+      (html-response
+       (admin/render-workbench-index {:rooms @rooms
+                                      :records (historical-room-records)})))))
+
 (defn admin-workbench-response [request room-id]
   (cond
     (not (admin-password))
@@ -1968,6 +1989,9 @@
 
       (and (= request-method :delete) (admin-delete-room-path? uri))
       (admin-delete-room-response request)
+
+      (and (= request-method :get) (admin-workbench-index-path? uri))
+      (admin-workbench-index-response request)
 
       (and (= request-method :get) workbench-id)
       (admin-workbench-response request workbench-id)
