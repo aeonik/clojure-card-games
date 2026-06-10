@@ -121,11 +121,63 @@
 (defn text! [node content]
   (set! (.-textContent node) content))
 
-(defn active-game-layout! [active?]
+(def perf?
+  (boolean (re-find #"[?&]perf=1" (str (.-search js/location)))))
+
+(defonce ^:private perf-stats
+  (volatile! nil))
+
+(def ^:private empty-perf-stats
+  {:msgs 0 :msg-ms 0 :max-msg-ms 0
+   :renders 0 :render-ms 0 :max-render-ms 0
+   :max-delay 0})
+
+(defn- perf-time! [count-key ms-key max-key f]
+  (if perf?
+    (let [start (js/performance.now)
+          result (f)
+          ms (- (js/performance.now) start)]
+      (vswap! perf-stats
+              #(-> (or % empty-perf-stats)
+                   (update count-key inc)
+                   (update ms-key + ms)
+                   (update max-key max ms)))
+      result)
+    (f)))
+
+(defn- perf-queue-delay! [event]
+  (when perf?
+    (let [delay (max 0 (- (js/performance.now) (.-timeStamp event)))]
+      (vswap! perf-stats #(update (or % empty-perf-stats) :max-delay max delay)))))
+
+(defn- perf-line [{:keys [msgs msg-ms max-msg-ms renders render-ms max-render-ms max-delay]}]
+  (str "msg/s " msgs
+       " avg " (.toFixed (if (pos? msgs) (/ msg-ms msgs) 0) 1)
+       " max " (.toFixed max-msg-ms 1)
+       " | render/s " renders
+       " avg " (.toFixed (if (pos? renders) (/ render-ms renders) 0) 1)
+       " max " (.toFixed max-render-ms 1)
+       " | queue-delay max " (.toFixed max-delay 0) "ms"))
+
+(defn- start-perf-overlay! []
+  (let [node (.createElement js/document "div")]
+    (set! (.-id node) "karbosh-perf-overlay")
+    (set! (.-cssText (.-style node))
+          (str "position:fixed;left:4px;bottom:4px;z-index:99999;"
+               "background:rgba(0,0,0,.75);color:#9f9;font:11px/1.4 monospace;"
+               "padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre"))
+    (.appendChild (.-body js/document) node)
+    (js/setInterval
+     (fn []
+       (set! (.-textContent node) (perf-line (or @perf-stats empty-perf-stats)))
+       (vreset! perf-stats empty-perf-stats))
+     1000)))
+
+(defn active-game-layout! [{:keys [view speed-mode]}]
   (let [classes (.-classList (.-body js/document))]
-    (.toggle classes "has-karbosh-game" active?)
-    (.toggle classes "karbosh-fast-mode" (fast-speed? (:speed-mode @app)))
-    (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? (:speed-mode @app)))))
+    (.toggle classes "has-karbosh-game" (some? view))
+    (.toggle classes "karbosh-fast-mode" (fast-speed? speed-mode))
+    (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? speed-mode))))
 
 (defn timing-ms [k]
   (get (case (normalize-speed-mode (:speed-mode @app))
@@ -226,31 +278,54 @@
            (.-fontFamily computed))
       font)))
 
-(defn fit-seat-name-node! [node]
-  (let [style (.-style node)]
-    (set! (.-fontSize style) "")
-    (let [computed (js/getComputedStyle node)
-          max-size (js/parseFloat (.-fontSize computed))
-          min-size (fit-number-attr node "data-fit-min" 4.5)
-          available (.-clientWidth node)
-          measured (text-width (computed-font computed) (.-textContent node))]
-      (when (and (pos? available) (pos? max-size) (pos? measured))
-        (let [target (* max-size (/ (- available 1) measured))
-              size (-> target
-                       (min max-size)
-                       (max min-size))]
-          (set! (.-fontSize style) (str size "px")))))))
+(defonce ^:private seat-fit-signature (volatile! nil))
 
-(defn fit-seat-names! []
-  (let [nodes (.querySelectorAll js/document ".seat-name")]
-    (doseq [idx (range (.-length nodes))]
-      (fit-seat-name-node! (.item nodes idx)))))
+(defn- seat-name-nodes []
+  (vec (array-seq (.querySelectorAll js/document ".seat-name"))))
+
+(defn- unfitted-node? [node]
+  (not (.hasAttribute node "data-fit-done")))
+
+(defn fit-seat-names! [nodes]
+  ;; Batched phases: write everything, then read everything, then write
+  ;; everything — at most one forced reflow total instead of one per node.
+  (doseq [node nodes]
+    (set! (.-fontSize (.-style node)) ""))
+  (let [measures (mapv (fn [node]
+                         (let [computed (js/getComputedStyle node)]
+                           {:node node
+                            :max-size (js/parseFloat (.-fontSize computed))
+                            :font (computed-font computed)
+                            :available (.-clientWidth node)
+                            :min-size (fit-number-attr node "data-fit-min" 4.5)
+                            :text (.-textContent node)}))
+                       nodes)]
+    (doseq [{:keys [node max-size font available min-size text]} measures]
+      (let [measured (text-width font text)]
+        (when (and (pos? available) (pos? max-size) (pos? measured))
+          (let [target (* max-size (/ (- available 1) measured))
+                size (-> target
+                         (min max-size)
+                         (max min-size))]
+            (set! (.-fontSize (.-style node)) (str size "px")))))
+      (.setAttribute node "data-fit-done" "1"))))
+
+(defn maybe-fit-seat-names!
+  "Refit seat names only when their text, the viewport width, or the set of
+  nodes has changed — the signature check reads no layout, so the common
+  per-render case costs a querySelectorAll and string compares."
+  []
+  (let [nodes (seat-name-nodes)
+        signature [(mapv #(.-textContent %) nodes) (.-innerWidth js/window)]]
+    (when (or (not= signature @seat-fit-signature)
+              (some unfitted-node? nodes))
+      (vreset! seat-fit-signature signature)
+      (fit-seat-names! nodes))))
 
 (defn schedule-fit-seat-names! []
   (js/requestAnimationFrame
-   (fn []
-     (fit-seat-names!)
-     (js/requestAnimationFrame fit-seat-names!))))
+   (fn [_]
+     (maybe-fit-seat-names!))))
 
 (defn bot-player-persona [view player]
   (:persona (player-by-id view player)))
@@ -446,21 +521,19 @@
   (local-storage-remove! "karbosh-room")
   (local-storage-remove! "karbosh-player"))
 
-(defn render-status! []
-  (let [{:keys [connected? room-id player error]} @app]
-    (text! (el "connection-status")
-           (cond
-             error error
-             connected? "Connected"
-             :else "Disconnected"))
-    (text! (el "room-code") (or room-id "--"))
-    (text! (el "seat-code") (or (some-> player name) "--"))))
+(defn render-status! [{:keys [connected? room-id player error]}]
+  (text! (el "connection-status")
+         (cond
+           error error
+           connected? "Connected"
+           :else "Disconnected"))
+  (text! (el "room-code") (or room-id "--"))
+  (text! (el "seat-code") (or (some-> player name) "--")))
 
 (def invalid-seed ::invalid-seed)
 
 (defn set-error! [message]
-  (swap! app assoc :error message)
-  (render-status!))
+  (swap! app assoc :error message))
 
 (defn create-room-seed []
   (let [raw (some-> (el "create-room-seed") .-value str/trim)]
@@ -528,9 +601,8 @@
     (for [player players]
       (preview-seat-html selected-player player))]])
 
-(defn preview-players-html [preview]
-  (let [selected-player (:player (:join-modal @app))
-        team-groups (group-by :team (:players preview))
+(defn preview-players-html [selected-player preview]
+  (let [team-groups (group-by :team (:players preview))
         available-count (joinable-seat-count preview)]
     [:div {:class "join-teams"}
      (for [team [1 2]]
@@ -603,23 +675,20 @@
                   (recent-room-html room))]
                [:p {:class "recent-rooms-empty"} "No recent rooms."])))))
 
-(defn render-public-rooms! []
-  (when-let [root (el "public-rooms-root")]
-    (let [{:keys [loading? rooms error]} (:public-rooms @app)]
-        (html! root
-               (cond
-                 error
-                 [:p {:class "public-rooms-empty"} error]
+(defn public-rooms-hiccup [{:keys [loading? rooms error]}]
+  (cond
+    error
+    [:p {:class "public-rooms-empty"} error]
 
-                 (seq rooms)
-                 [:div {:class "public-room-list"}
-                  (for [room rooms] (public-room-html room))]
+    (seq rooms)
+    [:div {:class "public-room-list"}
+     (for [room rooms] (public-room-html room))]
 
-                 loading?
-                 [:p {:class "public-rooms-empty"} "Loading rooms..."]
+    loading?
+    [:p {:class "public-rooms-empty"} "Loading rooms..."]
 
-                 :else
-                 [:p {:class "public-rooms-empty"} "No public rooms."])))))
+    :else
+    [:p {:class "public-rooms-empty"} "No public rooms."]))
 
 (defn resume-recent-room! [room-id player name]
   (when-not (str/blank? name)
@@ -627,60 +696,54 @@
   (set! (.-value (el "join-room-id")) room-id)
   (join-room! room-id player))
 
-(defn render-join-modal! []
-  (let [{:keys [room-id loading? preview player error]} (:join-modal @app)]
-    (html! (el "modal-root")
-           (if room-id
-             [:div {:class "modal-backdrop"}
-              [:section {:class "join-modal"
-                         :role "dialog"
-                         :aria-modal "true"
-                         :aria-labelledby "join-modal-title"}
-               [:p {:class "eyebrow"} "Karbosh table"]
-               [:h2 {:id "join-modal-title"} "Join room " room-id]
-               (cond
-                 loading?
-                 [:p {:class "join-modal-muted"} "Loading players..."]
+(defn join-modal-hiccup [{:keys [room-id loading? preview player error]}]
+  (when room-id
+    [:div {:class "modal-backdrop"}
+     [:section {:class "join-modal"
+                :role "dialog"
+                :aria-modal "true"
+                :aria-labelledby "join-modal-title"}
+      [:p {:class "eyebrow"} "Karbosh table"]
+      [:h2 {:id "join-modal-title"} "Join room " room-id]
+      (cond
+        loading?
+        [:p {:class "join-modal-muted"} "Loading players..."]
 
-                 error
-                 [:p {:class "join-modal-error"} error]
+        error
+        [:p {:class "join-modal-error"} error]
 
-                 :else
-                 [:div
-                  [:h3 "Current players"]
-                  (preview-players-html preview)])
-               [:label
-                [:span "Name"]
-                [:input {:id "join-modal-name"
-                         :type "text"
-                         :maxlength "24"
-                         :value (player-name)
-                         :replicant/on-mount (fn [{:replicant/keys [node]}]
-                                               (.focus node)
-                                               (.select node))
-                         :on {:keydown (fn [event]
-                                         (when (= "Enter" (.-key event))
-                                           (join-from-modal!)))}}]]
-               [:div {:class "join-modal-actions"}
-                [:button {:id "join-modal-cancel"
-                          :type "button"
-                          :on {:click close-join-modal!}}
-                 "Cancel"]
-                [:button {:id "join-modal-submit"
-                          :type "button"
-                          :disabled (join-modal-disabled? loading? player error)
-                          :on {:click join-from-modal!}}
-                 "Join Table"]]
-               ]]
-             ""))))
+        :else
+        [:div
+         [:h3 "Current players"]
+         (preview-players-html player preview)])
+      [:label
+       [:span "Name"]
+       [:input {:id "join-modal-name"
+                :type "text"
+                :maxlength "24"
+                :value (player-name)
+                :replicant/on-mount (fn [{:replicant/keys [node]}]
+                                      (.focus node)
+                                      (.select node))
+                :on {:keydown (fn [event]
+                                (when (= "Enter" (.-key event))
+                                  (join-from-modal!)))}}]]
+      [:div {:class "join-modal-actions"}
+       [:button {:id "join-modal-cancel"
+                 :type "button"
+                 :on {:click close-join-modal!}}
+        "Cancel"]
+       [:button {:id "join-modal-submit"
+                 :type "button"
+                 :disabled (join-modal-disabled? loading? player error)
+                 :on {:click join-from-modal!}}
+        "Join Table"]]]]))
 
 (defn select-join-player! [player]
-  (swap! app assoc-in [:join-modal :player] player)
-  (render-join-modal!))
+  (swap! app assoc-in [:join-modal :player] player))
 
 (defn close-join-modal! []
-  (swap! app assoc :join-modal nil)
-  (render-join-modal!))
+  (swap! app assoc :join-modal nil))
 
 (defn join-from-modal! []
   (let [{:keys [room-id loading? player error]} (:join-modal @app)
@@ -1078,14 +1141,13 @@
   (or (open-seat-popover-html view room-id copied-player player)
       (occupied-seat-popover-html view player)))
 
-(defn seat-popover-root-html []
-  (let [{:keys [view room-id seat-popover-player
-                seat-invite-copied-player]} @app]
-    [:div {:id "seat-popover-root"}
-     (seat-popover-html view
-                        room-id
-                        seat-invite-copied-player
-                        seat-popover-player)]))
+(defn seat-popover-root-html [{:keys [view room-id seat-popover-player
+                                      seat-invite-copied-player]}]
+  [:div {:id "seat-popover-root"}
+   (seat-popover-html view
+                      room-id
+                      seat-invite-copied-player
+                      seat-popover-player)])
 
 (defn card-button [{:keys [card index disabled? dragging?]}]
   [:button {:class (str "card-button" (card-suit-class card)
@@ -1201,14 +1263,14 @@
                (player-label view caller)))]
        [:em "Trump " (trump-value-html trump)]])))
 
-(defn card-disabled? [view hand card pending-card paused?]
+(defn card-disabled? [view legal-set card pending-card paused?]
   (let [active? (= (:you view) (:current-player view))]
     (or pending-card
         paused?
         (not active?)
         (case (:phase view)
           :trick-playing
-          (not (rules/legal-play? hand (:current-trick view) card (:trump view)))
+          (not (contains? legal-set card))
 
           (:karbosh-donation :karbosh-discard)
           false
@@ -1235,8 +1297,13 @@
        :ultra-fast "Ultra"
        "Fast")]))
 
-(defn hand-panel-html [view pending-card paused? hand-order card-drag hand-animating? pending-auto?]
-  (let [hand (displayed-hand view pending-card hand-order)
+(defn hand-panel-html [{:keys [view pending-card hand-order card-drag
+                               hand-animating? pending-auto? speed-mode
+                               trick-popup queued-trick-popup]}]
+  (let [paused? (or (some? trick-popup) (some? queued-trick-popup))
+        hand (displayed-hand view pending-card hand-order)
+        legal-set (when (= :trick-playing (:phase view))
+                    (set (rules/legal-cards hand (:current-trick view) (:trump view))))
         dragging-index (:index card-drag)
         sorting? (:dragging? card-drag)
         active? (= (:you view) (:current-player view))]
@@ -1248,7 +1315,7 @@
       [:div {:class "hand-actions"}
        [:span (count hand) " cards"]
        (sort-hand-button (or pending-card (empty? hand)))
-       (fast-mode-button (:speed-mode @app))
+       (fast-mode-button speed-mode)
        (hand-primary-action-button view active? paused? pending-auto?)]]
      (karbosh-callout-html view active?)
      [:div {:class (str "hand-row"
@@ -1261,7 +1328,7 @@
        (fn [index card]
          (card-button {:card card
                       :index index
-                      :disabled? (card-disabled? view hand card pending-card paused?)
+                      :disabled? (card-disabled? view legal-set card pending-card paused?)
                       :dragging? (and sorting? (= index dragging-index))}))
        hand)]]))
 
@@ -1311,73 +1378,54 @@
     (filter identity
             [(bid-controls view active?)])))
 
-(defn render-trump-picker! []
-  (when-not (:join-modal @app)
-    (let [{:keys [view bid-popup]} @app
-          active? (= (:you view) (:current-player view))
-          delayed? (some? bid-popup)]
-      (html! (el "modal-root")
-             (or (when-not delayed?
-                   (trump-picker-html view active?))
-                 "")))))
+(defn modal-hiccup [{:keys [join-modal view bid-popup]}]
+  (if join-modal
+    (join-modal-hiccup join-modal)
+    (when-not (some? bid-popup)
+      (trump-picker-html view (= (:you view) (:current-player view))))))
 
-(defn render-game! []
-  (let [{:keys [view room-id play-animation trick-popup queued-trick-popup bid-popup
-                fireworks hand-order card-drag hand-animating? pending-card pending-auto?]} @app]
-    (active-game-layout! (some? view))
-    (if-not view
-      (html! (el "game-root") "")
-      (do
-        (set-share-link! room-id)
-        (html! (el "game-root")
-               [:section {:class "table-grid"}
-                [:div {:class "panel table-panel"}
-                 [:div {:class "panel-heading"}
-                  [:p {:class "eyebrow"} "Karbosh table"]
-                  [:h1 "Room " room-id]
-                  [:p {:class "status-line"}
-                   (phase-label (:phase view)) " / Current: "
-                   (player-label view (:current-player view))]
-                  (table-top-actions view)]
-                 [:section {:class "score-summary" :aria-label "Total scores"}
-                  [:span {:class "score-summary-label"} "Total scores"]
-                  [:div {:class "score-row"}
-                   [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
-                   [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
-                 (or (game-over-html view) "")
-                 (when (panel-fireworks? fireworks)
-                   (fireworks-html view fireworks))
-                 (table-surface-html view
-                                     play-animation
-                                     trick-popup
-                                     queued-trick-popup
-                                     (when-not (panel-fireworks? fireworks)
-                                       fireworks))
-                 [:div {:class "play-controls-panel"}
-                  (hand-panel-html view pending-card (or (some? trick-popup)
-                                                        (some? queued-trick-popup))
-                                   hand-order
-                                   card-drag
-                                   hand-animating?
-                  pending-auto?)
-                  [:div {:class "controls"}
-                   (render-controls view)]]
-                 (seat-popover-root-html)
-                 (mobile-seat-roster-html view)]])))
-    (schedule-fit-seat-names!)
-    (render-trump-picker!)))
+(defn game-hiccup [{:keys [view room-id play-animation trick-popup queued-trick-popup
+                           fireworks] :as state}]
+  (when view
+    [:section {:class "table-grid"}
+     [:div {:class "panel table-panel"}
+      [:div {:class "panel-heading"}
+       [:p {:class "eyebrow"} "Karbosh table"]
+       [:h1 "Room " room-id]
+       [:p {:class "status-line"}
+        (phase-label (:phase view)) " / Current: "
+        (player-label view (:current-player view))]
+       (table-top-actions view)]
+      [:section {:class "score-summary" :aria-label "Total scores"}
+       [:span {:class "score-summary-label"} "Total scores"]
+       [:div {:class "score-row"}
+        [:span "Team 1 " [:strong (get-in view [:scores 1] 0)]]
+        [:span "Team 2 " [:strong (get-in view [:scores 2] 0)]]]]
+      (game-over-html view)
+      (when (panel-fireworks? fireworks)
+        (fireworks-html view fireworks))
+      (table-surface-html view
+                          play-animation
+                          trick-popup
+                          queued-trick-popup
+                          (when-not (panel-fireworks? fireworks)
+                            fireworks))
+      [:div {:class "play-controls-panel"}
+       (hand-panel-html state)
+       [:div {:class "controls"}
+        (render-controls view)]]
+      (seat-popover-root-html state)
+      (mobile-seat-roster-html view)]]))
 
 (defn show-seat-popover! [player]
   (swap! app assoc
          :seat-popover-player player
-         :seat-invite-copied-player nil)
-  (render-game!))
+         :seat-invite-copied-player nil))
 
 (defn close-seat-popover! []
   (swap! app assoc
          :seat-popover-player nil
-         :seat-invite-copied-player nil)
-  (render-game!))
+         :seat-invite-copied-player nil))
 
 (defn card-event [view card]
   (case (:phase view)
@@ -1390,7 +1438,6 @@
   (when-not (or (:trick-popup @app) (:queued-trick-popup @app))
     (when-let [event (card-event (:view @app) card)]
       (swap! app assoc :pending-card card)
-      (render-game!)
       (action! event))))
 
 (defn played-card-event [old-view new-view]
@@ -1422,24 +1469,20 @@
 
 (defn clear-trick-popup! [popup-id]
   (when (= popup-id (:id (:trick-popup @app)))
-    (swap! app assoc :trick-popup nil)
-    (render-game!)))
+    (swap! app assoc :trick-popup nil)))
 
 (defn show-trick-popup! [popup]
   (swap! app assoc
          :play-animation nil
          :queued-trick-popup nil
          :trick-popup popup)
-  (render-game!)
   (js/setTimeout #(clear-trick-popup! (:id popup)) (timing-ms :trick-popup)))
 
 (defn clear-play-animation! [animation-id]
   (when (= animation-id (:id (:play-animation @app)))
     (if-let [popup (:queued-trick-popup @app)]
       (show-trick-popup! popup)
-      (do
-        (swap! app assoc :play-animation nil)
-        (render-game!)))))
+      (swap! app assoc :play-animation nil))))
 
 (defn bid-event [old-view new-view]
   (when old-view
@@ -1477,13 +1520,11 @@
 
 (defn clear-bid-popup! [popup-id]
   (when (= popup-id (:id (:bid-popup @app)))
-    (swap! app assoc :bid-popup nil)
-    (render-game!)))
+    (swap! app assoc :bid-popup nil)))
 
 (defn clear-fireworks! [fireworks-id]
   (when (= fireworks-id (:id (:fireworks @app)))
-    (swap! app assoc :fireworks nil)
-    (render-game!)))
+    (swap! app assoc :fireworks nil)))
 
 (defn fireworks-duration-ms [fireworks]
   (let [base (timing-ms :fireworks)]
@@ -1495,7 +1536,6 @@
   (when (and (= (:room-id fireworks) (:room-id @app))
              (= (:hand-index fireworks) (get-in @app [:view :hand-index])))
     (swap! app assoc :fireworks fireworks)
-    (render-game!)
     (js/setTimeout #(clear-fireworks! (:id fireworks))
                    (fireworks-duration-ms fireworks))))
 
@@ -1531,9 +1571,6 @@
          :pending-card nil
          :pending-auto? false
          :error message)
-  (render-status!)
-  (render-game!)
-  (render-join-modal!)
   (render-recent-rooms!))
 
 (defn handle-server-message! [raw]
@@ -1607,8 +1644,6 @@
         (persist-speed-mode! speed-mode)
         (set-room-url! (:room-id message))
         (save-session! (:room-id message) (:player message) (player-name))
-        (render-status!)
-        (render-game!)
         (when animation-id
           (js/setTimeout #(clear-play-animation! animation-id) (timing-ms :play-animation)))
         (when (and popup (not queue-popup?))
@@ -1620,12 +1655,10 @@
                          (fireworks-delay-ms fireworks animation popup))))
 
       :error
-      (do
-        (swap! app assoc
-               :error (:message message)
-               :pending-card nil
-               :pending-auto? false)
-        (render-status!))
+      (swap! app assoc
+             :error (:message message)
+             :pending-card nil
+             :pending-auto? false)
 
       :pong nil
       :left-room
@@ -1647,22 +1680,21 @@
     (set! (.-onopen socket)
           (fn []
             (swap! app assoc :connected? true)
-            (render-status!)
             (after-open)))
     (set! (.-onclose socket)
           (fn []
             (when (= socket (:socket @app))
-              (swap! app assoc :connected? false)
-              (render-status!))))
+              (swap! app assoc :connected? false))))
     (set! (.-onerror socket)
           (fn []
             (when (= socket (:socket @app))
-              (swap! app assoc :error "Connection error")
-              (render-status!))))
+              (swap! app assoc :error "Connection error"))))
     (set! (.-onmessage socket)
           (fn [event]
             (when (= socket (:socket @app))
-              (handle-server-message! (.-data event)))))))
+              (perf-queue-delay! event)
+              (perf-time! :msgs :msg-ms :max-msg-ms
+                          #(handle-server-message! (.-data event))))))))
 
 (defn create-room! []
   (let [seed (create-room-seed)]
@@ -1703,7 +1735,6 @@
              :last-reconnect-at now
              :connected? false
              :error "Reconnecting")
-      (render-status!)
       (join-room! room-id player))))
 
 (defn reconnect-on-wake! []
@@ -1715,7 +1746,6 @@
 
 (defn auto-play! []
   (swap! app assoc :pending-auto? true)
-  (render-game!)
   (send! {:op :auto-play}))
 
 (defn leave-room! []
@@ -1730,12 +1760,10 @@
     (when-let [clipboard (.-clipboard js/navigator)]
       (.writeText clipboard url))
     (swap! app assoc :seat-invite-copied-player player)
-    (render-game!)
     (js/setTimeout
      (fn []
        (when (= player (:seat-invite-copied-player @app))
-         (swap! app assoc :seat-invite-copied-player nil)
-         (render-game!)))
+         (swap! app assoc :seat-invite-copied-player nil)))
      1800)))
 
 (defn selected-seat-bot-name [player]
@@ -1757,8 +1785,7 @@
 
 (defn clear-hand-animation! []
   (when (:hand-animating? @app)
-    (swap! app assoc :hand-animating? false)
-    (render-game!)))
+    (swap! app assoc :hand-animating? false)))
 
 (defn pulse-hand-animation! []
   (swap! app assoc :hand-animating? true)
@@ -1770,8 +1797,7 @@
       (swap! app assoc
              :hand-order {:hand-index (:hand-index view)
                           :cards sorted-hand})
-      (pulse-hand-animation!)
-      (render-game!))))
+      (pulse-hand-animation!))))
 
 (defn set-speed-mode! [mode]
   (let [mode (normalize-speed-mode mode)]
@@ -1779,7 +1805,6 @@
     (swap! app assoc
            :speed-mode mode
            :fast-mode? (fast-speed? mode))
-    (render-game!)
     (send! {:op :set-fast-mode
             :speed-mode mode
             :fast-mode? (fast-speed? mode)})))
@@ -1800,27 +1825,30 @@
   (when-let [row (qs ".hand-row")]
     (array-seq (js/Array.from (.querySelectorAll row ".card-button[data-card]")))))
 
-(defn rect-center [rect]
-  [(+ (.-left rect) (/ (.-width rect) 2))
-   (+ (.-top rect) (/ (.-height rect) 2))])
+(defn hand-card-rects
+  "Snapshot the hand's card slot rects as plain data. The slots stay put while
+  cards reorder within them, so one capture at drag start serves the whole drag."
+  []
+  (vec (for [node (hand-card-nodes)]
+         (let [rect (.getBoundingClientRect node)]
+           {:index (read-hand-index-attr node)
+            :cx (+ (.-left rect) (/ (.-width rect) 2))
+            :cy (+ (.-top rect) (/ (.-height rect) 2))
+            :height (.-height rect)}))))
 
-(defn card-node-distance [node x y]
-  (let [rect (.getBoundingClientRect node)
-        [cx cy] (rect-center rect)
-        dx (- x cx)
+(defn rect-distance [{:keys [cx cy]} x y]
+  (let [dx (- x cx)
         dy (- y cy)]
     (+ (* dx dx) (* dy dy))))
 
-(defn nearest-card-node [x y]
-  (when-let [nodes (seq (hand-card-nodes))]
-    (apply min-key #(card-node-distance % x y) nodes)))
+(defn nearest-card-rect [rects x y]
+  (when (seq rects)
+    (apply min-key #(rect-distance % x y) rects)))
 
-(defn after-card? [node x y]
-  (let [rect (.getBoundingClientRect node)
-        [cx cy] (rect-center rect)
-        dx (- x cx)
+(defn after-rect? [{:keys [cx cy height]} x y]
+  (let [dx (- x cx)
         dy (- y cy)]
-    (if (> (js/Math.abs dy) (* 0.65 (.-height rect)))
+    (if (> (js/Math.abs dy) (* 0.65 height))
       (pos? dy)
       (pos? dx))))
 
@@ -1845,6 +1873,7 @@
       (swap! app assoc
              :card-drag {:card (read-card-attr node)
                          :index (read-hand-index-attr node)
+                         :rects (hand-card-rects)
                          :pointer-id (.-pointerId event)
                          :start-x (.-clientX event)
                          :start-y (.-clientY event)
@@ -1852,7 +1881,7 @@
       nil)))
 
 (defn update-card-drag! [event]
-  (when-let [{:keys [card pointer-id start-x start-y dragging?] :as drag} (:card-drag @app)]
+  (when-let [{:keys [pointer-id start-x start-y dragging? rects] :as drag} (:card-drag @app)]
     (when (= pointer-id (.-pointerId event))
       (let [x (.-clientX event)
             y (.-clientY event)
@@ -1861,17 +1890,15 @@
             moved? (> (js/Math.sqrt (+ (* dx dx) (* dy dy))) drag-threshold-px)]
         (when (or dragging? moved?)
           (.preventDefault event)
-          (let [target (nearest-card-node x y)
-                target-index (some-> target read-hand-index-attr)
-                after? (when target (after-card? target x y))
-                before @app
-                after (-> before
-                          (assoc :card-drag (assoc drag :dragging? true))
-                          (cond-> target-index
-                            (reorder-dragged-card target-index after?)))]
-            (when (not= before after)
-              (reset! app after)
-              (render-game!))))))))
+          (let [target (nearest-card-rect rects x y)
+                target-index (:index target)
+                after? (when target (after-rect? target x y))]
+            (swap! app
+                   (fn [state]
+                     (-> state
+                         (assoc :card-drag (assoc drag :dragging? true))
+                         (cond-> target-index
+                           (reorder-dragged-card target-index after?)))))))))))
 
 (defn clear-suppressed-card-click! []
   (swap! app assoc :suppress-card-click? false))
@@ -1885,8 +1912,42 @@
         (js/setTimeout clear-suppressed-card-click! 250))
       (swap! app assoc :card-drag nil)
       (when dragging?
-        (pulse-hand-animation!)
-        (render-game!)))))
+        (pulse-hand-animation!)))))
+
+(defn render!
+  "Project one immutable state snapshot onto the page. The only function that
+  touches replicant; everything it renders is pure hiccup derived from state."
+  [state]
+  (active-game-layout! state)
+  (render-status! state)
+  (when (:view state)
+    (set-share-link! (:room-id state)))
+  (d/render (el "game-root") (game-hiccup state))
+  (d/render (el "modal-root") (modal-hiccup state))
+  (when-let [root (el "public-rooms-root")]
+    (d/render root (public-rooms-hiccup (:public-rooms state))))
+  (maybe-fit-seat-names!))
+
+(defonce ^:private render-scheduled? (volatile! false))
+
+(defn- schedule-render!
+  "Coalesce any number of state changes per frame into one render of the
+  newest state."
+  []
+  (when-not @render-scheduled?
+    (vreset! render-scheduled? true)
+    (js/requestAnimationFrame
+     (fn [_]
+       (vreset! render-scheduled? false)
+       (perf-time! :renders :render-ms :max-render-ms
+                   #(render! @app))))))
+
+(defn start-render-loop! []
+  (add-watch app ::render
+             (fn [_ _ old new]
+               (when (not= old new)
+                 (schedule-render!))))
+  (schedule-render!))
 
 (defn bind-controls! []
   (.addEventListener (el "create-room") "click" create-room!)
@@ -2074,7 +2135,6 @@
                                 :preview nil
                                 :player nil
                                 :error nil})
-  (render-join-modal!)
   (-> (js/fetch (room-preview-url room))
       (.then (fn [response]
                (-> (.text response)
@@ -2092,21 +2152,18 @@
                                         :loading? false
                                         :preview nil
                                         :player nil
-                                        :error (:message data)}))
-                              (render-join-modal!)))))))
+                                        :error (:message data)}))))))))
       (.catch (fn [_]
                 (swap! app assoc :join-modal {:room-id room
                                               :loading? false
                                               :preview nil
                                               :player nil
-                                              :error "Could not load this room."})
-                (render-join-modal!)))))
+                                              :error "Could not load this room."})))))
 
 (defn load-public-rooms! []
   (swap! app update :public-rooms
          (fn [public-rooms]
            (assoc public-rooms :loading? true :error nil)))
-  (render-public-rooms!)
   (-> (js/fetch (public-rooms-url))
       (.then (fn [response]
                (-> (.text response)
@@ -2120,13 +2177,11 @@
                                         :error nil}
                                        {:loading? false
                                         :rooms []
-                                        :error "Could not load public rooms."}))
-                              (render-public-rooms!)))))))
+                                        :error "Could not load public rooms."}))))))))
       (.catch (fn [_]
                 (swap! app assoc :public-rooms {:loading? false
                                                 :rooms []
-                                                :error "Could not load public rooms."})
-                (render-public-rooms!)))))
+                                                :error "Could not load public rooms."})))))
 
 (defn prepare-shared-room! [room]
   (set! (.-value (el "join-room-id")) room)
@@ -2143,11 +2198,11 @@
     (when stored-name
       (set! (.-value (el "player-name")) stored-name)))
   (bind-controls!)
-  (render-status!)
-  (render-game!)
+  (start-render-loop!)
   (render-recent-rooms!)
-  (render-public-rooms!)
   (load-public-rooms!)
+  (when perf?
+    (start-perf-overlay!))
   (js/setInterval load-public-rooms! 8000)
   (if-let [room (query-room-param)]
     (if (and (stored-player)
