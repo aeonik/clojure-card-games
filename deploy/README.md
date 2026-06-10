@@ -89,8 +89,9 @@ clojure -T:build release
 clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
 ```
 
-`deploy-restart` syncs the canonical tree, restarts `karbosh.service`, and smoke
-checks the health endpoint.
+`deploy-restart` syncs the canonical tree, deleting stale files inside the
+source/static deploy directories, restarts `karbosh.service`, and smoke checks
+the health endpoint.
 
 ## Build Tasks
 

@@ -53,6 +53,9 @@
 (defn- rsync! [& args]
   (apply sh! "rsync" (concat rsync-common args)))
 
+(defn- rsync-delete! [& args]
+  (apply sh! "rsync" (concat rsync-common ["--delete"] args)))
+
 (defn- ssh! [command]
   (sh! "ssh" (deploy-host) command))
 
@@ -156,7 +159,9 @@
     (throw (ex-info "Restart deploy drops active in-memory rooms; pass :confirm \"DROP_ROOMS\""
                     {:required-confirm "DROP_ROOMS"})))
   (println "WARNING: restarting karbosh.service drops active in-memory rooms.")
-  (rsync! "deps.edn" "build.clj" "src" "build" "deploy" "karbosh" (app-dst))
+  (rsync! "deps.edn" "build.clj" (app-dst))
+  (doseq [dir ["src" "build" "deploy" "karbosh"]]
+    (rsync-delete! (str dir "/") (str (app-dst) dir "/")))
   (ssh! (env "KARBOSH_RESTART_COMMAND" "systemctl --user restart karbosh.service"))
   (smoke nil))
 
