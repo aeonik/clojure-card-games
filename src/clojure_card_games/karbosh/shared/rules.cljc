@@ -1,4 +1,11 @@
-(ns clojure-card-games.karbosh.shared.rules)
+(ns clojure-card-games.karbosh.shared.rules
+  "Karbosh rules: a six-player double-deck Bid Euchre variant.
+
+  Cards are logical `[rank suit]` tuples; the double deck means every logical
+  card has two physical copies. Generic trick mechanics live in
+  `clojure-card-games.trick`; everything Euchre-flavored (bowers, effective
+  suit, bids, scoring) lives here."
+  (:require [clojure-card-games.trick :as trick]))
 
 (def bid-types #{:pass :bid :karbosh :double-karbosh})
 (def special-bid-points 15)
@@ -45,15 +52,10 @@
 
   Equal cards can appear because Karbosh uses two copies of each card. Ties are
   intentionally settled by keeping the earlier play."
-  [trick trump]
-  (when (seq trick)
-    (let [lead (trick-lead trick trump)]
-      (reduce (fn [winner play]
-                (if (beats? trump lead (:card play) (:card winner))
-                  play
-                  winner))
-              (first trick)
-              (rest trick)))))
+  [played trump]
+  (when (seq played)
+    (let [lead (trick-lead played trump)]
+      (trick/winning-play played #(card-value % trump lead)))))
 
 (defn resolve-trick [trick trump]
   (:player (winning-play trick trump)))
@@ -118,7 +120,17 @@
        (filter #(legal-play? hand trick % trump))
        vec))
 
-(defn score-hand [players bid tricks]
+(defn score-hand
+  "Score a completed hand.
+
+  Numeric bids score the bidder's tricks when made, or minus the bid value
+  when set; the defending team keeps its tricks only when the bid is set.
+
+  Karbosh and double Karbosh both require all 8 tricks and both score the
+  same `special-bid-points` (15) made or set — that is the intended house
+  rule. Double Karbosh differs only in bid rank (it outranks Karbosh) and in
+  being played without partner donations."
+  [players bid tricks]
   (let [bidder-team (get-in players [(:player bid) :team])
         other-team (if (= bidder-team 1) 2 1)
         bid-tricks (get tricks bidder-team 0)

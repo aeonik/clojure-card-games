@@ -9,7 +9,7 @@
   • `(find-best-trump hand)`          → {:best-trump :♥, :strength 1234,
                                          :sorted-hand <seq>}
   "
-  (:require [clojure-card-games.rules :as rules]))
+  (:require [clojure-card-games.karbosh.shared.rules :as rules]))
 
 ;; -----------------------------------------------------------------------
 ;; 1.  Helper: naive strength metric  -------------------------------------

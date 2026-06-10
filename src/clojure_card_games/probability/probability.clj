@@ -12,7 +12,7 @@
       (prob/karbosh-win-empirical hero 100_000)  ;; ⇒ ≃ 0.57
 
   Adjust the predicates in `killer-hand?` if your house rules differ."
-  (:require [clojure-card-games.deck :as deck]))
+  (:require [clojure-card-games.karbosh.shared.cards :as karbosh-cards]))
 
 ;; ----------------------------------------------------------------------------
 ;; 1. Helper predicates -------------------------------------------------------
@@ -69,7 +69,7 @@
   ([hero] (hero-wins-once? hero (java.util.Random.)))
   ([hero ^java.util.Random rng]
    (let [shoe  (shuffle-with (reduce #(remove-first %2 %1)
-                                     (deck/karbosh-deck)
+                                     (karbosh-cards/deck)
                                      hero)
                              rng)
          hands (partition 8 shoe)

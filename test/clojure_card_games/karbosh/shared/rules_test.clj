@@ -36,6 +36,46 @@
                                  {:player :player3 :card [:K :♥]}]
                                 :♠)))))
 
+(deftest legal-play-test
+  (testing "players must follow suit when able"
+    (let [hand [[:A :♥] [:A :♠]]
+          trick [{:player :player1 :card [:K :♥]}]]
+      (is (rules/legal-play? hand trick [:A :♥] :♠))
+      (is (not (rules/legal-play? hand trick [:A :♠] :♠))))))
+
+(deftest bid-validation-test
+  (is (rules/valid-bid? {:bid-type :bid :value 5}))
+  (is (not (rules/valid-bid? {:bid-type :bid :value 9})))
+  (is (= {:player :player2 :type :bid :bid-type :bid :value 6}
+         (rules/winning-bid [{:player :player1 :type :bid :bid-type :bid :value 5}
+                             {:player :player2 :type :bid :bid-type :bid :value 6}
+                             {:player :player3 :type :bid :bid-type :pass}]))))
+
+(deftest score-hand-test
+  (let [players {:player1 {:team 1} :player2 {:team 2}}]
+    (testing "made numeric bids score the bidder's tricks"
+      (is (= {1 5 2 0}
+             (rules/score-hand players
+                               {:player :player1 :bid-type :bid :value 5}
+                               {1 5 2 3}))))
+
+    (testing "set numeric bids go negative and defenders keep tricks"
+      (is (= {1 -5 2 4}
+             (rules/score-hand players
+                               {:player :player1 :bid-type :bid :value 5}
+                               {1 4 2 4}))))
+
+    (testing "karbosh and double karbosh both score 15 by house rule"
+      (doseq [bid-type [:karbosh :double-karbosh]]
+        (is (= {1 15 2 0}
+               (rules/score-hand players
+                                 {:player :player1 :bid-type bid-type}
+                                 {1 8 2 0})))
+        (is (= {1 -15 2 1}
+               (rules/score-hand players
+                                 {:player :player1 :bid-type bid-type}
+                                 {1 7 2 1})))))))
+
 (deftest legal-bid-test
   (testing "non-pass bids must strictly outrank the current bid"
     (let [current {:type :bid :player :player1 :bid-type :bid :value 5}]

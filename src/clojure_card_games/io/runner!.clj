@@ -1,5 +1,5 @@
 (ns clojure-card-games.io.runner!
-  (:require [clojure-card-games.state :as state]
+  (:require [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.io.tui :as tui]
             [clojure.edn :as edn]
             [clojure.java.io :as io]))
@@ -10,12 +10,24 @@
       (edn/read-string (slurp f))
       {})))
 
+(defn- apply-event-safely
+  "Apply `event`, or report why the engine rejected it and keep the game."
+  [game event]
+  (try
+    (game/apply-event game event)
+    (catch clojure.lang.ExceptionInfo e
+      (println (str "Rejected: " (ex-message e) " " (ex-data e)))
+      game)))
+
+(defn- last-deal-seed [game]
+  (:seed (peek (:hand-deals game))))
+
 (defn play-game!
   ([] (play-game! nil nil))
   ([seed replay-seq]
    (let [config (read-config)
          sort-hands? (:sort-hands? config false)]
-     (loop [game (state/init-game seed)
+     (loop [game (game/init-game seed)
             actions (seq replay-seq)
             move-chars []
             seed-seq [seed]]
@@ -30,11 +42,11 @@
              (println (str "Move sequence: " (apply str new-move-chars)))
              (println (str "Seed sequence: " seed-seq))
              (System/exit 0))
-           (let [new-game (state/apply-event game action)
-                 ;; If a new hand started, derive a new seed
+           (let [new-game (apply-event-safely game action)
+                 ;; If a new hand started, record its derived seed
                  new-seed-seq (if (and (= (:phase game) :hand-complete)
                                        (= (:phase new-game) :bidding))
-                                (conj seed-seq (state/derive-seed game))
+                                (conj seed-seq (last-deal-seed new-game))
                                 seed-seq)]
              (recur new-game
                     next-seq

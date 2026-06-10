@@ -24,6 +24,33 @@
             {:player :player6 :bid-type :pass}]
            (:bids-this-hand (game/public-view state {} :player1))))))
 
+(deftest remove-first-test
+  (is (= [:a :b]     (game/remove-first :c [:a :b])))
+  (is (= [:b :c]     (game/remove-first :a [:a :b :c])))
+  (is (= [:a :c :b]  (game/remove-first :b [:a :b :c :b])))
+  (is (= [:a :b :c]  (game/remove-first :x [:a :b :c]))))
+
+(deftest turn-and-trump-guards-test
+  (testing "out of turn bids are rejected"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"turn"
+         (game/apply-event (game/init-game 7)
+                           {:type :bid :player :player2 :bid-type :bid :value 4}))))
+
+  (testing "invalid trump suits are rejected"
+    (let [state (reduce game/apply-event
+                        (game/init-game 7)
+                        (cons {:type :bid :player :player1 :bid-type :bid :value 4}
+                              (map (fn [p] {:type :bid :player p :bid-type :pass})
+                                   [:player2 :player3 :player4 :player5 :player6])))]
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
+           #"Invalid trump"
+           (game/apply-event state {:type :trump-selection
+                                    :player :player1
+                                    :suit :stars}))))))
+
 (deftest illegal-overcall-test
   (let [state (game/apply-event (game/init-game 7)
                                 {:type :bid

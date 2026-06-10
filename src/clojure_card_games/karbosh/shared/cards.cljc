@@ -1,45 +1,46 @@
 (ns clojure-card-games.karbosh.shared.cards
-  (:require [clojure.string :as str]))
+  "Karbosh card configuration: a double deck of the six ranks from 9 to ace.
+
+  This is the canonical deck definition for Karbosh. The generic card model
+  lives in `clojure-card-games.cards` and `clojure-card-games.deck` so other
+  games can define their own deck specs."
+  (:require [clojure-card-games.cards :as generic-cards]
+            [clojure-card-games.deck :as generic-deck]))
 
 (def ranks [9 10 :J :Q :K :A])
-(def suits [:♥ :♠ :♦ :♣])
+(def suits generic-cards/suits)
 
-(def rank->str {9 "9" 10 "10" :J "J" :Q "Q" :K "K" :A "A"})
-(def suit->str {:♥ "♥" :♠ "♠" :♦ "♦" :♣ "♣"})
+(def rank->str (select-keys generic-cards/rank->str ranks))
+(def suit->str generic-cards/suit->str)
 
-(def str->rank {"9" 9 "10" 10 "J" :J "Q" :Q "K" :K "A" :A})
-(def str->suit {"♥" :♥ "♠" :♠ "♦" :♦ "♣" :♣
-                "h" :♥ "s" :♠ "d" :♦ "c" :♣})
+(def str->rank
+  (into {} (map (fn [rank] [(rank->str rank) rank])) ranks))
+(def str->suit generic-cards/str->suit)
 
 (def char->rank {\a :A \k :K \q :Q \j :J \0 10 \1 10 \9 9})
-(def char->suit {\h :♥ \s :♠ \d :♦ \c :♣})
+(def char->suit generic-cards/char->suit)
 
-(defn card->str [[rank suit]]
-  (str (rank->str rank) (suit->str suit)))
+(def card->str generic-cards/card->str)
+
+(def parse-tables
+  {:str->rank str->rank
+   :char->rank char->rank
+   :char->suit char->suit})
 
 (defn parse-card [s]
-  (let [s (str/lower-case (str/trim s))
-        suit (char->suit (last s))
-        rank-text (subs s 0 (max 0 (dec (count s))))
-        rank (or (str->rank (str/upper-case rank-text))
-                 (char->rank (first rank-text)))]
-    (when (and rank suit)
-      [rank suit])))
+  (generic-cards/parse-card s parse-tables))
+
+(def deck-spec
+  "Two physical copies of every rank/suit combination, 48 cards."
+  {:ranks ranks :suits suits :copies 2})
 
 (defn deck []
-  (vec (for [rank ranks
-             suit suits
-             _ (range 2)]
-         [rank suit])))
+  (generic-deck/build-deck deck-spec))
 
 #?(:clj
-   (defn shuffle-deck
-     ([cards] (shuffle-deck cards nil))
-     ([cards seed]
-      (let [al (java.util.ArrayList. cards)
-            rng (if seed (java.util.Random. seed) (java.util.Random.))]
-        (java.util.Collections/shuffle al rng)
-        (vec al)))))
+   (def shuffle-deck generic-deck/shuffle-deck))
+
+(def hand-size 8)
 
 (defn deal [cards]
-  (mapv vec (partition 8 cards)))
+  (generic-deck/deal-hands cards hand-size))
