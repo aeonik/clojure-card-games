@@ -727,7 +727,8 @@
       [:div {:class "admin-actions"}
        [:a {:href (str "/karbosh/admin/rooms/" room-id "/snapshot")} "Snapshot"]
        [:a {:href (str "/karbosh/admin?room=" room-id)} "Dashboard"]
-       [:a {:href "/karbosh/"} "Game"]]]
+       [:a {:href "/karbosh/"} "Game"]
+       [:a {:href "/karbosh/admin/logout"} "Logout"]]]
      [:section {:class "panel wb-message"}
       (:message session)]
      (manual-controls-html session)

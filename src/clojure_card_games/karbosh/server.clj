@@ -10,10 +10,11 @@
             [clojure-card-games.karbosh.runtime :as runtime]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]
+            [clojure-card-games.karbosh.hiccup :as h]
             [clojure-card-games.karbosh.storage :as storage]
             [clojure-card-games.karbosh.workbench :as workbench]
             [org.httpkit.server :as http])
-  (:import [java.net URI URLDecoder]
+  (:import [java.net URI URLDecoder URLEncoder]
            [java.nio.charset StandardCharsets]
            [java.security MessageDigest]
            [java.util Base64]))
@@ -102,6 +103,9 @@
 (defn admin-password []
   (not-empty (System/getenv "KARBOSH_ADMIN_PASSWORD")))
 
+(def admin-session-cookie-name "karbosh_admin_session")
+(def admin-session-max-age-seconds (* 7 24 60 60))
+
 (def security-headers
   {"X-Content-Type-Options" "nosniff"
    "Referrer-Policy" "no-referrer"
@@ -123,12 +127,16 @@
 (defn html-response [body]
   (response 200 body "text/html; charset=utf-8"))
 
-(defn redirect-response [location]
-  {:status 303
-   :headers (merge security-headers
-                   {"Location" location
-                    "Content-Type" "text/plain; charset=utf-8"})
-   :body "See other"})
+(defn redirect-response
+  ([location]
+   (redirect-response location {}))
+  ([location headers]
+   {:status 303
+    :headers (merge security-headers
+                    headers
+                    {"Location" location
+                     "Content-Type" "text/plain; charset=utf-8"})
+    :body "See other"}))
 
 (defn metric! [k]
   (swap! metrics update k (fnil inc 0)))
@@ -241,11 +249,78 @@
         (catch IllegalArgumentException _
           nil)))))
 
+(defn sha256-base64url [s]
+  (let [digest (doto (MessageDigest/getInstance "SHA-256")
+                 (.update (utf8-bytes s)))]
+    (.encodeToString (.withoutPadding (Base64/getUrlEncoder))
+                     (.digest digest))))
+
+(defn admin-session-cookie-value []
+  (when-let [password (admin-password)]
+    (sha256-base64url (str "karbosh-admin-session-v1"
+                           \u0000
+                           (admin-user)
+                           \u0000
+                           password))))
+
+(defn cookie-map [request]
+  (into {}
+        (keep (fn [part]
+                (let [[k v] (str/split (str/trim part) #"=" 2)]
+                  (when-not (str/blank? k)
+                    [k (or v "")]))))
+        (str/split (or (get-in request [:headers "cookie"]) "") #";")))
+
+(defn admin-cookie-authorized? [request]
+  (secure-eq? (admin-session-cookie-value)
+              (get (cookie-map request) admin-session-cookie-name)))
+
 (defn admin-authorized? [request]
   (when-let [expected-password (admin-password)]
     (let [[user password] (basic-credentials request)]
-      (and (secure-eq? (admin-user) user)
-           (secure-eq? expected-password password)))))
+      (or (admin-cookie-authorized? request)
+          (and (secure-eq? (admin-user) user)
+               (secure-eq? expected-password password))))))
+
+(defn https-request? [request]
+  (or (= :https (:scheme request))
+      (= "https" (some-> (get-in request [:headers "x-forwarded-proto"])
+                         str/lower-case))))
+
+(defn admin-session-cookie [request]
+  (str admin-session-cookie-name
+       "="
+       (admin-session-cookie-value)
+       "; Path=/karbosh/admin; Max-Age="
+       admin-session-max-age-seconds
+       "; HttpOnly; SameSite=Lax"
+       (when (https-request? request) "; Secure")))
+
+(defn clear-admin-session-cookie []
+  (str admin-session-cookie-name
+       "=; Path=/karbosh/admin; Max-Age=0; HttpOnly; SameSite=Lax"))
+
+(defn encode-query-value [s]
+  (URLEncoder/encode (or s "") "UTF-8"))
+
+(defn safe-admin-return [location]
+  (let [location (or (not-empty location) "/karbosh/admin")]
+    (if (and (str/starts-with? location "/karbosh/admin")
+             (not (str/starts-with? location "//")))
+      location
+      "/karbosh/admin")))
+
+(defn request-target [{:keys [uri query-string]}]
+  (str uri
+       (when-not (str/blank? query-string)
+         (str "?" query-string))))
+
+(defn admin-login-location [request]
+  (str "/karbosh/admin/login?return="
+       (encode-query-value (request-target request))))
+
+(defn admin-login-redirect-response [request]
+  (redirect-response (admin-login-location request)))
 
 (defn admin-disabled-response []
   (response 503 "Karbosh admin is disabled; set KARBOSH_ADMIN_PASSWORD."))
@@ -279,6 +354,77 @@
 (defn form-params [request]
   (merge (query-params (:query-string request))
          (query-params (request-body-string request))))
+
+(defn admin-login-html [request failed?]
+  (let [return-to (safe-admin-return (:return (query-params (:query-string request))))]
+    (str
+     "<!doctype html>"
+     (h/render
+      [:html {:lang "en"}
+       [:head
+        [:meta {:charset "utf-8"}]
+        [:meta {:name "viewport" :content "width=device-width,initial-scale=1"}]
+        [:title "Karbosh Admin Login"]
+        [:style
+         (str
+          "body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111521;color:white;font:15px/1.5 Arial,sans-serif}"
+          "main{width:min(420px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#18213a;padding:22px}"
+          "p{margin:0 0 14px;color:rgba(255,255,255,.62)}h1{margin:0 0 6px;font-size:1.55rem}"
+          "form{display:grid;gap:12px}label{display:grid;gap:5px;color:rgba(255,255,255,.55);font-size:.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}"
+          "input{min-height:38px;border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#111827;color:white;font:inherit;padding:0 10px}"
+          "button{min-height:38px;border:1px solid rgba(111,208,199,.42);border-radius:6px;background:rgba(111,208,199,.14);color:#bdf4ef;cursor:pointer;font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}"
+          ".error{color:#ffbac3}")]]
+       [:body
+        [:main
+         [:h1 "Karbosh Admin"]
+         [:p "Use a local admin cookie instead of browser Basic auth."]
+         (when failed?
+           [:p {:class "error"} "Login failed."])
+         [:form {:method "post"
+                 :action "/karbosh/admin/login"
+                 :autocomplete "off"
+                 :data-lpignore "true"
+                 :data-1p-ignore "true"}
+          [:input {:type "hidden"
+                   :name "return"
+                   :value return-to}]
+          [:label
+           [:span "Admin password"]
+           [:input {:type "password"
+                    :name "karbosh_admin_password"
+                    :autocomplete "new-password"
+                    :data-lpignore "true"
+                    :data-1p-ignore "true"
+                    :autofocus true}]]
+          [:button {:type "submit"} "Start admin session"]]]]]))))
+
+(defn admin-login-response [request]
+  (if (admin-password)
+    (html-response (admin-login-html request false))
+    (admin-disabled-response)))
+
+(defn admin-login-submit-response [request]
+  (if-let [expected-password (admin-password)]
+    (let [params (form-params request)
+          username (or (:username params) (admin-user))
+          password (:karbosh_admin_password params)
+          return-to (safe-admin-return (:return params))]
+      (if (and (secure-eq? (admin-user) username)
+               (secure-eq? expected-password password))
+        (redirect-response return-to
+                           {"Set-Cookie" (admin-session-cookie request)})
+        (response 401
+                  (admin-login-html (assoc request
+                                           :query-string
+                                           (str "return="
+                                                (encode-query-value return-to)))
+                                    true)
+                  "text/html; charset=utf-8")))
+    (admin-disabled-response)))
+
+(defn admin-logout-response [_request]
+  (redirect-response "/karbosh/admin/login"
+                     {"Set-Cookie" (clear-admin-session-cookie)}))
 
 (defn selected-admin-room-id [request]
   (some-> (query-params (:query-string request))
@@ -871,7 +1017,7 @@
     (admin-disabled-response)
 
     (not (admin-authorized? request))
-    (admin-unauthorized-response)
+    (admin-login-redirect-response request)
 
     :else
     (html-response
@@ -937,7 +1083,7 @@
     (admin-disabled-response)
 
     (not (admin-authorized? request))
-    (admin-unauthorized-response)
+    (admin-login-redirect-response request)
 
     :else
     (html-response
@@ -1235,7 +1381,7 @@
     (admin-disabled-response)
 
     (not (admin-authorized? request))
-    (admin-unauthorized-response)
+    (admin-login-redirect-response request)
 
     :else
     (if-let [room (workbench-source-room room-id)]
@@ -1249,7 +1395,7 @@
     (admin-disabled-response)
 
     (not (admin-authorized? request))
-    (admin-unauthorized-response)
+    (admin-login-redirect-response request)
 
     :else
     (if-let [room (workbench-source-room room-id)]
@@ -1772,6 +1918,12 @@
   (or (= uri "/karbosh/admin")
       (= uri "/karbosh/admin/")))
 
+(defn admin-login-path? [uri]
+  (= uri "/karbosh/admin/login"))
+
+(defn admin-logout-path? [uri]
+  (= uri "/karbosh/admin/logout"))
+
 (defn admin-reload-path? [uri]
   (= uri "/karbosh/admin/reload"))
 
@@ -1795,6 +1947,15 @@
       (if (origin-allowed? request)
         (websocket-handler request)
         (response 403 "Forbidden"))
+
+      (and (= request-method :get) (admin-login-path? uri))
+      (admin-login-response request)
+
+      (and (= request-method :post) (admin-login-path? uri))
+      (admin-login-submit-response request)
+
+      (and (= request-method :get) (admin-logout-path? uri))
+      (admin-logout-response request)
 
       (and (= request-method :get) (admin-path? uri))
       (admin-dashboard-response request)

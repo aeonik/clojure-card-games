@@ -144,6 +144,46 @@
     (is (not (server/admin-authorized?
               {:headers {"authorization" "Basic not-base64"}})))))
 
+(deftest admin-cookie-auth-test
+  (with-redefs [server/admin-user (constantly "admin")
+                server/admin-password (constantly "secret")]
+    (let [cookie (str server/admin-session-cookie-name
+                      "="
+                      (server/admin-session-cookie-value))]
+      (is (server/admin-authorized?
+           {:headers {"cookie" cookie}}))
+      (is (not (server/admin-authorized?
+                {:headers {"cookie" (str server/admin-session-cookie-name
+                                         "=wrong")}}))))))
+
+(deftest admin-login-sets-session-cookie-test
+  (with-redefs [server/admin-user (constantly "admin")
+                server/admin-password (constantly "secret")]
+    (let [response (server/handler
+                    {:request-method :post
+                     :uri "/karbosh/admin/login"
+                     :headers {"host" "dc3systems.com"}
+                     :body "username=admin&karbosh_admin_password=secret&return=/karbosh/admin/workbench/ABC123"})
+          cookie (get-in response [:headers "Set-Cookie"])]
+      (is (= 303 (:status response)))
+      (is (= "/karbosh/admin/workbench/ABC123"
+             (get-in response [:headers "Location"])))
+      (is (re-find (re-pattern server/admin-session-cookie-name) cookie))
+      (is (re-find #"HttpOnly" cookie))
+      (is (re-find #"SameSite=Lax" cookie)))))
+
+(deftest admin-html-routes-redirect-to-cookie-login-test
+  (with-redefs [server/admin-user (constantly "admin")
+                server/admin-password (constantly "secret")]
+    (let [response (server/handler
+                    {:request-method :get
+                     :uri "/karbosh/admin"
+                     :headers {"host" "dc3systems.com"}})]
+      (is (= 303 (:status response)))
+      (is (re-find #"/karbosh/admin/login"
+                   (get-in response [:headers "Location"])))
+      (is (not (contains? (:headers response) "WWW-Authenticate"))))))
+
 (deftest admin-reload-requires-authentication-test
   (with-redefs [server/admin-password (constantly "secret")]
     (let [response (server/handler {:request-method :post
@@ -689,8 +729,12 @@
                                    :headers {"host" "dc3systems.com"}})
               room-edn-body (edn/read-string (:body room-edn-response))
               game-edn-body (edn/read-string (:body game-edn-response))]
-          (is (= 401 (:status dashboard-response)))
-          (is (= 401 (:status history-response)))
+          (is (= 303 (:status dashboard-response)))
+          (is (re-find #"/karbosh/admin/login"
+                       (get-in dashboard-response [:headers "Location"])))
+          (is (= 303 (:status history-response)))
+          (is (re-find #"/karbosh/admin/login"
+                       (get-in history-response [:headers "Location"])))
           (is (= 200 (:status room-html-response)))
           (is (re-find #"Room OLD123 History" (:body room-html-response)))
           (is (= 200 (:status room-edn-response)))

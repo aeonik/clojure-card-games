@@ -749,7 +749,8 @@
        [:h1 "Game history"]]
       [:div {:class "admin-actions"}
        [:a {:href "/karbosh/admin"} "Dashboard"]
-       [:a {:href "/karbosh/"} "Back to game"]]]
+       [:a {:href "/karbosh/"} "Back to game"]
+       [:a {:href "/karbosh/admin/logout"} "Logout"]]]
      [:section {:class "panel"}
       [:div {:class "section-heading"}
        [:div
@@ -1682,7 +1683,9 @@
       [:div
        [:p "Karbosh admin"]
        [:h1 "Runtime dashboard"]]
-      [:a {:href "/karbosh/"} "Back to game"]]
+      [:div {:class "admin-actions"}
+       [:a {:href "/karbosh/"} "Back to game"]
+       [:a {:href "/karbosh/admin/logout"} "Logout"]]]
 
      [:section {:id "admin-stats-panel" :class "panel"}
       [:div {:class "section-heading"}
