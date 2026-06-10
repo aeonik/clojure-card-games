@@ -323,6 +323,8 @@
           (is (re-find #"Played tricks" (:body response)))
           (is (re-find #"Trick 1" (:body response)))
           (is (re-find #"is-winning" (:body response)))
+          (is (re-find #"wb-board-card-risk" (:body response)))
+          (is (re-find #"name=\"observer\" value=\"player1\"" (:body response)))
           (is (re-find #"God&#39;s eye view" (:body response)))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
@@ -400,6 +402,26 @@
                  (get-in @workbench/sessions* ["ABC123" :room :game :current-player])))
           (is (= :player1
                  (get-in @server/rooms ["ABC123" :game :current-player])))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
+(deftest admin-workbench-seat-click-switches-to-player-view-test
+  (let [old-rooms @server/rooms
+        room (room/fill-bots (room/new-room "ABC123" 9))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/workbench/ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"
+                                   "origin" "https://debug-browser.example"}
+                         :body "action=view&view-mode=ai&observer=player4"})]
+          (is (= 303 (:status response)))
+          (is (= :ai (get-in @workbench/sessions* ["ABC123" :view-mode])))
+          (is (= :player4 (get-in @workbench/sessions* ["ABC123" :observer])))))
       (finally
         (reset! server/rooms old-rooms)))))
 
