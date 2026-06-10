@@ -1,14 +1,52 @@
 # clojure-card-games
 
-A small Clojure implementation of Karbosh, a six-player double-deck Bid Euchre variant.
+A Clojure library of card-game engines. The first game is Karbosh, a
+six-player double-deck Bid Euchre variant with a multiplayer web app and a
+heuristic AI; the architecture is designed so future games (Oh Hell, Euchre,
+Hearts, Bridge, Poker, Blackjack) can share the same core.
 
-The code is organized around a pure game engine:
+## Architecture
 
-- `clojure-card-games.cards`: card data and display helpers
-- `clojure-card-games.deck`: deck creation, shuffling, and dealing
-- `clojure-card-games.rules`: trick ordering, bid validation, legal plays, and scoring
-- `clojure-card-games.state`: pure state transitions from game events
-- `clojure-card-games.io.*`: terminal rendering and interaction
+The code is layered so game-agnostic pieces sit at the root and each game
+owns its own rules and state machine:
+
+- `clojure-card-games.cards` — generic card model: a card is a logical
+  `[rank suit]` tuple; rank/suit tables, display, and parsing.
+- `clojure-card-games.deck` — deck construction from a spec
+  (`{:ranks .. :suits .. :copies ..}`), seeded shuffling, dealing.
+- `clojure-card-games.trick` — generic trick resolution parameterized by a
+  card-value function. Ties keep the earlier play, which matters for
+  multi-deck games.
+- `clojure-card-games.probability.*` — exact hypergeometric helpers.
+- `clojure-card-games.karbosh.shared.*` — **the canonical Karbosh engine**
+  (`.cljc`, shared with the browser client): `cards` (deck spec), `rules`
+  (bowers, bids, scoring), `game` (event-driven state machine).
+- `clojure-card-games.karbosh.*` — the Karbosh application: web server,
+  client, rooms, analysis, bot, simulation harness, solvers.
+- `clojure-card-games.io.*` — terminal rendering and interaction, running on
+  the canonical engine.
+
+### Karbosh rules notes
+
+- The deck is two physical copies of each 9–A card (48 cards). When both
+  copies of a card land in one trick, the first copy played wins.
+- Karbosh and double Karbosh both score the same 15 points made or set, by
+  house rule. Double Karbosh differs only in bid rank (it outranks Karbosh)
+  and in being played solo without partner donations.
+
+### Bot policy
+
+The bot is a deterministic heuristic policy stack over exact hypergeometric
+hidden-card analysis — not a trained model. It is split into focused modules
+under `clojure-card-games.karbosh.bot.*` (`config`, `cards`, `inference`,
+`bid`, `play`, `explain`), with `clojure-card-games.karbosh.bot` as the
+facade that owns strategy registries and dynamic config selection.
+
+All bid/play weights live in `src/clojure_card_games/karbosh/policy.edn`,
+validated at load time. Tuning is a data change: edit the EDN, run seeded
+matchups (`clojure-card-games.karbosh.sim`), and commit the diff with the
+results. Soft inference is advisory only — it never changes legality or
+exact card-count facts.
 
 ## Run
 
@@ -23,9 +61,6 @@ clojure -M:run 12345 "4ppppphAhKhQhJh0h9h"
 ```
 
 ## Karbosh Web App
-
-The multiplayer web app copied from `dc3systems-new` lives under
-`clojure-card-games.karbosh`.
 
 ```sh
 clojure -M:karbosh-server
@@ -54,6 +89,11 @@ clojure -T:build deploy-compatible
 clojure -M:test
 ```
 
+The suite includes invariant gates in
+`clojure-card-games.karbosh.invariants-test`: deck multiset invariants,
+per-action legality across seeded bot self-play, score conservation, and
+same-seed determinism. Policy changes must keep these green.
+
 ## Probability Helpers
 
 Exact hypergeometric helpers are available through:
@@ -65,5 +105,5 @@ clojure -M:prob follow 8 --float
 
 ## Status
 
-This is still a work in progress. The current priority is keeping the game engine pure,
-small, and covered by focused tests before expanding UI or bot behavior.
+Actively developed. Current priorities are in `TODO.md`; AI policy history
+and regression hands are in `docs/karbosh-ai-notes.md`.
