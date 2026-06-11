@@ -5,6 +5,7 @@
             [clojure-card-games.karbosh.analysis :as analysis]
             [clojure-card-games.karbosh.bot :as bot]
             [clojure-card-games.karbosh.page :as page]
+            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
@@ -473,70 +474,102 @@
            :trick-leader player
            :current-trick [])))
 
-(defn probabilistic-card-risks [state player card actual-turn?]
+(defn probabilistic-risks-from-analysis [analysis-state card analysis]
+  (let [trump (:trump analysis-state)
+        trump-lead? (= trump (rules/effective-suit card trump))
+        control-burn (:expected-pending-partner-control-burn analysis)
+        forced-follow (:prob-pending-partner-forced-higher-follow analysis)
+        opponent-ruff-risk (analysis/combine-event-probabilities
+                            (vals (or (:prob-pending-opponent-void-and-higher-trump
+                                       analysis)
+                                      {})))
+        ruff-exposed-burn (* (double (or control-burn 0))
+                             (double opponent-ruff-risk))]
+    {:opponent (some-> analysis
+                       :prob-pending-opponent-can-beat-card
+                       bot/round-probability)
+     :any (some-> analysis
+                  :prob-pending-player-can-beat-card
+                  bot/round-probability)
+     :trump-control-burn
+     (when trump-lead?
+       (some-> control-burn bot/round-probability))
+     :trump-control-burn-exact
+     (when trump-lead?
+       (some-> control-burn str))
+     :ruff-exposed-control-burn
+     (when-not trump-lead?
+       (bot/round-probability ruff-exposed-burn))
+     :opponent-ruff-risk
+     (when-not trump-lead?
+       (bot/round-probability opponent-ruff-risk))
+     :suit-control-burn
+     (when-not trump-lead?
+       (some-> control-burn bot/round-probability))
+     :partner-forced-follow
+     (when (or trump-lead? (pos? ruff-exposed-burn))
+       (some->> forced-follow
+                (map (fn [[partner probability]]
+                       [partner (bot/round-probability probability)]))
+                (into {})))}))
+
+(defn probabilistic-card-risk-map [state player cards actual-turn?]
   (when (:trump state)
     (let [analysis-state (card-analysis-state state player actual-turn?)
+          cards (vec (distinct cards))
           analyses (try
-                     (bot/card-analyses analysis-state player [card])
+                     (bot/card-analyses analysis-state player cards)
                      (catch Exception _
-                       nil))
-          analysis (get analyses card)
-          trump (:trump analysis-state)
-          trump-lead? (= trump (rules/effective-suit card trump))
-          control-burn (:expected-pending-partner-control-burn analysis)
-          forced-follow (:prob-pending-partner-forced-higher-follow analysis)
-          opponent-ruff-risk (analysis/combine-event-probabilities
-                              (vals (or (:prob-pending-opponent-void-and-higher-trump
-                                         analysis)
-                                        {})))
-          ruff-exposed-burn (* (double (or control-burn 0))
-                               (double opponent-ruff-risk))]
-      {:opponent (some-> analysis
-                         :prob-pending-opponent-can-beat-card
-                         bot/round-probability)
-       :any (some-> analysis
-                    :prob-pending-player-can-beat-card
-                    bot/round-probability)
-       :trump-control-burn
-       (when trump-lead?
-         (some-> control-burn bot/round-probability))
-       :trump-control-burn-exact
-       (when trump-lead?
-         (some-> control-burn str))
-       :ruff-exposed-control-burn
-       (when-not trump-lead?
-         (bot/round-probability ruff-exposed-burn))
-       :opponent-ruff-risk
-       (when-not trump-lead?
-         (bot/round-probability opponent-ruff-risk))
-       :suit-control-burn
-       (when-not trump-lead?
-         (some-> control-burn bot/round-probability))
-       :partner-forced-follow
-       (when (or trump-lead? (pos? ruff-exposed-burn))
-         (some->> forced-follow
-                  (map (fn [[partner probability]]
-                         [partner (bot/round-probability probability)]))
-                  (into {})))})))
+                       nil))]
+      (into {}
+            (map (fn [card]
+                   [card (probabilistic-risks-from-analysis analysis-state
+                                                            card
+                                                            (get analyses card))]))
+            cards))))
 
-(defn exact-card-risk [session player card actual-turn?]
+(defn probabilistic-card-risks [state player card actual-turn?]
+  (get (probabilistic-card-risk-map state player [card] actual-turn?) card))
+
+(defn exact-card-risk-map [session player cards actual-turn?]
   (let [state (get-in session [:room :game])
         analysis-state (card-analysis-state state player actual-turn?)
         legal-cards (set (trick-lab/legal-cards analysis-state player))]
-    (when (and (:trump analysis-state)
-               (contains? legal-cards card))
-      (try
-        (let [{:keys [actor-wins? team-wins? winner winner-team]}
-              (trick-lab/evaluate-candidate (:room session)
-                                            analysis-state
-                                            player
-                                            card)]
-          {:risk (bot/round-probability (if actor-wins? 0.0 1.0))
-           :team-risk (bot/round-probability (if team-wins? 0.0 1.0))
-           :winner winner
-           :winner-team winner-team})
-        (catch Exception _
-          nil)))))
+    (when (:trump analysis-state)
+      (into {}
+            (parallel/mapv-maybe-parallel
+             4
+             (fn [card]
+               [card
+                (when (contains? legal-cards card)
+                  (try
+                    (let [{:keys [actor-wins? team-wins? winner winner-team]}
+                          (trick-lab/evaluate-candidate (:room session)
+                                                        analysis-state
+                                                        player
+                                                        card)]
+                      {:risk (bot/round-probability (if actor-wins? 0.0 1.0))
+                       :team-risk (bot/round-probability (if team-wins? 0.0 1.0))
+                       :winner winner
+                       :winner-team winner-team})
+                    (catch Exception _
+                      nil)))])
+             (distinct cards))))))
+
+(defn exact-card-risk [session player card actual-turn?]
+  (get (exact-card-risk-map session player [card] actual-turn?) card))
+
+(defn card-risk-map [session player cards]
+  (let [state (get-in session [:room :game])
+        actual-turn? (= player (:current-player state))
+        cards (vec (distinct cards))
+        prob-risks (probabilistic-card-risk-map state player cards actual-turn?)
+        exact-risks (exact-card-risk-map session player cards actual-turn?)]
+    (into {}
+          (map (fn [card]
+                 [card {:prob (get prob-risks card)
+                        :exact (get exact-risks card)}]))
+          cards)))
 
 (defn risk-class [risk]
   (cond
@@ -644,17 +677,24 @@
     (assoc :title (recommendation-title recommendation)
            :aria-label (recommendation-title recommendation))))
 
+(defn card-risk-entry [session player card risks]
+  (if (some? risks)
+    (get risks card)
+    (let [state (get-in session [:room :game])
+          actual-turn? (= player (:current-player state))]
+      {:prob (probabilistic-card-risks state player card actual-turn?)
+       :exact (exact-card-risk session player card actual-turn?)})))
+
 (defn card-with-risk-html
   ([session player card]
    (card-with-risk-html session player card nil))
   ([session player card recommendation]
-   (let [state (get-in session [:room :game])
-         actual-turn? (= player (:current-player state))
-         prob-risks (probabilistic-card-risks state player card actual-turn?)
-         exact-risk (exact-card-risk session player card actual-turn?)]
+   (card-with-risk-html session player card recommendation nil))
+  ([session player card recommendation risks]
+   (let [{:keys [prob exact]} (card-risk-entry session player card risks)]
      [:span (card-risk-attrs "wb-card-risk" recommendation player card)
       (admin/card-html card)
-      (card-risk-lines-html prob-risks exact-risk)])))
+      (card-risk-lines-html prob exact)])))
 
 (defn sorted-hand [state cards]
   (if-let [trump (:trump state)]
@@ -694,26 +734,29 @@
   ([session player card]
    (board-card-with-risk-html session player card nil))
   ([session player card recommendation]
-   (let [state (get-in session [:room :game])
-         actual-turn? (= player (:current-player state))
-         prob-risks (probabilistic-card-risks state player card actual-turn?)
-         exact-risk (exact-card-risk session player card actual-turn?)]
+   (board-card-with-risk-html session player card recommendation nil))
+  ([session player card recommendation risks]
+   (let [{:keys [prob exact]} (card-risk-entry session player card risks)]
      [:span (card-risk-attrs "wb-board-card-risk" recommendation player card)
       (admin/card-html card)
-      (card-risk-lines-html prob-risks exact-risk)])))
+      (card-risk-lines-html prob exact)])))
 
 (defn board-hand-html
   ([session player hand]
    (board-hand-html session player hand nil))
   ([session player hand recommendation]
+   (board-hand-html session player hand recommendation nil))
+  ([session player hand recommendation risks]
    (let [state (get-in session [:room :game])
          visible? (or (not= :ai (:view-mode session))
                       (= player (:observer session)))]
      (if (seq hand)
        (if visible?
-         (into [:div {:class "wb-board-hand"}]
-               (map #(board-card-with-risk-html session player % recommendation)
-                    (sorted-hand state hand)))
+         (let [cards (sorted-hand state hand)
+               risks (or risks (card-risk-map session player cards))]
+           (into [:div {:class "wb-board-hand"}]
+                 (map #(board-card-with-risk-html session player % recommendation risks)
+                      cards)))
          (into [:div {:class "wb-board-hand is-hidden"}]
                (repeat (count hand) [:span {:class "wb-board-card-back"}])))
        [:div {:class "wb-board-hand is-empty"} "--"]))))
@@ -847,9 +890,13 @@
   ([session player]
    (player-row-html session player nil))
   ([session player recommendation]
+   (player-row-html session player recommendation nil))
+  ([session player recommendation risks]
    (let [state (get-in session [:room :game])
          seat (get-in session [:room :seats player])
-         hand (get-in state [:players player :hand])]
+         hand (get-in state [:players player :hand])
+         cards (sorted-hand state hand)
+         risks (or risks (card-risk-map session player cards))]
      [:article {:class (str "wb-player"
                             (when (= player (:current-player state)) " current"))}
       [:header
@@ -860,8 +907,8 @@
         (admin/kw-label (player-play-strategy session player))]]
       [:div {:class "wb-cards"}
        (if (seq hand)
-         (for [card (sorted-hand state hand)]
-           (card-with-risk-html session player card recommendation))
+         (for [card cards]
+           (card-with-risk-html session player card recommendation risks))
          [:span {:class "empty"} "--"])]
       [:footer
        [:span (str (count hand) " cards")]
@@ -941,9 +988,14 @@
   ([session player]
    (ai-view-player-html session player nil))
   ([session player recommendation]
+   (ai-view-player-html session player recommendation nil))
+  ([session player recommendation risks]
    (let [state (get-in session [:room :game])
          observer (:observer session)
          hand (get-in state [:players player :hand])
+         cards (sorted-hand state hand)
+         risks (when (= player observer)
+                 (or risks (card-risk-map session player cards)))
          voids (bot/known-voids state)
          void-probs (void-probabilities state observer)]
      [:article {:class (str "wb-player"
@@ -957,8 +1009,8 @@
         (if (= player observer) "Observer" "Hidden")]]
       (if (= player observer)
         [:div {:class "wb-cards"}
-         (for [card (sorted-hand state hand)]
-           (card-with-risk-html session player card recommendation))]
+         (for [card cards]
+           (card-with-risk-html session player card recommendation risks))]
         [:div {:class "wb-hidden-hand"}
          (repeat (count hand) [:span {:class "wb-card-back"}])])
       [:dl {:class "wb-facts"}
