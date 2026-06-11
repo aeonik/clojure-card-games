@@ -92,16 +92,24 @@
 .wb-board-seat-button {
   all: unset;
   box-sizing: border-box;
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  min-height: 0;
-  padding: 9px 10px;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: 8px;
   cursor: pointer;
 }
 .wb-board-seat-button:focus-visible {
   outline: 2px solid rgba(111, 208, 199, 0.9);
   outline-offset: 2px;
+}
+.wb-board-seat-content {
+  box-sizing: border-box;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 0;
+  padding: 9px 10px;
+  pointer-events: none;
 }
 .wb-board-seat.current {
   border-color: rgba(245, 200, 91, 0.78);
@@ -160,7 +168,7 @@
 }
 .wb-board-hand {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  grid-template-columns: repeat(auto-fill, 118px);
   gap: 5px;
   margin-top: 6px;
 }
@@ -169,6 +177,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 5px;
+  width: 118px;
   min-width: 0;
 }
 .wb-risk-lines {
@@ -183,10 +192,11 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 .wb-risk-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px max-content;
   align-items: center;
-  justify-content: space-between;
-  gap: 3px;
+  justify-content: start;
+  column-gap: 5px;
   min-width: 0;
 }
 .wb-risk-line span,
@@ -303,7 +313,9 @@
   color: #c62f43;
 }
 .wb-board-card-risk .wb-risk-lines {
-  min-width: 0;
+  justify-self: start;
+  width: auto;
+  min-width: 67px;
 }
 .wb-board-card-risk small {
   position: static;
@@ -804,7 +816,7 @@
     min-height: 0;
     padding: 10px;
   }
-  .wb-board-seat-button {
+  .wb-board-seat-content {
     padding: 7px;
   }
   .wb-board-seat strong {
@@ -829,8 +841,11 @@
     height: 42px;
   }
   .wb-board-hand {
-    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    grid-template-columns: repeat(auto-fill, 108px);
     gap: 5px;
+  }
+  .wb-board-card-risk {
+    width: 108px;
   }
   .wb-board-voids {
     gap: 3px;

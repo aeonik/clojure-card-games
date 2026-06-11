@@ -594,24 +594,28 @@
      [:input {:type "hidden" :name "action" :value "view"}]
      [:input {:type "hidden" :name "view-mode" :value (name target-mode)}]
      [:input {:type "hidden" :name "observer" :value (name player)}]
+     [:div {:class "wb-board-seat-content"}
+      (when (= player (:dealer state))
+        [:span {:class "wb-board-dealer"}])
+      [:strong (player-short-label session player)]
+      [:span (str "Team " (game/player-team state player)
+                  " / "
+                  (count hand)
+                  " cards")]
+      [:em (if bid (admin/bid-label bid) "--")]
+      (when (and (= :ai (:view-mode session)) inference)
+        (board-void-stats-html inference player))
+      (board-hand-html session player hand)
+      (when (:bot? seat)
+        [:small "Bot"])]
      [:button {:class "wb-board-seat-button"
                :type "submit"
+               :aria-label (if selected?
+                             "Return to God's eye view"
+                             (str "Inspect " (seat-name session player) " view"))
                :title (if selected?
                         "Return to God's eye view"
-                        (str "Inspect " (seat-name session player) " view"))}
-     (when (= player (:dealer state))
-       [:span {:class "wb-board-dealer"}])
-     [:strong (player-short-label session player)]
-     [:span (str "Team " (game/player-team state player)
-                 " / "
-                 (count hand)
-                 " cards")]
-     [:em (if bid (admin/bid-label bid) "--")]
-     (when (and (= :ai (:view-mode session)) inference)
-       (board-void-stats-html inference player))
-     (board-hand-html session player hand)
-     (when (:bot? seat)
-       [:small "Bot"])]])))
+                        (str "Inspect " (seat-name session player) " view"))}]])))
 
 (defn completed-trick-row-html [session idx trick]
   (let [state (get-in session [:room :game])
