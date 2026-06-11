@@ -1375,6 +1375,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-ruff-burn"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-compact-hand-grid"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

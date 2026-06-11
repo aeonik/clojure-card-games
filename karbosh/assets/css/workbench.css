@@ -195,15 +195,15 @@
 }
 .wb-board-hand {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(174px, 1fr));
+  gap: 6px 8px;
   margin-top: 6px;
 }
 .wb-board-card-risk {
   display: grid;
-  grid-template-columns: auto minmax(86px, 1fr) minmax(82px, 0.95fr);
+  grid-template-columns: 42px repeat(2, minmax(64px, 1fr));
   align-items: stretch;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 .wb-board-card-risk.model-choice,
@@ -233,7 +233,7 @@
   display: grid;
   gap: 2px;
   min-width: 0;
-  padding: 3px 4px;
+  padding: 3px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -251,9 +251,10 @@
 }
 .wb-risk-line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-columns: max-content max-content;
   align-items: baseline;
-  column-gap: 5px;
+  justify-content: space-between;
+  column-gap: 4px;
   min-width: 0;
 }
 .wb-risk-line span,
@@ -388,6 +389,7 @@
 }
 .wb-board-card-risk .card {
   align-self: center;
+  justify-self: start;
   width: 42px;
   min-width: 42px;
   margin: 0;
@@ -925,7 +927,7 @@
     width: 30px;
   }
   .wb-board-hand {
-    grid-template-columns: repeat(auto-fill, minmax(226px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(174px, 1fr));
     gap: 5px;
   }
   .wb-board-voids {
