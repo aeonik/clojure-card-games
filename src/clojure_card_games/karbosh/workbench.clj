@@ -483,12 +483,20 @@
     (<= risk 0.1) " low-risk"
     :else " medium-risk"))
 
-(defn risk-line-html [label risk]
-  [:small {:class (str "wb-risk-line" (risk-class risk))}
-   [:span label]
+(defn risk-line-html
+  ([label risk]
+   (risk-line-html label risk nil))
+  ([label risk source]
+   [:small {:class (str "wb-risk-line"
+                        (risk-class risk)
+                        (when (= :god-eye source) " god-eye-risk"))}
+   [:span
+    (when (= :god-eye source)
+      [:i {:class "wb-risk-source" :aria-hidden "true"} "G"])
+    label]
    [:b (if (number? risk)
          (percent-label risk)
-         "--")]])
+         "--")]]))
 
 (defn card-risk-lines-html [prob-risks exact-risk]
   [:span {:class "wb-risk-lines"
@@ -498,8 +506,8 @@
                         (percent-label (:team-risk exact-risk))))}
    (risk-line-html "Opp" (:opponent prob-risks))
    (risk-line-html "Any" (:any prob-risks))
-   (risk-line-html "Exact" (:risk exact-risk))
-   (risk-line-html "Team" (:team-risk exact-risk))])
+   (risk-line-html "Exact" (:risk exact-risk) :god-eye)
+   (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])
 
 (defn card-with-risk-html [session player card]
   (let [state (get-in session [:room :game])
@@ -671,10 +679,9 @@
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
      [:div {:class "wb-risk-note"}
-      [:span [:b "Opp"] " model opponent-beat risk"]
-      [:span [:b "Any"] " model anyone-beat risk"]
-      [:span [:b "Exact"] " perfect-info trick risk"]
-      [:span [:b "Team"] " exact team trick risk"]]
+     [:span [:b "Opp"] " model opponent-beat risk"]
+     [:span [:b "Any"] " model anyone-beat risk"]
+      [:span [:b "G"] " God's-eye exact risks"]]
      (when inference
        (unseen-summary-html session inference))
      [:div {:class "wb-board"}

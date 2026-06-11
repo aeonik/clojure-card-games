@@ -328,8 +328,8 @@
           (is (re-find #"aria-label=\"Inspect" (:body response)))
           (is (re-find #"Opp</span><b>" (:body response)))
           (is (re-find #"Any</span><b>" (:body response)))
-          (is (re-find #"Exact</span><b>" (:body response)))
-          (is (re-find #"Team</span><b>" (:body response)))
+          (is (re-find #"wb-risk-source[^>]*>G</i>Exact" (:body response)))
+          (is (re-find #"wb-risk-source[^>]*>G</i>Team" (:body response)))
           (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
                        (:body response)))
