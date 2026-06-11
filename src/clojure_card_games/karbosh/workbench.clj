@@ -52,10 +52,6 @@
                   (assoc sessions room-id (initial-session room)))))
        room-id))
 
-(defn reset-session! [room-id room]
-  (get (swap! sessions* assoc room-id (initial-session room))
-       room-id))
-
 (defn push-room [session room']
   (-> session
       (update :undo conj (:room session))
@@ -65,6 +61,17 @@
 
 (defn set-message [session message]
   (assoc session :message message))
+
+(defn reset-from-room [session source-room]
+  (let [room' (sanitize-room source-room)]
+    (if (= (:room session) room')
+      (set-message session "Already matches room state.")
+      (-> session
+          (push-room room')
+          (assoc :source-room (select-keys source-room [:id :seed :created-at :updated-at])
+                 :observer (or (:observer session)
+                               (get-in source-room [:game :current-player])))
+          (set-message "Reset from room state.")))))
 
 (defn update-session! [room-id f & args]
   (get (apply swap! sessions* update room-id f args) room-id))
@@ -416,12 +423,10 @@
   ;; concurrent posts (e.g. rapid auto-saves) from losing updates.
   (locking action-lock
     (let [action (:action params)
-          session (if (= action "reset")
-                    (reset-session! room-id source-room)
-                    (ensure-session! room-id source-room))]
+          session (ensure-session! room-id source-room)]
       (try
         (let [updated (case action
-                        "reset" session
+                        "reset" (reset-from-room session source-room)
                         "manual" (apply-manual-action session params)
                         "auto" (apply-auto-action session)
                         "undo" (undo-session session)
