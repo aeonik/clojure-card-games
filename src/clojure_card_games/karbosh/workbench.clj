@@ -474,9 +474,46 @@
            :trick-leader player
            :current-trick [])))
 
-(defn probabilistic-risks-from-analysis [analysis-state card analysis]
+(defn known-current-trick-risk [state player card]
+  (when (seq (:current-trick state))
+    (let [candidate {:player player :card card}
+          winner (rules/winning-play (conj (vec (:current-trick state))
+                                           candidate)
+                                     (:trump state))]
+      (when (not= winner candidate)
+        {:winner (:player winner)
+         :opponent? (not= (game/player-team state player)
+                          (game/player-team state (:player winner)))}))))
+
+(defn combine-known-risk [known-risk probability]
+  (cond
+    (= 1.0 known-risk)
+    1.0
+
+    (number? probability)
+    (analysis/combine-event-probabilities [known-risk probability])
+
+    (number? known-risk)
+    known-risk
+
+    :else
+    nil))
+
+(defn max-probability [& probabilities]
+  (let [numbers (filter number? probabilities)]
+    (when (seq numbers)
+      (apply max numbers))))
+
+(defn probabilistic-risks-from-analysis [analysis-state player card analysis]
   (let [trump (:trump analysis-state)
         trump-lead? (= trump (rules/effective-suit card trump))
+        known-risk (known-current-trick-risk analysis-state player card)
+        known-any-risk (when known-risk 1.0)
+        known-opponent-risk (when (:opponent? known-risk) 1.0)
+        future-opponent-risk (:prob-pending-opponent-can-beat-card analysis)
+        future-any-risk (max-probability
+                         (:prob-pending-player-can-beat-card analysis)
+                         future-opponent-risk)
         control-burn (:expected-pending-partner-control-burn analysis)
         forced-follow (:prob-pending-partner-forced-higher-follow analysis)
         opponent-ruff-risk (analysis/combine-event-probabilities
@@ -485,11 +522,10 @@
                                       {})))
         ruff-exposed-burn (* (double (or control-burn 0))
                              (double opponent-ruff-risk))]
-    {:opponent (some-> analysis
-                       :prob-pending-opponent-can-beat-card
+    {:opponent (some-> (combine-known-risk known-opponent-risk
+                                           future-opponent-risk)
                        bot/round-probability)
-     :any (some-> analysis
-                  :prob-pending-player-can-beat-card
+     :any (some-> (combine-known-risk known-any-risk future-any-risk)
                   bot/round-probability)
      :trump-control-burn
      (when trump-lead?
@@ -524,6 +560,7 @@
       (into {}
             (map (fn [card]
                    [card (probabilistic-risks-from-analysis analysis-state
+                                                            player
                                                             card
                                                             (get analyses card))]))
             cards))))
@@ -877,8 +914,8 @@
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
      [:div {:class "wb-risk-note"}
-      [:span [:b "Opp"] "AI view: opponent can beat this card"]
-      [:span [:b "Any"] "AI view: any pending player can beat it"]
+      [:span [:b "Opp"] "AI view: known or pending opponent can beat it"]
+      [:span [:b "Any"] "AI view: known table card or pending player can beat it"]
       [:span [:b "T burn"] "AI view: trump lead may force partner to spend higher trump"]
       [:span [:b "R burn"] "AI view: off-suit partner control exposed to opponent ruffs"]
       [:span [:b "Exact"] "God's eye: this card loses the trick"]

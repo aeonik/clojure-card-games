@@ -335,7 +335,9 @@
           (is (re-find #"R burn</span><b>" (:body response)))
           (is (re-find #"AI view" (:body response)))
           (is (re-find #"God&apos;s eye" (:body response)))
-          (is (re-find #"opponent can beat this card" (:body response)))
+          (is (re-find #"known or pending opponent can beat it" (:body response)))
+          (is (re-find #"known table card or pending player can beat it"
+                       (:body response)))
           (is (re-find #"force partner to spend higher trump" (:body response)))
           (is (re-find #"off-suit partner control exposed to opponent ruffs"
                        (:body response)))
