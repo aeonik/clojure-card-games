@@ -206,6 +206,14 @@
   gap: 5px;
   min-width: 0;
 }
+.wb-board-card-risk.model-choice,
+.wb-card-risk.model-choice {
+  border-radius: 7px;
+  background: rgba(245, 200, 91, 0.08);
+  box-shadow:
+    0 0 0 2px rgba(245, 200, 91, 0.66),
+    0 0 18px rgba(245, 200, 91, 0.28);
+}
 .wb-risk-lines {
   display: grid;
   gap: 2px;
@@ -356,6 +364,17 @@
   color: #141821;
   font-size: 0.9rem;
   border-radius: 4px;
+}
+.wb-board-card-risk.model-choice .card,
+.wb-card-risk.model-choice .card {
+  border-color: #f5c85b;
+  box-shadow:
+    0 0 0 1px rgba(245, 200, 91, 0.72),
+    0 0 11px rgba(245, 200, 91, 0.26);
+}
+.wb-board-card-risk.model-choice .wb-risk-lines,
+.wb-card-risk.model-choice .wb-risk-lines {
+  border-color: rgba(245, 200, 91, 0.42);
 }
 .wb-board-card-risk .card.heart,
 .wb-board-card-risk .card.diamond {

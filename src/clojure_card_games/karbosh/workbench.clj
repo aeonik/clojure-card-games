@@ -165,6 +165,20 @@
                 bot/*play-config* (player-play-config session player)]
         (bot/explained-action state player)))))
 
+(defn model-recommendation [session]
+  (let [state (get-in session [:room :game])
+        player (:current-player state)]
+    (when (and (= :trick-playing (:phase state)) player)
+      (try
+        (when-let [{:keys [type card ai] :as event} (auto-event session)]
+          (when (and (= :play-card type) card)
+            {:player player
+             :card card
+             :event event
+             :ai ai}))
+        (catch Exception _
+          nil)))))
+
 (defn apply-event-to-session [session event]
   (let [state (get-in session [:room :game])
         player (:current-player state)
@@ -509,14 +523,40 @@
    (risk-line-html "Exact" (:risk exact-risk) :god-eye)
    (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])
 
-(defn card-with-risk-html [session player card]
-  (let [state (get-in session [:room :game])
-        actual-turn? (= player (:current-player state))
-        prob-risks (probabilistic-card-risks state player card actual-turn?)
-        exact-risk (exact-card-risk session player card actual-turn?)]
-    [:span {:class "wb-card-risk"}
-     (admin/card-html card)
-     (card-risk-lines-html prob-risks exact-risk)]))
+(defn recommended-card? [recommendation player card]
+  (and (= player (:player recommendation))
+       (= card (:card recommendation))))
+
+(defn recommendation-title [recommendation]
+  (let [ai (:ai recommendation)
+        policy (some-> (:policy ai) admin/kw-label)
+        reason (some-> (:reason ai) admin/kw-label)]
+    (str "Model pick"
+         (when policy (str ": " policy))
+         (when reason (str " / " reason)))))
+
+(defn card-risk-class [base recommendation player card]
+  (str base
+       (when (recommended-card? recommendation player card)
+         " model-choice")))
+
+(defn card-risk-attrs [base recommendation player card]
+  (cond-> {:class (card-risk-class base recommendation player card)}
+    (recommended-card? recommendation player card)
+    (assoc :title (recommendation-title recommendation)
+           :aria-label (recommendation-title recommendation))))
+
+(defn card-with-risk-html
+  ([session player card]
+   (card-with-risk-html session player card nil))
+  ([session player card recommendation]
+   (let [state (get-in session [:room :game])
+         actual-turn? (= player (:current-player state))
+         prob-risks (probabilistic-card-risks state player card actual-turn?)
+         exact-risk (exact-card-risk session player card actual-turn?)]
+     [:span (card-risk-attrs "wb-card-risk" recommendation player card)
+      (admin/card-html card)
+      (card-risk-lines-html prob-risks exact-risk)])))
 
 (defn sorted-hand [state cards]
   (if-let [trump (:trump state)]
@@ -552,27 +592,33 @@
       [:ol {:class "wb-board-trick is-empty"}
        [:li "No cards played"]])))
 
-(defn board-card-with-risk-html [session player card]
-  (let [state (get-in session [:room :game])
-        actual-turn? (= player (:current-player state))
-        prob-risks (probabilistic-card-risks state player card actual-turn?)
-        exact-risk (exact-card-risk session player card actual-turn?)]
-    [:span {:class "wb-board-card-risk"}
-     (admin/card-html card)
-     (card-risk-lines-html prob-risks exact-risk)]))
+(defn board-card-with-risk-html
+  ([session player card]
+   (board-card-with-risk-html session player card nil))
+  ([session player card recommendation]
+   (let [state (get-in session [:room :game])
+         actual-turn? (= player (:current-player state))
+         prob-risks (probabilistic-card-risks state player card actual-turn?)
+         exact-risk (exact-card-risk session player card actual-turn?)]
+     [:span (card-risk-attrs "wb-board-card-risk" recommendation player card)
+      (admin/card-html card)
+      (card-risk-lines-html prob-risks exact-risk)])))
 
-(defn board-hand-html [session player hand]
-  (let [state (get-in session [:room :game])
-        visible? (or (not= :ai (:view-mode session))
-                     (= player (:observer session)))]
-    (if (seq hand)
-      (if visible?
-        (into [:div {:class "wb-board-hand"}]
-              (map #(board-card-with-risk-html session player %)
-                   (sorted-hand state hand)))
-        (into [:div {:class "wb-board-hand is-hidden"}]
-              (repeat (count hand) [:span {:class "wb-board-card-back"}])))
-      [:div {:class "wb-board-hand is-empty"} "--"])))
+(defn board-hand-html
+  ([session player hand]
+   (board-hand-html session player hand nil))
+  ([session player hand recommendation]
+   (let [state (get-in session [:room :game])
+         visible? (or (not= :ai (:view-mode session))
+                      (= player (:observer session)))]
+     (if (seq hand)
+       (if visible?
+         (into [:div {:class "wb-board-hand"}]
+               (map #(board-card-with-risk-html session player % recommendation)
+                    (sorted-hand state hand)))
+         (into [:div {:class "wb-board-hand is-hidden"}]
+               (repeat (count hand) [:span {:class "wb-board-card-back"}])))
+       [:div {:class "wb-board-hand is-empty"} "--"]))))
 
 (defn board-void-chip-html [void-probs player suit]
   (let [probability (bot/round-probability
@@ -594,46 +640,48 @@
   ([session player]
    (board-seat-html session player nil))
   ([session player inference]
-  (let [state (get-in session [:room :game])
-        seat (get-in session [:room :seats player])
-        hand (get-in state [:players player :hand])
-        active? (contains? (set (game/trick-players state)) player)
-        bid (latest-bid state player)
-        selected? (and (= :ai (:view-mode session))
-                       (= player (:observer session)))
-        target-mode (if selected? :god :ai)]
-    [:form {:class (str "wb-board-seat wb-board-" (name player)
-                        (when (= player (:current-player state)) " current")
-                        (when (= player (:dealer state)) " dealer")
-                        (when selected? " observer")
-                        (when (= :ai (:view-mode session)) " ai-view")
-                        (when-not active? " inactive"))
-            :method "post"}
-     [:input {:type "hidden" :name "action" :value "view"}]
-     [:input {:type "hidden" :name "view-mode" :value (name target-mode)}]
-     [:input {:type "hidden" :name "observer" :value (name player)}]
-     [:div {:class "wb-board-seat-content"}
-      (when (= player (:dealer state))
-        [:span {:class "wb-board-dealer"}])
-      [:strong (player-short-label session player)]
-      [:span (str "Team " (game/player-team state player)
-                  " / "
-                  (count hand)
-                  " cards")]
-      [:em (if bid (admin/bid-label bid) "--")]
-      (when (and (= :ai (:view-mode session)) inference)
-        (board-void-stats-html inference player))
-      (board-hand-html session player hand)
-      (when (:bot? seat)
-        [:small "Bot"])]
-     [:button {:class "wb-board-seat-button"
-               :type "submit"
-               :aria-label (if selected?
-                             "Return to God's eye view"
-                             (str "Inspect " (seat-name session player) " view"))
-               :title (if selected?
-                        "Return to God's eye view"
-                        (str "Inspect " (seat-name session player) " view"))}]])))
+   (board-seat-html session player inference nil))
+  ([session player inference recommendation]
+   (let [state (get-in session [:room :game])
+         seat (get-in session [:room :seats player])
+         hand (get-in state [:players player :hand])
+         active? (contains? (set (game/trick-players state)) player)
+         bid (latest-bid state player)
+         selected? (and (= :ai (:view-mode session))
+                        (= player (:observer session)))
+         target-mode (if selected? :god :ai)]
+     [:form {:class (str "wb-board-seat wb-board-" (name player)
+                         (when (= player (:current-player state)) " current")
+                         (when (= player (:dealer state)) " dealer")
+                         (when selected? " observer")
+                         (when (= :ai (:view-mode session)) " ai-view")
+                         (when-not active? " inactive"))
+             :method "post"}
+      [:input {:type "hidden" :name "action" :value "view"}]
+      [:input {:type "hidden" :name "view-mode" :value (name target-mode)}]
+      [:input {:type "hidden" :name "observer" :value (name player)}]
+      [:div {:class "wb-board-seat-content"}
+       (when (= player (:dealer state))
+         [:span {:class "wb-board-dealer"}])
+       [:strong (player-short-label session player)]
+       [:span (str "Team " (game/player-team state player)
+                   " / "
+                   (count hand)
+                   " cards")]
+       [:em (if bid (admin/bid-label bid) "--")]
+       (when (and (= :ai (:view-mode session)) inference)
+         (board-void-stats-html inference player))
+       (board-hand-html session player hand recommendation)
+       (when (:bot? seat)
+         [:small "Bot"])]
+      [:button {:class "wb-board-seat-button"
+                :type "submit"
+                :aria-label (if selected?
+                              "Return to God's eye view"
+                              (str "Inspect " (seat-name session player) " view"))
+                :title (if selected?
+                         "Return to God's eye view"
+                         (str "Inspect " (seat-name session player) " view"))}]])))
 
 (defn completed-trick-row-html [session idx trick]
   (let [state (get-in session [:room :game])
@@ -664,6 +712,7 @@
 
 (defn workbench-board-html [session]
   (let [state (get-in session [:room :game])
+        recommendation (model-recommendation session)
         inference (when (= :ai (:view-mode session))
                     (workbench-inference session))]
     [:section {:class "panel wb-panel wb-board-panel"}
@@ -687,32 +736,35 @@
      [:div {:class "wb-board"}
       [:div {:class "wb-felt"}]
       (for [player game/players]
-        (board-seat-html session player inference))
+        (board-seat-html session player inference recommendation))
       [:div {:class "wb-board-center"}
        [:span "Current trick"]
        (board-trick-html session (:current-trick state))]]
      (played-tricks-html session)]))
 
-(defn player-row-html [session player]
-  (let [state (get-in session [:room :game])
-        seat (get-in session [:room :seats player])
-        hand (get-in state [:players player :hand])]
-    [:article {:class (str "wb-player"
-                           (when (= player (:current-player state)) " current"))}
-     [:header
-      [:div
-       [:strong (seat-name session player)]
-       [:span (str (name player) " / Team " (game/player-team state player))]]
-      [:span {:class "wb-policy"}
-       (admin/kw-label (player-play-strategy session player))]]
-     [:div {:class "wb-cards"}
-      (if (seq hand)
-        (for [card (sorted-hand state hand)]
-          (card-with-risk-html session player card))
-        [:span {:class "empty"} "--"])]
-     [:footer
-      [:span (str (count hand) " cards")]
-      [:span (if (:bot? seat) "Bot" "Human")]]]))
+(defn player-row-html
+  ([session player]
+   (player-row-html session player nil))
+  ([session player recommendation]
+   (let [state (get-in session [:room :game])
+         seat (get-in session [:room :seats player])
+         hand (get-in state [:players player :hand])]
+     [:article {:class (str "wb-player"
+                            (when (= player (:current-player state)) " current"))}
+      [:header
+       [:div
+        [:strong (seat-name session player)]
+        [:span (str (name player) " / Team " (game/player-team state player))]]
+       [:span {:class "wb-policy"}
+        (admin/kw-label (player-play-strategy session player))]]
+      [:div {:class "wb-cards"}
+       (if (seq hand)
+         (for [card (sorted-hand state hand)]
+           (card-with-risk-html session player card recommendation))
+         [:span {:class "empty"} "--"])]
+      [:footer
+       [:span (str (count hand) " cards")]
+       [:span (if (:bot? seat) "Bot" "Human")]]])))
 
 (defn void-label [voids player]
   (let [suits (sort-by cards/suit->str (get voids player))]
@@ -784,32 +836,35 @@
                           (get-in void-probs [player suit] 0)))))
                  cards/suits)))
 
-(defn ai-view-player-html [session player]
-  (let [state (get-in session [:room :game])
-        observer (:observer session)
-        hand (get-in state [:players player :hand])
-        voids (bot/known-voids state)
-        void-probs (void-probabilities state observer)]
-    [:article {:class (str "wb-player"
-                           (when (= player (:current-player state)) " current")
-                           (when (= player observer) " observer"))}
-     [:header
-      [:div
-       [:strong (seat-name session player)]
-       [:span (str (name player) " / Team " (game/player-team state player))]]
-      [:span {:class "wb-policy"}
-       (if (= player observer) "Observer" "Hidden")]]
-     (if (= player observer)
-       [:div {:class "wb-cards"}
-        (for [card (sorted-hand state hand)]
-          (card-with-risk-html session player card))]
-       [:div {:class "wb-hidden-hand"}
-        (repeat (count hand) [:span {:class "wb-card-back"}])])
-     [:dl {:class "wb-facts"}
-      [:div [:dt "Cards"] [:dd (count hand)]]
-      [:div [:dt "Known voids"] [:dd (void-label voids player)]]
-      [:div [:dt "Void odds"] [:dd (void-odds-label void-probs player)]]
-      [:div [:dt "Team"] [:dd (game/player-team state player)]]]]))
+(defn ai-view-player-html
+  ([session player]
+   (ai-view-player-html session player nil))
+  ([session player recommendation]
+   (let [state (get-in session [:room :game])
+         observer (:observer session)
+         hand (get-in state [:players player :hand])
+         voids (bot/known-voids state)
+         void-probs (void-probabilities state observer)]
+     [:article {:class (str "wb-player"
+                            (when (= player (:current-player state)) " current")
+                            (when (= player observer) " observer"))}
+      [:header
+       [:div
+        [:strong (seat-name session player)]
+        [:span (str (name player) " / Team " (game/player-team state player))]]
+       [:span {:class "wb-policy"}
+        (if (= player observer) "Observer" "Hidden")]]
+      (if (= player observer)
+        [:div {:class "wb-cards"}
+         (for [card (sorted-hand state hand)]
+           (card-with-risk-html session player card recommendation))]
+        [:div {:class "wb-hidden-hand"}
+         (repeat (count hand) [:span {:class "wb-card-back"}])])
+      [:dl {:class "wb-facts"}
+       [:div [:dt "Cards"] [:dd (count hand)]]
+       [:div [:dt "Known voids"] [:dd (void-label voids player)]]
+       [:div [:dt "Void odds"] [:dd (void-odds-label void-probs player)]]
+       [:div [:dt "Team"] [:dd (game/player-team state player)]]]])))
 
 (defn unseen-summary-html
   ([session]
@@ -837,7 +892,8 @@
         [:dd (compact-card-list-html exhausted)]]]])))
 
 (defn workbench-table-html [session]
-  (let [mode (:view-mode session)]
+  (let [mode (:view-mode session)
+        recommendation (model-recommendation session)]
     [:section {:class "panel wb-panel"}
      [:div {:class "section-heading"}
       [:div
@@ -859,8 +915,8 @@
      [:div {:class "wb-grid"}
       (for [player game/players]
         (if (= :ai mode)
-          (ai-view-player-html session player)
-          (player-row-html session player)))]]))
+          (ai-view-player-html session player recommendation)
+          (player-row-html session player recommendation)))]]))
 
 (defn strategy-option [selected strategy]
   [:option {:value (name strategy)
@@ -1199,6 +1255,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-board-polish"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-model-choice"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

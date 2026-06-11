@@ -299,6 +299,7 @@
         room (-> (room/fill-bots (room/new-room "ABC123" 9))
                  (assoc-in [:game :phase] :trick-playing)
                  (assoc-in [:game :trump] :♠)
+                 (assoc-in [:game :current-player] :player3)
                  (assoc-in [:game :current-trick]
                            [{:player :player1 :card [:A :♠]}
                             {:player :player2 :card [10 :♠]}])
@@ -324,6 +325,8 @@
           (is (re-find #"Trick 1" (:body response)))
           (is (re-find #"is-winning" (:body response)))
           (is (re-find #"wb-board-card-risk" (:body response)))
+          (is (re-find #"model-choice" (:body response)))
+          (is (re-find #"Model pick" (:body response)))
           (is (re-find #"wb-board-seat-content" (:body response)))
           (is (re-find #"aria-label=\"Inspect" (:body response)))
           (is (re-find #"Opp</span><b>" (:body response)))
