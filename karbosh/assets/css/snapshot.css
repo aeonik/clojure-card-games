@@ -362,6 +362,16 @@
   font-weight: 800;
   overflow-wrap: anywhere;
 }
+.ai-probability-value {
+  display: grid;
+  gap: 2px;
+}
+.ai-probability-value small {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.54rem;
+  font-weight: 800;
+  line-height: 1;
+}
 .ai-decision-table-panel {
   margin: 0 0 14px;
   overflow-x: auto;

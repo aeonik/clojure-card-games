@@ -954,6 +954,20 @@
           (when (contains? candidate :risk)
             [:span (str "Risk " (probability-label risk))])]])]]))
 
+(defn probability-map-label [probabilities]
+  (if (seq probabilities)
+    (str/join ", "
+              (map (fn [[player p]]
+                     (str (name player) " " (probability-label p)))
+                   probabilities))
+    "--"))
+
+(defn probability-with-exact-html [probability exact]
+  [:span {:class "ai-probability-value"}
+   (probability-label probability)
+   (when exact
+     [:small (str "exact " exact)])])
+
 (defn ai-hypergeom-html [hypergeom]
   (when (seq hypergeom)
     [:section {:class "ai-probability-panel"}
@@ -979,13 +993,18 @@
       (when-let [ruff (:prob-void-higher-trump-by-player hypergeom)]
         [:div
          [:dt "Ruff risk"]
-         [:dd
-          (if (seq ruff)
-            (str/join ", "
-                      (map (fn [[player p]]
-                             (str (name player) " " (probability-label p)))
-                           ruff))
-            "--")]])]]))
+         [:dd (probability-map-label ruff)]])
+      (when (or (contains? hypergeom :expected-partner-control-burn)
+                (contains? hypergeom :expected-partner-control-burn-exact))
+        [:div
+         [:dt "Partner burn"]
+         [:dd (probability-with-exact-html
+               (:expected-partner-control-burn hypergeom)
+               (:expected-partner-control-burn-exact hypergeom))]])
+      (when-let [forced (:prob-partner-forced-higher-follow-by-player hypergeom)]
+        [:div
+         [:dt "Partner forced"]
+         [:dd (probability-map-label forced)]])]]))
 
 (defn ai-fact-html [label value]
   [:div {:class "ai-fact"}

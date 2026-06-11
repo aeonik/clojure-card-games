@@ -470,7 +470,21 @@
                          bot/round-probability)
        :any (some-> analysis
                     :prob-pending-player-can-beat-card
-                    bot/round-probability)})))
+                    bot/round-probability)
+       :partner-control-burn
+       (some-> analysis
+               :expected-pending-partner-control-burn
+               bot/round-probability)
+       :partner-control-burn-exact
+       (some-> analysis
+               :expected-pending-partner-control-burn
+               str)
+       :partner-forced-follow
+       (some->> analysis
+                :prob-pending-partner-forced-higher-follow
+                (map (fn [[partner probability]]
+                       [partner (bot/round-probability probability)]))
+                (into {}))})))
 
 (defn exact-card-risk [session player card actual-turn?]
   (let [state (get-in session [:room :game])
@@ -500,18 +514,42 @@
 
 (defn risk-line-html
   ([label risk]
-   (risk-line-html label risk nil))
+   (risk-line-html label risk nil nil))
   ([label risk source]
-   [:small {:class (str "wb-risk-line"
-                        (risk-class risk)
-                        (when (= :god-eye source) " god-eye-risk"))}
-   [:span
-    (when (= :god-eye source)
-      [:i {:class "wb-risk-source" :aria-hidden "true"} "G"])
-    label]
-   [:b (if (number? risk)
-         (percent-label risk)
-         "--")]]))
+   (risk-line-html label risk source nil))
+  ([label risk source title]
+   [:small (cond-> {:class (str "wb-risk-line"
+                                (risk-class risk)
+                                (when (= :god-eye source) " god-eye-risk")
+                                (when (= :control-burn source) " control-risk"))}
+             title (assoc :title title))
+    [:span
+     (when (= :god-eye source)
+       [:i {:class "wb-risk-source" :aria-hidden "true"} "G"])
+     label]
+    [:b (if (number? risk)
+          (percent-label risk)
+          "--")]]))
+
+(defn partner-control-title [{:keys [partner-control-burn-exact
+                                     partner-forced-follow]}]
+  (let [forced (seq (sort-by (comp name key) partner-forced-follow))]
+    (str "Partner control burn"
+         (when partner-control-burn-exact
+           (str " exact " partner-control-burn-exact))
+         (when forced
+           (str " / forced follow "
+                (str/join ", "
+                          (map (fn [[partner probability]]
+                                 (str (name partner)
+                                      " "
+                                      (percent-label probability)))
+                               forced)))))))
+
+(defn risk-column-html [label lines]
+  (into [:span {:class "wb-risk-column"}
+         [:span {:class "wb-risk-column-label"} label]]
+        lines))
 
 (defn card-risk-lines-html [prob-risks exact-risk]
   [:span {:class "wb-risk-lines"
@@ -519,10 +557,16 @@
                    (str "Exact winner: " (some-> (:winner exact-risk) name)
                         ", team risk "
                         (percent-label (:team-risk exact-risk))))}
-   (risk-line-html "Opp" (:opponent prob-risks))
-   (risk-line-html "Any" (:any prob-risks))
-   (risk-line-html "Exact" (:risk exact-risk) :god-eye)
-   (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])
+   (risk-column-html "Model"
+                     [(risk-line-html "Opp" (:opponent prob-risks))
+                      (risk-line-html "Any" (:any prob-risks))
+                      (risk-line-html "Burn"
+                                      (:partner-control-burn prob-risks)
+                                      :control-burn
+                                      (partner-control-title prob-risks))])
+   (risk-column-html "God"
+                     [(risk-line-html "Exact" (:risk exact-risk) :god-eye)
+                      (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])])
 
 (defn recommended-card? [recommendation player card]
   (and (= player (:player recommendation))
@@ -1274,6 +1318,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-model-choice"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-control-burn"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

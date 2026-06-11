@@ -331,6 +331,7 @@
           (is (re-find #"aria-label=\"Inspect" (:body response)))
           (is (re-find #"Opp</span><b>" (:body response)))
           (is (re-find #"Any</span><b>" (:body response)))
+          (is (re-find #"Burn</span><b>" (:body response)))
           (is (re-find #"wb-risk-source[^>]*>G</i>Exact" (:body response)))
           (is (re-find #"wb-risk-source[^>]*>G</i>Team" (:body response)))
           (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
@@ -763,6 +764,10 @@
                        :hypergeom {:prob-can-beat 0.25
                                    :prob-any-higher 0.4
                                    :prob-higher-follow 0.2
+                                   :prob-partner-forced-higher-follow-by-player
+                                   {:player3 0.25}
+                                   :expected-partner-control-burn 0.25
+                                   :expected-partner-control-burn-exact "1/4"
                                    :higher-unseen 2
                                    :higher-follow-unseen 1
                                    :higher-trump-unseen 0}}
@@ -831,6 +836,9 @@
           (is (re-find #"Lead safe card" (:body detail-response)))
           (is (re-find #"P beat" (:body detail-response)))
           (is (re-find #"Can be beaten" (:body detail-response)))
+          (is (re-find #"Partner burn" (:body detail-response)))
+          (is (re-find #"Partner forced" (:body detail-response)))
+          (is (re-find #"exact 1/4" (:body detail-response)))
           (is (re-find #"Candidate cards" (:body detail-response)))
           (is (re-find #"25.0%" (:body detail-response)))
           (is (re-find #"5.0%" (:body detail-response)))
