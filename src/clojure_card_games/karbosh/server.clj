@@ -34,11 +34,22 @@
     clojure-card-games.karbosh.shared.cards
     clojure-card-games.karbosh.shared.rules
     clojure-card-games.karbosh.shared.game
+    clojure-card-games.karbosh.shared.hand-order
     clojure-card-games.karbosh.audit
+    clojure-card-games.karbosh.archive
     clojure-card-games.karbosh.storage
     clojure-card-games.karbosh.parallel
     clojure-card-games.karbosh.analysis
+    clojure-card-games.karbosh.bot.config
+    clojure-card-games.karbosh.bot.cards
+    clojure-card-games.karbosh.bot.inference
+    clojure-card-games.karbosh.bot.bid
+    clojure-card-games.karbosh.bot.play
+    clojure-card-games.karbosh.bot.explain
     clojure-card-games.karbosh.bot
+    clojure-card-games.karbosh.solver.play
+    clojure-card-games.karbosh.solver.sample
+    clojure-card-games.karbosh.solver.pimc
     clojure-card-games.karbosh.room
     clojure-card-games.karbosh.trick-lab
     clojure-card-games.karbosh.page
