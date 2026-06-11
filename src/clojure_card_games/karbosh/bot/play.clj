@@ -598,15 +598,25 @@
 (defn team-ev-lead-value [play-config game player analyses unseen-counts card]
   (:value (team-ev-lead-breakdown play-config game player analyses unseen-counts card)))
 
+(defn dead-lead-exit-card
+  "When every lead is very likely to lose, preserve higher cards instead of
+  spending them for tiny local risk differences."
+  [play-config game analyses cards]
+  (let [threshold (:team-ev-dead-lead-risk-threshold play-config 1.0)]
+    (when (and (seq cards)
+               (every? #(>= (bot-cards/card-risk analyses %) threshold) cards))
+      (bot-cards/lowest-card game cards))))
+
 (defn team-ev-probability-lead-card [play-config game player analyses cards]
-  (let [unseen-counts (bot-cards/unseen-card-counts game player)]
-    (best-lead-by-value #(team-ev-lead-value play-config
-                                             game
-                                             player
-                                             analyses
-                                             unseen-counts
-                                             %)
-                        cards)))
+  (or (dead-lead-exit-card play-config game analyses cards)
+      (let [unseen-counts (bot-cards/unseen-card-counts game player)]
+        (best-lead-by-value #(team-ev-lead-value play-config
+                                                 game
+                                                 player
+                                                 analyses
+                                                 unseen-counts
+                                                 %)
+                            cards))))
 
 (defn karbosh-caller-lead-card [play-config game player analyses cards]
   (let [trumps (filter #(bot-cards/trump-card? (:trump game) %) cards)]

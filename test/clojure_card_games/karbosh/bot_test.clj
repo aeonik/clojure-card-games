@@ -641,6 +641,92 @@
       (is (= [:Q :♦] (:card ruff-invite-event)))
       (is (= [10 :♣] (:card old-probability-event)))))
 
+  (testing "team EV preserves high cards when every lead is likely dead"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :hand-index 4
+                :bids [{:type :bid
+                        :player :player6
+                        :bid-type :bid
+                        :value 4
+                        :hand-index 4}
+                       {:type :bid
+                        :player :player1
+                        :bid-type :bid
+                        :value 5
+                        :hand-index 4}
+                       {:type :bid
+                        :player :player2
+                        :bid-type :pass
+                        :hand-index 4}
+                       {:type :bid
+                        :player :player3
+                        :bid-type :pass
+                        :hand-index 4}
+                       {:type :bid
+                        :player :player4
+                        :bid-type :pass
+                        :hand-index 4}
+                       {:type :bid
+                        :player :player5
+                        :bid-type :pass
+                        :hand-index 4}]
+                :players {:player1 {:team 1
+                                    :hand [[:K :♣] [:Q :♦] [:J :♦]
+                                           [9 :♥]]}
+                          :player2 {:team 2
+                                    :hand [[:A :♦] [:A :♦] [:Q :♥]
+                                           [:J :♥]]}
+                          :player3 {:team 1
+                                    :hand [[:K :♦] [:K :♦] [10 :♦]
+                                           [:K :♥]]}
+                          :player4 {:team 2
+                                    :hand [[:A :♥] [:K :♥] [:Q :♥]
+                                           [:Q :♦]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♠] [:K :♠] [10 :♠]
+                                           [10 :♥]]}
+                          :player6 {:team 2
+                                    :hand [[:A :♥] [10 :♥] [:Q :♠]
+                                           [:J :♦]]}}
+                :completed-tricks [[{:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [9 :♣]}
+                                    {:player :player3 :card [9 :♣]}
+                                    {:player :player4 :card [10 :♣]}
+                                    {:player :player5 :card [:A :♣]}
+                                    {:player :player6 :card [:A :♣]}]
+                                   [{:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [:Q :♣]}
+                                    {:player :player3 :card [:K :♣]}
+                                    {:player :player4 :card [:Q :♣]}
+                                    {:player :player5 :card [9 :♦]}
+                                    {:player :player6 :card [:J :♠]}]
+                                   [{:player :player1 :card [:A :♠]}
+                                    {:player :player2 :card [:A :♠]}
+                                    {:player :player3 :card [:Q :♠]}
+                                    {:player :player4 :card [9 :♠]}
+                                    {:player :player5 :card [9 :♠]}
+                                    {:player :player6 :card [10 :♠]}]
+                                   [{:player :player1 :card [10 :♣]}
+                                    {:player :player2 :card [10 :♦]}
+                                    {:player :player3 :card [:J :♠]}
+                                    {:player :player4 :card [:J :♥]}
+                                    {:player :player5 :card [9 :♥]}
+                                    {:player :player6 :card [9 :♦]}]]
+                :tricks-this-hand {1 4 2 0}
+                :current-trick []
+                :trick-leader :player3
+                :current-player :player3}]
+      (is (= {:type :play-card :card [10 :♦]}
+             (bot/card-action game
+                              :player3
+                              :hybrid-action-inference-team-ev)))
+      (is (= {:type :play-card :card [10 :♦]}
+             (bot/card-action game
+                              :player3
+                              :probability-action-inference-team-ev)))))
+
   (testing "numeric callers without trump control pressure with off-suit aces"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing

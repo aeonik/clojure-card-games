@@ -52,6 +52,7 @@
    :team-ev-risk-penalty 700
    :team-ev-high-trump-spend-penalty 650
    :team-ev-card-spend-rate 0.12
+   :team-ev-dead-lead-risk-threshold 0.85
    :team-ev-safe-card-bonus 150
    :team-ev-backup-secure-trump-spend-discount 0.5
    :team-ev-secure-trump-protection-weight 4000
