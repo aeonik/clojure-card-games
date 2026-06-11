@@ -225,8 +225,8 @@
    :prob-all-hands-can-follow
    (probability-all-follow suit-count population-size hand-sizes)})
 
-(defn void-and-trump-probabilities
-  [game player suit trump-left counts population-size players]
+(defn void-and-trump-probabilities-for
+  [game suit trump-left counts population-size players]
   (when (pos? trump-left)
     (let [suit-left (get counts suit 0)]
       (into {}
@@ -237,7 +237,16 @@
                       trump-left
                       population-size
                       (player-hand-size game other))]))
-            (opponent-players game player players)))))
+            players))))
+
+(defn void-and-trump-probabilities
+  [game player suit trump-left counts population-size players]
+  (void-and-trump-probabilities-for game
+                                    suit
+                                    trump-left
+                                    counts
+                                    population-size
+                                    (opponent-players game player players)))
 
 (defn ruff-probabilities [game player trump suit counts population-size players]
   (when (and trump (not= suit trump))
@@ -265,16 +274,31 @@
   ([game player trump unseen cards-by-suit population-size card]
    (let [lead (or (rules/trick-lead (:current-trick game) trump)
                   (effective-suit trump card))
-         pending-opponents (opponent-players game
-                                             player
-                                             (pending-trick-players-after game player))
+         pending-players (pending-trick-players-after game player)
+         pending-opponents (opponent-players game player pending-players)
+         pending-player-sizes (vals (hand-sizes game pending-players))
          pending-opponent-sizes (vals (hand-sizes game pending-opponents))
          higher-count (higher-card-count unseen trump lead card)
          higher-follow-count (higher-follow-card-count unseen trump lead card)
          higher-trumps (higher-trump-count unseen trump lead card)
+         pending-player-higher-follow-prob
+         (probability-of-any-success higher-follow-count
+                                     population-size
+                                     pending-player-sizes)
          higher-follow-prob (probability-of-any-success higher-follow-count
                                                         population-size
                                                         pending-opponent-sizes)
+         pending-player-void-higher-trump-probs
+         (when (and trump (not= lead trump))
+           (void-and-trump-probabilities-for game
+                                             lead
+                                             higher-trumps
+                                             cards-by-suit
+                                             population-size
+                                             pending-players))
+         pending-player-void-higher-trump-prob
+         (combine-event-probabilities
+          (vals pending-player-void-higher-trump-probs))
          void-higher-trump-probs (when (and trump (not= lead trump))
                                    (void-and-trump-probabilities
                                      game
@@ -292,6 +316,17 @@
       :higher-unseen higher-count
       :higher-follow-unseen higher-follow-count
       :higher-trump-unseen higher-trumps
+      :prob-pending-player-has-higher-card
+      (probability-of-any-success higher-count
+                                  population-size
+                                  pending-player-sizes)
+      :prob-pending-player-has-higher-follow-card
+      pending-player-higher-follow-prob
+      :prob-pending-player-void-and-higher-trump
+      pending-player-void-higher-trump-probs
+      :prob-pending-player-can-beat-card
+      (combine-event-probabilities [pending-player-higher-follow-prob
+                                    pending-player-void-higher-trump-prob])
       :prob-pending-opponent-has-higher-card
       (probability-of-any-success higher-count
                                   population-size

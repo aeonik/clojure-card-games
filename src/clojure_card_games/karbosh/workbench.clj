@@ -442,16 +442,20 @@
            :trick-leader player
            :current-trick [])))
 
-(defn probabilistic-card-risk [state player card actual-turn?]
+(defn probabilistic-card-risks [state player card actual-turn?]
   (when (:trump state)
     (let [analysis-state (card-analysis-state state player actual-turn?)
           analyses (try
                      (bot/card-analyses analysis-state player [card])
                      (catch Exception _
-                       nil))]
-      (some-> (get analyses card)
-              :prob-pending-opponent-can-beat-card
-              bot/round-probability))))
+                       nil))
+          analysis (get analyses card)]
+      {:opponent (some-> analysis
+                         :prob-pending-opponent-can-beat-card
+                         bot/round-probability)
+       :any (some-> analysis
+                    :prob-pending-player-can-beat-card
+                    bot/round-probability)})))
 
 (defn exact-card-risk [session player card actual-turn?]
   (let [state (get-in session [:room :game])
@@ -486,24 +490,25 @@
          (percent-label risk)
          "--")]])
 
-(defn card-risk-lines-html [prob-risk exact-risk]
+(defn card-risk-lines-html [prob-risks exact-risk]
   [:span {:class "wb-risk-lines"
           :title (when exact-risk
                    (str "Exact winner: " (some-> (:winner exact-risk) name)
                         ", team risk "
                         (percent-label (:team-risk exact-risk))))}
-   (risk-line-html "Model" prob-risk)
+   (risk-line-html "Opp" (:opponent prob-risks))
+   (risk-line-html "Any" (:any prob-risks))
    (risk-line-html "Exact" (:risk exact-risk))
    (risk-line-html "Team" (:team-risk exact-risk))])
 
 (defn card-with-risk-html [session player card]
   (let [state (get-in session [:room :game])
         actual-turn? (= player (:current-player state))
-        prob-risk (probabilistic-card-risk state player card actual-turn?)
+        prob-risks (probabilistic-card-risks state player card actual-turn?)
         exact-risk (exact-card-risk session player card actual-turn?)]
     [:span {:class "wb-card-risk"}
      (admin/card-html card)
-     (card-risk-lines-html prob-risk exact-risk)]))
+     (card-risk-lines-html prob-risks exact-risk)]))
 
 (defn sorted-hand [state cards]
   (if-let [trump (:trump state)]
@@ -542,11 +547,11 @@
 (defn board-card-with-risk-html [session player card]
   (let [state (get-in session [:room :game])
         actual-turn? (= player (:current-player state))
-        prob-risk (probabilistic-card-risk state player card actual-turn?)
+        prob-risks (probabilistic-card-risks state player card actual-turn?)
         exact-risk (exact-card-risk session player card actual-turn?)]
     [:span {:class "wb-board-card-risk"}
      (admin/card-html card)
-     (card-risk-lines-html prob-risk exact-risk)]))
+     (card-risk-lines-html prob-risks exact-risk)]))
 
 (defn board-hand-html [session player hand]
   (let [state (get-in session [:room :game])
@@ -666,7 +671,8 @@
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
      [:div {:class "wb-risk-note"}
-      [:span [:b "Model"] " card-count risk"]
+      [:span [:b "Opp"] " model opponent-beat risk"]
+      [:span [:b "Any"] " model anyone-beat risk"]
       [:span [:b "Exact"] " perfect-info trick risk"]
       [:span [:b "Team"] " exact team trick risk"]]
      (when inference
