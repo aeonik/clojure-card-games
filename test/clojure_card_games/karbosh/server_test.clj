@@ -333,6 +333,8 @@
                        (:body response)))
           (is (not (re-find #"this\.form\.submit\(\)"
                             (:body response))))
+          (is (not (re-find #">Apply</button>"
+                            (:body response))))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))

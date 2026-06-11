@@ -859,8 +859,7 @@
         [:span "Ditch"]
         [:select {:name "ditch-policy"}
          (for [policy (sort-by name bot/ditch-policies)]
-           (strategy-option (player-ditch-policy session player) policy))]]
-       [:button {:type "submit"} "Apply"]])]])
+           (strategy-option (player-ditch-policy session player) policy))]]])]])
 
 (defn hidden-input [k v]
   [:input {:type "hidden" :name (name k) :value (str v)}])
