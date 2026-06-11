@@ -167,6 +167,11 @@
   gap: 2px;
   width: 100%;
   min-width: 0;
+  padding: 3px 4px;
+  border: 1px solid rgba(111, 208, 199, 0.18);
+  border-radius: 5px;
+  background: rgba(5, 10, 20, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 .wb-risk-line {
   display: flex;
@@ -183,6 +188,37 @@
   letter-spacing: 0;
   line-height: 1;
   text-transform: none;
+}
+.wb-risk-line span {
+  color: rgba(255, 255, 255, 0.62);
+}
+.wb-risk-line b {
+  color: #f4d27c;
+}
+.wb-risk-line.low-risk b {
+  color: #9be9e2;
+}
+.wb-risk-line.high-risk b {
+  color: #ff9a9a;
+}
+.wb-risk-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.wb-risk-note span {
+  padding: 4px 7px;
+  border: 1px solid rgba(111, 208, 199, 0.16);
+  border-radius: 999px;
+  background: rgba(5, 10, 20, 0.36);
+}
+.wb-risk-note b {
+  color: #f5c85b;
 }
 .wb-board-voids {
   display: grid;
@@ -256,6 +292,9 @@
 .wb-board-card-risk .card.heart,
 .wb-board-card-risk .card.diamond {
   color: #c62f43;
+}
+.wb-board-card-risk .wb-risk-lines {
+  min-width: 64px;
 }
 .wb-board-card-risk small {
   position: static;
@@ -499,7 +538,7 @@
   margin-top: 1px;
 }
 .wb-card-risk .wb-risk-lines {
-  min-width: 52px;
+  min-width: 74px;
 }
 .wb-card-strip {
   display: flex;

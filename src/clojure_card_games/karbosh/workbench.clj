@@ -467,8 +467,15 @@
         (catch Exception _
           nil)))))
 
+(defn risk-class [risk]
+  (cond
+    (not (number? risk)) nil
+    (>= risk 0.75) " high-risk"
+    (<= risk 0.1) " low-risk"
+    :else " medium-risk"))
+
 (defn risk-line-html [label risk]
-  [:small {:class "wb-risk-line"}
+  [:small {:class (str "wb-risk-line" (risk-class risk))}
    [:span label]
    [:b (if (number? risk)
          (percent-label risk)
@@ -480,8 +487,9 @@
                    (str "Exact winner: " (some-> (:winner exact-risk) name)
                         ", team risk "
                         (percent-label (:team-risk exact-risk))))}
-   (risk-line-html "AI" prob-risk)
-   (risk-line-html "EX" (:risk exact-risk))])
+   (risk-line-html "Model" prob-risk)
+   (risk-line-html "Exact" (:risk exact-risk))
+   (risk-line-html "Team" (:team-risk exact-risk))])
 
 (defn card-with-risk-html [session player card]
   (let [state (get-in session [:room :game])
@@ -648,6 +656,10 @@
       (admin/stat-card "Bid" (admin/bid-label (game/current-bid state)))
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
+     [:div {:class "wb-risk-note"}
+      [:span [:b "Model"] " card-count risk"]
+      [:span [:b "Exact"] " perfect-info trick risk"]
+      [:span [:b "Team"] " exact team trick risk"]]
      (when inference
        (unseen-summary-html session inference))
      [:div {:class "wb-board"}

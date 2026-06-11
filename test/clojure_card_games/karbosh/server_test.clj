@@ -324,6 +324,9 @@
           (is (re-find #"Trick 1" (:body response)))
           (is (re-find #"is-winning" (:body response)))
           (is (re-find #"wb-board-card-risk" (:body response)))
+          (is (re-find #"Model</span><b>" (:body response)))
+          (is (re-find #"Exact</span><b>" (:body response)))
+          (is (re-find #"Team</span><b>" (:body response)))
           (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
                        (:body response)))
