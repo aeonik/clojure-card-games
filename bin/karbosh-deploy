@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+usage() {
+  cat <<'EOF'
+Usage: bin/karbosh-deploy <command>
+
+Contributor-safe Karbosh deploy workflow.
+
+Commands:
+  check                    Run local tests, rebuild CLJS, and ensure generated assets are committed.
+  plan-compatible          Dry-run the no-restart source/static sync.
+  deploy-compatible        Run checks, require a clean pushed tree, sync, reload, and smoke check.
+  plan-restart             Dry-run the structural/restart sync, including scoped deletes.
+  deploy-restart DROP_ROOMS
+                           Run checks, require a clean pushed tree, delete-sync, restart service, and smoke check.
+  smoke                    Check the production health endpoint.
+
+Useful environment:
+  KARBOSH_DEPLOY_HOST      Default: dc3systems.com
+  KARBOSH_SSH_PORT         SSH port, for example 22122
+  KARBOSH_RSYNC_RSH        Full rsync SSH transport override, for example "ssh -p 22122"
+  KARBOSH_APP_DIR          Remote canonical source dir
+  KARBOSH_STATIC_DIR       Remote public static karbosh dir
+  KARBOSH_HEALTH_URL       Health endpoint
+  KARBOSH_RESTART_COMMAND  Remote restart command
+EOF
+}
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+branch_name() {
+  git branch --show-current
+}
+
+head_sha() {
+  git rev-parse --short HEAD
+}
+
+print_context() {
+  echo "Branch: $(branch_name)"
+  echo "Commit: $(head_sha)"
+  echo "Host: ${KARBOSH_DEPLOY_HOST:-dc3systems.com}"
+  if [[ -n "${KARBOSH_SSH_PORT:-}" ]]; then
+    echo "SSH port: ${KARBOSH_SSH_PORT}"
+  fi
+}
+
+require_clean_tree() {
+  local context="${1:-}"
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "Git worktree is dirty${context:+ $context}:"
+    git status --short
+    die "commit or stash changes before deploying"
+  fi
+}
+
+require_pushed_head() {
+  local upstream
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  [[ -n "$upstream" ]] || die "current branch has no upstream; push it first"
+
+  local ahead behind
+  read -r ahead behind < <(git rev-list --left-right --count "HEAD...$upstream")
+  [[ "$ahead" == "0" ]] || die "HEAD is $ahead commit(s) ahead of $upstream; push before deploying"
+  [[ "$behind" == "0" ]] || die "branch is $behind commit(s) behind $upstream; pull/rebase before deploying"
+}
+
+run_checks() {
+  clojure -T:build test
+  clojure -T:build cljs
+  clojure -T:build package-static
+  require_clean_tree "after build"
+}
+
+command="${1:-help}"
+
+case "$command" in
+  help|-h|--help)
+    usage
+    ;;
+
+  check)
+    print_context
+    run_checks
+    ;;
+
+  plan-compatible)
+    print_context
+    clojure -T:build deploy-compatible-dry-run
+    ;;
+
+  deploy-compatible)
+    print_context
+    require_clean_tree
+    run_checks
+    require_pushed_head
+    clojure -T:build deploy-compatible
+    ;;
+
+  plan-restart)
+    print_context
+    clojure -T:build deploy-restart-dry-run
+    ;;
+
+  deploy-restart)
+    [[ "${2:-}" == "DROP_ROOMS" ]] || die "restart deploy requires: bin/karbosh-deploy deploy-restart DROP_ROOMS"
+    print_context
+    require_clean_tree
+    run_checks
+    require_pushed_head
+    clojure -T:build release
+    clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
+    ;;
+
+  smoke)
+    print_context
+    clojure -T:build smoke
+    ;;
+
+  *)
+    usage
+    die "unknown command: $command"
+    ;;
+esac

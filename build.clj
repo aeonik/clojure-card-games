@@ -13,8 +13,14 @@
 (defn- env [name default]
   (or (not-empty (System/getenv name)) default))
 
+(defn- printable-arg [arg]
+  (let [arg (str arg)]
+    (if (re-find #"\s|['\"$`\\]" arg)
+      (pr-str arg)
+      arg)))
+
 (defn- sh! [& args]
-  (println "$" (str/join " " args))
+  (println "$" (str/join " " (map printable-arg args)))
   (let [{:keys [exit]} (b/process {:command-args (vec args)})]
     (when-not (zero? exit)
       (throw (ex-info "Command failed" {:args args :exit exit})))))
@@ -37,6 +43,24 @@
 (defn- health-url []
   (env "KARBOSH_HEALTH_URL" "https://dc3systems.com/karbosh/api/health"))
 
+(defn- ssh-port []
+  (not-empty (System/getenv "KARBOSH_SSH_PORT")))
+
+(defn- ssh-args []
+  (cond-> ["ssh"]
+    (ssh-port) (conj "-p" (ssh-port))))
+
+(defn- rsync-command []
+  (cond
+    (not-empty (System/getenv "KARBOSH_RSYNC_RSH"))
+    ["rsync" "-e" (System/getenv "KARBOSH_RSYNC_RSH")]
+
+    (ssh-port)
+    ["rsync" "-e" (str "ssh -p " (ssh-port))]
+
+    :else
+    ["rsync"]))
+
 (def rsync-common
   ["-avz"
    "--human-readable"
@@ -51,13 +75,19 @@
    "--exclude" "*.pdf"])
 
 (defn- rsync! [& args]
-  (apply sh! "rsync" (concat rsync-common args)))
+  (apply sh! (concat (rsync-command) rsync-common args)))
+
+(defn- rsync-dry-run! [& args]
+  (apply sh! (concat (rsync-command) rsync-common ["--dry-run"] args)))
 
 (defn- rsync-delete! [& args]
-  (apply sh! "rsync" (concat rsync-common ["--delete"] args)))
+  (apply sh! (concat (rsync-command) rsync-common ["--delete"] args)))
+
+(defn- rsync-delete-dry-run! [& args]
+  (apply sh! (concat (rsync-command) rsync-common ["--delete" "--dry-run"] args)))
 
 (defn- ssh! [command]
-  (sh! "ssh" (deploy-host) command))
+  (apply sh! (concat (ssh-args) [(deploy-host) command])))
 
 (defn clean [_]
   (b/delete {:path target-dir}))
@@ -154,6 +184,12 @@
   (reload nil)
   (smoke nil))
 
+(defn deploy-compatible-dry-run [_]
+  (rsync-dry-run! "deps.edn" "build.clj" "src" "build" "deploy" "karbosh" (app-dst))
+  (rsync-dry-run! "karbosh/" (static-dst))
+  {:status :dry-run
+   :mode :compatible})
+
 (defn deploy-restart [{:keys [confirm]}]
   (when-not (= confirm "DROP_ROOMS")
     (throw (ex-info "Restart deploy drops active in-memory rooms; pass :confirm \"DROP_ROOMS\""
@@ -164,6 +200,14 @@
     (rsync-delete! (str dir "/") (str (app-dst) dir "/")))
   (ssh! (env "KARBOSH_RESTART_COMMAND" "sudo systemctl restart karbosh.service"))
   (smoke nil))
+
+(defn deploy-restart-dry-run [_]
+  (println "DRY RUN: restart deploy would delete stale files inside src/build/deploy/karbosh and restart karbosh.service.")
+  (rsync-dry-run! "deps.edn" "build.clj" (app-dst))
+  (doseq [dir ["src" "build" "deploy" "karbosh"]]
+    (rsync-delete-dry-run! (str dir "/") (str (app-dst) dir "/")))
+  {:status :dry-run
+   :mode :restart})
 
 (defn rollback [{:keys [release confirm]}]
   (when-not (and release (= confirm "ROLLBACK_KARBOSH"))

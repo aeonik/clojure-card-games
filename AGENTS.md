@@ -17,14 +17,16 @@
 ## Karbosh Deploy Preferences
 
 - This repo is the canonical Karbosh source. Do not deploy legacy Karbosh code from `~/Projects/dc3systems-new`.
-- Prefer the no-restart compatible deploy for normal source, CSS, ClojureScript, static client, and AI/policy changes:
+- Prefer the contributor deploy wrapper for normal source, CSS, ClojureScript, static client, and AI/policy changes:
 
 ```sh
-clojure -T:build deploy-compatible
+bin/karbosh-deploy deploy-compatible
 ```
 
 - `deploy-compatible` syncs source/static files, triggers the authenticated reload endpoint, and smoke-checks `https://dc3systems.com/karbosh/api/health`.
+- Run `bin/karbosh-deploy plan-compatible` before a first deploy from an unfamiliar environment.
 - Do not restart `karbosh.service` for ordinary changes. Restart only for dependency/classpath, environment, systemd, Apache/proxy/CSP, or incompatible room/game-state schema changes.
+- Use `bin/karbosh-deploy plan-restart` and `bin/karbosh-deploy deploy-restart DROP_ROOMS` for structural/classpath deploys that need stale file cleanup and a fresh JVM.
 - Restart deploy drops active runtime state and requires the explicit confirmation documented in `deploy/README.md`.
 - After deploying, report the reload/smoke output, especially `:ok`, `:rooms`, and `:open-websockets` when present.
 

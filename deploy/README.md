@@ -24,6 +24,60 @@ start command:  /usr/local/bin/clojure -M:karbosh-server
 Apache should proxy only public Karbosh routes, especially `/karbosh/ws`,
 `/karbosh/api/`, and `/karbosh/admin`. Do not proxy nREPL.
 
+## Contributor Deploy Workflow
+
+Use `bin/karbosh-deploy` for normal human deploys. The lower-level
+`clojure -T:build ...` tasks still exist, but the wrapper adds the checks people
+usually forget:
+
+- prints branch, commit, host, and SSH port
+- runs tests and rebuilds ClojureScript before real deploys
+- fails if generated assets changed and were not committed
+- fails if the local branch is not pushed to its upstream
+- gives dry-run commands for both compatible and restart deploys
+- makes restart deploys require the explicit `DROP_ROOMS` confirmation
+
+First-time local setup:
+
+```sh
+cp deploy/local.env.example .deploy.local.env
+$EDITOR .deploy.local.env
+source .deploy.local.env
+```
+
+The checked-in example contains no secrets. Production admin credentials live on
+the server in `~/.config/karbosh/karbosh.env` and are sourced there by the reload
+task.
+
+Normal contributor loop:
+
+```sh
+bin/karbosh-deploy check
+bin/karbosh-deploy plan-compatible
+git push
+bin/karbosh-deploy deploy-compatible
+```
+
+Structural/classpath deploy loop:
+
+```sh
+bin/karbosh-deploy check
+bin/karbosh-deploy plan-restart
+git push
+bin/karbosh-deploy deploy-restart DROP_ROOMS
+```
+
+Use the restart path when files are renamed or deleted, namespaces move between
+`.clj` and `.cljc`, dependencies/classpath change, systemd/Apache/env changes,
+or room state is intentionally incompatible. It delete-syncs canonical deploy
+directories and restarts the JVM, so active websocket sessions are dropped.
+
+Quick health check:
+
+```sh
+bin/karbosh-deploy smoke
+```
+
 ## Static Site Deploy
 
 Deploy the static website from `~/Projects/dc3systems-new`, not from this repo:
@@ -45,10 +99,8 @@ changes. It does not restart `karbosh.service`, so active in-memory rooms are
 preserved where possible.
 
 ```sh
-clojure -T:build test
-clojure -T:build cljs
-clojure -T:build package-static
-clojure -T:build deploy-compatible
+bin/karbosh-deploy plan-compatible
+bin/karbosh-deploy deploy-compatible
 ```
 
 `deploy-compatible` does three things:
@@ -83,10 +135,8 @@ Restarting drops active in-memory rooms and disconnects players. The command
 requires an explicit confirmation string:
 
 ```sh
-clojure -T:build test
-clojure -T:build cljs
-clojure -T:build release
-clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
+bin/karbosh-deploy plan-restart
+bin/karbosh-deploy deploy-restart DROP_ROOMS
 ```
 
 `deploy-restart` syncs the canonical tree, deleting stale files inside the
@@ -103,7 +153,9 @@ clojure -T:build test
 clojure -T:build cljs
 clojure -T:build package-static
 clojure -T:build release
+clojure -T:build deploy-compatible-dry-run
 clojure -T:build deploy-compatible
+clojure -T:build deploy-restart-dry-run
 clojure -T:build deploy-restart :confirm '"DROP_ROOMS"'
 clojure -T:build smoke
 clojure -T:build storage-report
@@ -116,6 +168,8 @@ Useful deploy environment overrides:
 
 ```text
 KARBOSH_DEPLOY_HOST=dc3systems.com
+KARBOSH_SSH_PORT=22122
+KARBOSH_RSYNC_RSH='ssh -p 22122'
 KARBOSH_APP_DIR=~/apps/clojure-card-games/
 KARBOSH_STATIC_DIR=/var/www/dc3systems.com/public_html/karbosh/
 KARBOSH_HEALTH_URL=https://dc3systems.com/karbosh/api/health

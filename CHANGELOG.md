@@ -4,6 +4,9 @@
 
 ### Structural refactor
 
+- Added a contributor-friendly Karbosh deploy wrapper (`bin/karbosh-deploy`),
+  dry-run build tasks, SSH port/RSync transport configuration, and local deploy
+  environment docs so deploys are reproducible outside one shell history.
 - Declared `clojure-card-games.karbosh.shared.*` the canonical Karbosh
   engine and removed the stale root `rules`/`state` duplicates. The TUI now
   runs on the canonical engine and supports the karbosh discard and
