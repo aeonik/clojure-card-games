@@ -240,26 +240,19 @@
   white-space: nowrap;
 }
 .wb-risk-line.god-eye-risk {
-  margin-top: 2px;
-  padding-top: 2px;
-  border-top: 1px solid rgba(245, 200, 91, 0.16);
+  color: rgba(245, 200, 91, 0.84);
 }
 .wb-risk-line.god-eye-risk span {
   color: rgba(245, 200, 91, 0.82);
 }
 .wb-risk-source {
-  display: inline-grid;
-  place-items: center;
-  width: 11px;
-  height: 11px;
-  margin-right: 3px;
-  border: 1px solid rgba(245, 200, 91, 0.55);
-  border-radius: 999px;
+  display: inline;
+  margin-right: 2px;
   color: #f5c85b;
-  font-size: 0.42rem;
+  font-size: inherit;
   font-style: normal;
   font-weight: 950;
-  line-height: 1;
+  line-height: inherit;
 }
 .wb-risk-line b {
   color: #f4d27c;
