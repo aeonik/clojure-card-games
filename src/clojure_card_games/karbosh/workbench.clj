@@ -394,37 +394,42 @@
         (set-message (str "Restored bookmark " bookmark-id ".")))
     (set-message session "Bookmark not found.")))
 
+(defonce ^:private action-lock (Object.))
+
 (defn handle-action! [room-id source-room params]
-  (let [action (:action params)
-        session (if (= action "reset")
-                  (reset-session! room-id source-room)
-                  (ensure-session! room-id source-room))]
-    (try
-      (let [updated (case action
-                      "reset" session
-                      "manual" (apply-manual-action session params)
-                      "auto" (apply-auto-action session)
-                      "undo" (undo-session session)
-                      "redo" (redo-session session)
-                      "strategy" (update-strategies session params)
-                      "view" (set-view session params)
-                      "monte-carlo" (assoc session
-                                           :analysis
-                                           (monte-carlo-analysis session params)
-                                           :message "Ran Monte Carlo from frozen state.")
-                      "exact" (assoc session
-                                     :analysis
-                                     (exact-analysis session)
-                                     :message "Ran exact solve guard from frozen state.")
-                      "bookmark" (add-bookmark session params)
-                      "restore-bookmark" (restore-bookmark session params)
-                      (set-message session "Unknown workbench action."))]
-        (swap! sessions* assoc room-id updated)
-        updated)
-      (catch Exception e
-        (let [failed (set-message session (.getMessage e))]
-          (swap! sessions* assoc room-id failed)
-          failed)))))
+  ;; Actions read the session, compute, then write it back; the lock keeps
+  ;; concurrent posts (e.g. rapid auto-saves) from losing updates.
+  (locking action-lock
+    (let [action (:action params)
+          session (if (= action "reset")
+                    (reset-session! room-id source-room)
+                    (ensure-session! room-id source-room))]
+      (try
+        (let [updated (case action
+                        "reset" session
+                        "manual" (apply-manual-action session params)
+                        "auto" (apply-auto-action session)
+                        "undo" (undo-session session)
+                        "redo" (redo-session session)
+                        "strategy" (update-strategies session params)
+                        "view" (set-view session params)
+                        "monte-carlo" (assoc session
+                                             :analysis
+                                             (monte-carlo-analysis session params)
+                                             :message "Ran Monte Carlo from frozen state.")
+                        "exact" (assoc session
+                                       :analysis
+                                       (exact-analysis session)
+                                       :message "Ran exact solve guard from frozen state.")
+                        "bookmark" (add-bookmark session params)
+                        "restore-bookmark" (restore-bookmark session params)
+                        (set-message session "Unknown workbench action."))]
+          (swap! sessions* assoc room-id updated)
+          updated)
+        (catch Exception e
+          (let [failed (set-message session (.getMessage e))]
+            (swap! sessions* assoc room-id failed)
+            failed))))))
 
 (defn percent-label [x]
   (admin/probability-label x))
@@ -1181,6 +1186,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-board-polish"]}
                (workbench-main session)
-               [:script {:src "/karbosh/assets/js/workbench.js?v=20260610-workbench-forms"}]))
+               [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

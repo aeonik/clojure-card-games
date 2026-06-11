@@ -139,10 +139,12 @@
     }
   }
 
+  var submissionQueue = [];
+  var submissionActive = false;
+
   function submitWorkbenchForm(form, submitter) {
     var main = document.getElementById("admin-main");
     var method = (form.getAttribute("method") || "get").toLowerCase();
-    var action = form.getAttribute("action") || window.location.href;
 
     if (!main || method !== "post") {
       return false;
@@ -151,10 +153,31 @@
     form.__workbenchSubmitter = submitter || null;
     markBusy(form, true);
 
-    window.fetch(action, {
+    submissionQueue.push({
+      url: form.getAttribute("action") || window.location.href,
+      // The server parses url-encoded bodies only, not multipart FormData.
+      // Snapshot the fields now, before any re-render replaces the form.
+      body: new URLSearchParams(new FormData(form)),
+      form: form
+    });
+    pumpSubmissionQueue();
+    return true;
+  }
+
+  function pumpSubmissionQueue() {
+    if (submissionActive || submissionQueue.length === 0) {
+      return;
+    }
+
+    var item = submissionQueue.shift();
+    submissionActive = true;
+
+    window.fetch(item.url, {
       method: "POST",
-      body: new FormData(form),
+      body: item.body,
       credentials: "same-origin",
+      // keepalive lets a save finish even if the page is refreshed mid-flight.
+      keepalive: true,
       headers: {
         "X-Karbosh-Workbench": "partial"
       }
@@ -167,15 +190,24 @@
 
       return response.text();
     }).then(function (html) {
-      if (!replaceWorkbenchMain(html, main)) {
+      submissionActive = false;
+
+      if (submissionQueue.length > 0) {
+        // A newer action is already queued; its response will render the
+        // combined result, so skip this stale render.
+        pumpSubmissionQueue();
+        return;
+      }
+
+      if (!replaceWorkbenchMain(html, document.getElementById("admin-main"))) {
         window.location.reload();
       }
     }).catch(function (error) {
+      submissionActive = false;
       window.alert(error.message || "Workbench action failed");
-      markBusy(form, false);
+      markBusy(item.form, false);
+      pumpSubmissionQueue();
     });
-
-    return true;
   }
 
   document.addEventListener("click", function (event) {

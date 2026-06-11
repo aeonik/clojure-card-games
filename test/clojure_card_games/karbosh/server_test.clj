@@ -332,9 +332,9 @@
           (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
                        (:body response)))
-          (is (re-find #"href=\"/karbosh/assets/css/workbench\.css\" rel=\"stylesheet\""
+          (is (re-find #"href=\"/karbosh/assets/css/workbench\.css\?v=[^\"]+\" rel=\"stylesheet\""
                        (:body response)))
-          (is (re-find #"src=\"/karbosh/assets/js/workbench\.js\?v=20260610-workbench-forms\""
+          (is (re-find #"src=\"/karbosh/assets/js/workbench\.js\?v=[^\"]+\""
                        (:body response)))
           (is (not (re-find #"this\.form\.submit\(\)"
                             (:body response))))
