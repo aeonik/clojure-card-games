@@ -523,6 +523,89 @@
                               :player2
                               :hybrid-action-inference-team-ev)))))
 
+  (testing "team EV avoids winning now by burning a partner trump control"
+    (let [game {:phase :trick-playing
+                :trump :♣
+                :active-players game/players
+                :hand-index 4
+                :bids [{:type :bid
+                        :player :player1
+                        :bid-type :bid
+                        :value 5
+                        :hand-index 4}]
+                :players {:player1 {:team 1
+                                    :hand [[:Q :♦] [:J :♦] [10 :♣]
+                                           [9 :♥] [:K :♣]]}
+                          :player2 {:team 2
+                                    :hand [[10 :♦] [:A :♦] [:J :♥]
+                                           [:A :♦] [:Q :♥]]}
+                          :player3 {:team 1
+                                    :hand [[:K :♥] [:K :♦] [:K :♦]
+                                           [:J :♠] [10 :♦]]}
+                          :player4 {:team 2
+                                    :hand [[:Q :♥] [:J :♥] [:Q :♦]
+                                           [:K :♥] [:A :♥]]}
+                          :player5 {:team 1
+                                    :hand [[:K :♠] [9 :♥] [:K :♠]
+                                           [10 :♠] [10 :♥]]}
+                          :player6 {:team 2
+                                    :hand [[9 :♦] [:J :♦] [:A :♥]
+                                           [10 :♥] [:Q :♠]]}}
+                :completed-tricks [[{:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [9 :♣]}
+                                    {:player :player3 :card [9 :♣]}
+                                    {:player :player4 :card [10 :♣]}
+                                    {:player :player5 :card [:A :♣]}
+                                    {:player :player6 :card [:A :♣]}]
+                                   [{:player :player1 :card [:J :♣]}
+                                    {:player :player2 :card [:Q :♣]}
+                                    {:player :player3 :card [:K :♣]}
+                                    {:player :player4 :card [:Q :♣]}
+                                    {:player :player5 :card [9 :♦]}
+                                    {:player :player6 :card [:J :♠]}]
+                                   [{:player :player1 :card [:A :♠]}
+                                    {:player :player2 :card [:A :♠]}
+                                    {:player :player3 :card [:Q :♠]}
+                                    {:player :player4 :card [9 :♠]}
+                                    {:player :player5 :card [9 :♠]}
+                                    {:player :player6 :card [10 :♠]}]]
+                :tricks-this-hand {1 3 2 0}
+                :current-trick []}
+          cards (bot/legal-cards game :player1)
+          analyses (bot/card-analyses game :player1 cards)
+          unseen-counts (bot/unseen-card-counts game :player1)
+          trump-breakdown (bot/team-ev-lead-breakdown
+                           bot/default-play-config
+                           game
+                           :player1
+                           analyses
+                           unseen-counts
+                           [10 :♣])
+          diamond-breakdown (bot/team-ev-lead-breakdown
+                             bot/default-play-config
+                             game
+                             :player1
+                             analyses
+                             unseen-counts
+                             [:Q :♦])
+          event (bot/card-action game
+                                 :player1
+                                 :hybrid-action-inference-team-ev)
+          ruff-invite-event (bot/card-action game
+                                             :player1
+                                             :hybrid-ruff-invite)
+          old-probability-event (bot/card-action game
+                                                 :player1
+                                                 :probability)]
+      (is (= 1/4
+             (get-in analyses
+                     [[10 :♣] :expected-pending-partner-control-burn])))
+      (is (= 750.0 (:control-burn-penalty trump-breakdown)))
+      (is (< (:value trump-breakdown) (:value diamond-breakdown)))
+      (is (= [:Q :♦] (:card event)))
+      (is (= [:Q :♦] (:card ruff-invite-event)))
+      (is (= [10 :♣] (:card old-probability-event)))))
+
   (testing "numeric callers without trump control pressure with off-suit aces"
     (let [game (with-hidden-hand-sizes
                  {:phase :trick-playing

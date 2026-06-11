@@ -103,6 +103,19 @@ clojure -M:prob prob-hg 9 31 16 4
 clojure -M:prob follow 8 --float
 ```
 
+Karbosh trick analysis keeps exact ratios internally where practical. One
+important derived metric is
+`:expected-pending-partner-control-burn`, computed in
+`clojure-card-games.karbosh.analysis/forced-higher-follow-probability-for`.
+It counts labeled hidden-hand deals that satisfy hard public void facts before
+asking whether a pending partner must play a higher follow-suit card because
+they have no lower/equal follow card. This catches control-collision positions,
+for example leading a medium trump that can only win by forcing partner's left
+bower. It is downstream of the usual void-and-trump analysis: public follow-suit
+failures first constrain who can still hold the led suit, and the control-burn
+ratio is computed inside that smaller exact universe. Policy scoring converts
+the exact ratio to a decimal only at the final weighting step.
+
 ## Status
 
 Actively developed. Current priorities are in `TODO.md`; AI policy history

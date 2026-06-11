@@ -282,11 +282,22 @@
        (:risk features))
     0.0))
 
+(defn partner-control-burn [analyses card]
+  (double (or (get-in analyses [card :expected-pending-partner-control-burn])
+              0)))
+
+(defn partner-control-burn-penalty [play-config game analyses card]
+  (if (= (:trump game) (rules/effective-suit card (:trump game)))
+    (* (:partner-control-burn-penalty play-config 0)
+       (partner-control-burn analyses card))
+    0.0))
+
 (defn preservation-lead-value [play-config game context analyses card]
   (let [{:keys [score risk] :as features} (lead-card-features game analyses card)]
     (- score
        (* (:lead-risk-penalty play-config) risk)
-       (defender-preservation-penalty play-config context features))))
+       (defender-preservation-penalty play-config context features)
+       (partner-control-burn-penalty play-config game analyses card))))
 
 (defn best-lead-by-value [value-fn cards]
   (first (sort-by value-fn > cards)))
@@ -421,7 +432,12 @@
                           fallback-cards))))
 
 (defn preservation-probability-lead-card [play-config game player analyses cards]
-  (let [priority (priority-lead-card game player cards)
+  (let [priority (when-let [priority-card (priority-lead-card game player cards)]
+                   (when (zero? (partner-control-burn-penalty play-config
+                                                               game
+                                                               analyses
+                                                               priority-card))
+                     priority-card))
         safe (safe-cards play-config analyses :lead-risk-tolerance cards)
         defender-low-exit (defender-low-exit-card game player cards)
         trump-lead (preservation-trump-lead-card play-config game analyses cards)
@@ -546,12 +562,15 @@
                                                         unseen-counts
                                                         card)
         spend-cost (card-spend-cost play-config game player unseen-counts card)
+        partner-control-burn (partner-control-burn analyses card)
+        control-burn-penalty (partner-control-burn-penalty play-config game analyses card)
         value (- (+ (* (:team-ev-trick-weight play-config) team-win-prob)
                     (* (:team-ev-partner-ruff-weight play-config) partner-ruff)
                     (if safe? (:team-ev-safe-card-bonus play-config) 0)
                     protection-bonus)
                  (* (:team-ev-risk-penalty play-config) risk)
                  (* (:team-ev-opponent-ruff-penalty play-config) opponent-ruff)
+                 control-burn-penalty
                  spend-cost)]
     {:card card
      :lead lead
@@ -559,6 +578,8 @@
      :team-win-prob team-win-prob
      :partner-ruff-prob partner-ruff
      :opponent-ruff-prob opponent-ruff
+     :partner-control-burn partner-control-burn
+     :control-burn-penalty control-burn-penalty
      :protection-bonus protection-bonus
      :spend-cost spend-cost
      :value value}))

@@ -96,3 +96,56 @@
       (is (pos? (:higher-trump-unseen card-odds)))
       (is (< (:prob-pending-opponent-can-beat-card card-odds)
              (:prob-pending-opponent-has-higher-card card-odds))))))
+
+(def ybhybh-control-collision-game
+  {:phase :trick-playing
+   :trump :♣
+   :active-players game/players
+   :players {:player1 {:team 1
+                       :hand [[:Q :♦] [:J :♦] [10 :♣] [9 :♥] [:K :♣]]}
+             :player2 {:team 2
+                       :hand [[10 :♦] [:A :♦] [:J :♥] [:A :♦] [:Q :♥]]}
+             :player3 {:team 1
+                       :hand [[:K :♥] [:K :♦] [:K :♦] [:J :♠] [10 :♦]]}
+             :player4 {:team 2
+                       :hand [[:Q :♥] [:J :♥] [:Q :♦] [:K :♥] [:A :♥]]}
+             :player5 {:team 1
+                       :hand [[:K :♠] [9 :♥] [:K :♠] [10 :♠] [10 :♥]]}
+             :player6 {:team 2
+                       :hand [[9 :♦] [:J :♦] [:A :♥] [10 :♥] [:Q :♠]]}}
+   :completed-tricks [[{:player :player1 :card [:J :♣]}
+                       {:player :player2 :card [9 :♣]}
+                       {:player :player3 :card [9 :♣]}
+                       {:player :player4 :card [10 :♣]}
+                       {:player :player5 :card [:A :♣]}
+                       {:player :player6 :card [:A :♣]}]
+                      [{:player :player1 :card [:J :♣]}
+                       {:player :player2 :card [:Q :♣]}
+                       {:player :player3 :card [:K :♣]}
+                       {:player :player4 :card [:Q :♣]}
+                       {:player :player5 :card [9 :♦]}
+                       {:player :player6 :card [:J :♠]}]
+                      [{:player :player1 :card [:A :♠]}
+                       {:player :player2 :card [:A :♠]}
+                       {:player :player3 :card [:Q :♠]}
+                       {:player :player4 :card [9 :♠]}
+                       {:player :player5 :card [9 :♠]}
+                       {:player :player6 :card [10 :♠]}]]
+   :current-trick []})
+
+(deftest partner-control-burn-analysis-test
+  (testing "known trump voids condition forced partner-control burn exactly"
+    (let [analysis (analysis/card-defeat-analysis ybhybh-control-collision-game
+                                                  :player1
+                                                  [10 :♣])]
+      (is (= {:player5 #{:♣}}
+             (select-keys (analysis/known-voids ybhybh-control-collision-game)
+                          [:player5])))
+      (is (= 1/4
+             (get-in analysis
+                     [:prob-pending-partner-forced-higher-follow :player3])))
+      (is (= 0
+             (get-in analysis
+                     [:prob-pending-partner-forced-higher-follow :player5])))
+      (is (= 1/4
+             (:expected-pending-partner-control-burn analysis))))))

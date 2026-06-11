@@ -55,6 +55,7 @@
    :team-ev-safe-card-bonus 150
    :team-ev-backup-secure-trump-spend-discount 0.5
    :team-ev-secure-trump-protection-weight 4000
+   :partner-control-burn-penalty 3000
    :ditch-policy :future-suit-equity
    :ditch-future-suit-equity-weight 50
    :soft-void-trump-threshold 0.65

@@ -34,7 +34,9 @@
                 prob-pending-opponent-has-higher-card
                 prob-pending-opponent-has-higher-follow-card
                 prob-pending-opponent-void-and-higher-trump
-                prob-pending-opponent-can-beat-card]} (get analyses card)]
+                prob-pending-opponent-can-beat-card
+                prob-pending-partner-forced-higher-follow
+                expected-pending-partner-control-burn]} (get analyses card)]
     {:card card
      :score (bot-cards/card-score game card)
      :risk (bot-cards/round-probability (bot-cards/card-risk analyses card))
@@ -54,7 +56,17 @@
                               [player (bot-cards/round-probability p)]))
                        prob-pending-opponent-void-and-higher-trump)
                  :prob-can-beat (bot-cards/round-probability
-                                 prob-pending-opponent-can-beat-card)}}))
+                                 prob-pending-opponent-can-beat-card)
+                 :prob-partner-forced-higher-follow-by-player
+                 (into {}
+                       (map (fn [[player p]]
+                              [player (bot-cards/round-probability p)]))
+                       prob-pending-partner-forced-higher-follow)
+                 :expected-partner-control-burn
+                 (bot-cards/round-probability
+                  expected-pending-partner-control-burn)
+                 :expected-partner-control-burn-exact
+                 (some-> expected-pending-partner-control-burn str)}}))
 
 (defn card-reason [play-config game player engine cards analyses card]
   (let [winner (bot-cards/current-trick-winner game)

@@ -12,6 +12,35 @@
 (defn current-trick-cards [game]
   (map :card (:current-trick game)))
 
+(defn completed-and-current-tricks [game]
+  (cond-> (vec (:completed-tricks game))
+    (seq (:current-trick game)) (conj (:current-trick game))))
+
+(defn trick-known-voids
+  "Hard public void facts from one trick.
+
+  If a player fails to follow the effective lead suit, then every future exact
+  probability calculation may condition on that player holding zero cards in
+  that suit. Softer discard/action inference lives in `bot.inference` and does
+  not feed these exact combinatorics."
+  [trump trick]
+  (let [lead (rules/trick-lead trick trump)]
+    (when lead
+      (keep (fn [{:keys [player card]}]
+              (when (not= lead (rules/effective-suit card trump))
+                [player lead]))
+            trick))))
+
+(defn known-voids
+  "Exact public voids, including the current trick prefix when present."
+  [game]
+  (let [trump (:trump game)]
+    (reduce (fn [voids [player suit]]
+              (update voids player (fnil conj #{}) suit))
+            {}
+            (mapcat #(trick-known-voids trump %)
+                    (completed-and-current-tricks game)))))
+
 (defn public-played-cards [game]
   (concat (completed-trick-cards game)
           (current-trick-cards game)))
@@ -213,6 +242,14 @@
                    unseen-cards))
     0))
 
+(defn lower-or-equal-follow-count
+  "Cards that can follow `lead` without beating `card`.
+
+  Equal duplicate cards are included here. The earlier equivalent card wins a
+  Karbosh tie, so a later equal card can follow without taking control."
+  [cards-by-suit higher-follow-count lead]
+  (- (get cards-by-suit lead 0) higher-follow-count))
+
 (defn combine-event-probabilities [probabilities]
   (- 1.0
      (reduce * 1.0 (map #(- 1.0 (double (or % 0)))
@@ -248,6 +285,130 @@
                                     population-size
                                     (opponent-players game player players)))
 
+(defn category-choice-count [high-count low-count other-count
+                             high-draw low-draw other-draw]
+  (*' (hypergeom/choose high-count high-draw)
+      (hypergeom/choose low-count low-draw)
+      (hypergeom/choose other-count other-draw)))
+
+(defn constrained-category-deal-count
+  "Count labeled hidden-hand deals by three categories.
+
+  Categories are:
+  - `high-count`: cards that follow the lead suit and beat the candidate card.
+  - `low-count`: cards that follow the lead suit but do not beat the candidate.
+  - `other-count`: every other hidden card.
+
+  `voids` is a hard public-void map. A player known void in `lead` is constrained
+  to draw zero high and zero low cards. When `target` is supplied, that player is
+  additionally constrained to draw at least one high card and zero low cards.
+
+  The result is a count, not a probability. Dividing two counts gives an exact
+  ratio while preserving the known-void conditioning in the denominator."
+  [high-count low-count other-count players hand-sizes voids lead target]
+  (letfn [(step [high-count low-count other-count players]
+            (if (empty? players)
+              (if (and (zero? high-count)
+                       (zero? low-count)
+                       (zero? other-count))
+                1N
+                0N)
+              (let [player (first players)
+                    hand-size (get hand-sizes player 0)
+                    void? (contains? (get voids player #{}) lead)]
+                (reduce
+                 +
+                 (for [high-draw (if void?
+                                    [0]
+                                    (range 0 (inc (min hand-size high-count))))
+                       low-draw (if void?
+                                  [0]
+                                  (range 0 (inc (min (- hand-size high-draw)
+                                                     low-count))))
+                       :let [other-draw (- hand-size high-draw low-draw)]
+                       :when (and (<= 0 other-draw other-count)
+                                  (or (not= player target)
+                                      (and (pos? high-draw)
+                                           (zero? low-draw))))
+                       :let [ways (category-choice-count high-count
+                                                         low-count
+                                                         other-count
+                                                         high-draw
+                                                         low-draw
+                                                         other-draw)]
+                       :when (pos? ways)]
+                   (*' ways
+                       (step (- high-count high-draw)
+                             (- low-count low-draw)
+                             (- other-count other-draw)
+                             (rest players))))))))]
+    (step high-count low-count other-count players)))
+
+(defn forced-higher-follow-probability-for
+  "Exact probability that `target` must burn a higher follow-suit control.
+
+  This answers a different question from ordinary card risk. It is evaluated
+  after hard void facts are known: the denominator contains only hidden deals
+  where every known-void player truly has zero cards in the led suit. Under that
+  conditioned distribution, `target` is forced to overtake when all are true:
+
+  1. `target` holds at least one hidden card that follows `lead` and beats
+     `card`.
+  2. `target` holds no lower/equal card in `lead` that could be played instead.
+  3. all public void constraints remain satisfied.
+
+  Example: if a partner is known void in trump, the remaining left bower is
+  redistributed only among players who can still hold trump. This is the exact
+  downstream correction that a naive `hand-size / unseen-count` estimate misses.
+  It complements the ordinary void-and-trump risk calculation: first infer who
+  can or cannot hold the led suit, then ask whether leading this card burns a
+  partner's higher control in those conditioned worlds."
+  [game player lead card unseen cards-by-suit population-size target]
+  (let [voids (known-voids game)
+        players (hidden-players player)
+        hand-sizes (hand-sizes game players)
+        high-count (higher-follow-card-count unseen (:trump game) lead card)
+        low-count (lower-or-equal-follow-count cards-by-suit high-count lead)
+        other-count (- population-size high-count low-count)
+        denominator (constrained-category-deal-count high-count
+                                                     low-count
+                                                     other-count
+                                                     players
+                                                     hand-sizes
+                                                     voids
+                                                     lead
+                                                     nil)]
+    (cond
+      (or (zero? denominator)
+          (contains? (get voids target #{}) lead))
+      0
+
+      :else
+      (/ (constrained-category-deal-count high-count
+                                          low-count
+                                          other-count
+                                          players
+                                          hand-sizes
+                                          voids
+                                          lead
+                                          target)
+         denominator))))
+
+(defn forced-higher-follow-probabilities
+  [game player lead card unseen cards-by-suit population-size players]
+  (into {}
+        (map (fn [target]
+               [target
+                (forced-higher-follow-probability-for game
+                                                      player
+                                                      lead
+                                                      card
+                                                      unseen
+                                                      cards-by-suit
+                                                      population-size
+                                                      target)]))
+        players))
+
 (defn ruff-probabilities [game player trump suit counts population-size players]
   (when (and trump (not= suit trump))
     (void-and-trump-probabilities game
@@ -276,6 +437,9 @@
                   (effective-suit trump card))
          pending-players (pending-trick-players-after game player)
          pending-opponents (opponent-players game player pending-players)
+         pending-partners (filterv #(= (game/player-team game player)
+                                       (game/player-team game %))
+                                   pending-players)
          pending-player-sizes (vals (hand-sizes game pending-players))
          pending-opponent-sizes (vals (hand-sizes game pending-opponents))
          higher-count (higher-card-count unseen trump lead card)
@@ -309,7 +473,16 @@
                                      population-size
                                      pending-opponents))
          void-higher-trump-prob (combine-event-probabilities
-                                  (vals void-higher-trump-probs))]
+                                  (vals void-higher-trump-probs))
+         partner-forced-higher-follow-probs
+         (forced-higher-follow-probabilities game
+                                             player
+                                             lead
+                                             card
+                                             unseen
+                                             cards-by-suit
+                                             population-size
+                                             pending-partners)]
      {:card card
       :effective-suit (effective-suit trump card)
       :lead lead
@@ -337,7 +510,11 @@
       void-higher-trump-probs
       :prob-pending-opponent-can-beat-card
       (combine-event-probabilities [higher-follow-prob
-                                    void-higher-trump-prob])})))
+                                    void-higher-trump-prob])
+      :prob-pending-partner-forced-higher-follow
+      partner-forced-higher-follow-probs
+      :expected-pending-partner-control-burn
+      (reduce + (vals partner-forced-higher-follow-probs))})))
 
 (defn card-analysis
   [game player trump unseen cards-by-suit population-size card]
