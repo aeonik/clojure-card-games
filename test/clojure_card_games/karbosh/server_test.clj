@@ -332,8 +332,11 @@
           (is (re-find #"Opp</span><b>" (:body response)))
           (is (re-find #"Any</span><b>" (:body response)))
           (is (re-find #"Burn</span><b>" (:body response)))
-          (is (re-find #"wb-risk-source[^>]*>G</i>Exact" (:body response)))
-          (is (re-find #"wb-risk-source[^>]*>G</i>Team" (:body response)))
+          (is (re-find #"AI view" (:body response)))
+          (is (re-find #"God&apos;s eye" (:body response)))
+          (is (re-find #"Exact</span><b>" (:body response)))
+          (is (re-find #"Team</span><b>" (:body response)))
+          (is (not (re-find #"wb-risk-source" (:body response))))
           (is (re-find #"name=\"observer\"[^>]*value=\"player1\"" (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/admin\.css\" rel=\"stylesheet\""
                        (:body response)))

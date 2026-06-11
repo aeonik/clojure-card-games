@@ -524,8 +524,6 @@
                                 (when (= :control-burn source) " control-risk"))}
              title (assoc :title title))
     [:span
-     (when (= :god-eye source)
-       [:i {:class "wb-risk-source" :aria-hidden "true"} "G"])
      label]
     [:b (if (number? risk)
           (percent-label risk)
@@ -557,14 +555,14 @@
                    (str "Exact winner: " (some-> (:winner exact-risk) name)
                         ", team risk "
                         (percent-label (:team-risk exact-risk))))}
-   (risk-column-html "Model"
+   (risk-column-html "AI view"
                      [(risk-line-html "Opp" (:opponent prob-risks))
                       (risk-line-html "Any" (:any prob-risks))
                       (risk-line-html "Burn"
                                       (:partner-control-burn prob-risks)
                                       :control-burn
                                       (partner-control-title prob-risks))])
-   (risk-column-html "God"
+   (risk-column-html "God's eye"
                      [(risk-line-html "Exact" (:risk exact-risk) :god-eye)
                       (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])])
 
@@ -773,9 +771,8 @@
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
      [:div {:class "wb-risk-note"}
-     [:span [:b "Opp"] " model opponent-beat risk"]
-     [:span [:b "Any"] " model anyone-beat risk"]
-      [:span [:b "G"] " God's-eye exact risks"]]
+      [:span [:b "AI view"] " Opp, Any, Burn"]
+      [:span [:b "God's eye"] " Exact, Team"]]
      (when inference
        (unseen-summary-html session inference))
      [:div {:class "wb-board"}
@@ -1318,6 +1315,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-control-burn"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-risk-columns"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

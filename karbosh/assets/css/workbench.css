@@ -195,13 +195,13 @@
 }
 .wb-board-hand {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
   gap: 5px;
   margin-top: 6px;
 }
 .wb-board-card-risk {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(132px, 1fr);
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -216,8 +216,8 @@
 }
 .wb-risk-lines {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: 2px;
+  grid-template-columns: minmax(76px, 1fr) minmax(72px, 0.95fr);
+  gap: 4px;
   width: 100%;
   min-width: 0;
   padding: 3px 4px;
@@ -230,11 +230,14 @@
   display: grid;
   gap: 2px;
   min-width: 0;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
 }
 .wb-risk-column-label {
   min-width: 0;
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 0.46rem;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.48rem;
   font-weight: 900;
   letter-spacing: 0.07em;
   line-height: 1;
@@ -262,6 +265,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.wb-risk-column:nth-child(1) {
+  border-left: 2px solid rgba(111, 208, 199, 0.34);
+}
+.wb-risk-column:nth-child(2) {
+  border-left: 2px solid rgba(245, 200, 91, 0.36);
+}
 .wb-risk-line.god-eye-risk {
   color: rgba(245, 200, 91, 0.84);
 }
@@ -270,15 +279,6 @@
 }
 .wb-risk-line.control-risk b {
   color: #c7b8ff;
-}
-.wb-risk-source {
-  display: inline;
-  margin-right: 2px;
-  color: #f5c85b;
-  font-size: inherit;
-  font-style: normal;
-  font-weight: 950;
-  line-height: inherit;
 }
 .wb-risk-line b {
   color: #f4d27c;
@@ -617,7 +617,7 @@
   display: grid;
   justify-items: center;
   gap: 4px;
-  width: 132px;
+  width: 168px;
 }
 .wb-card-risk .card {
   width: 47px;
@@ -913,7 +913,7 @@
     width: 30px;
   }
   .wb-board-hand {
-    grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 5px;
   }
   .wb-board-voids {
