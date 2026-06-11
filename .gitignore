@@ -12,6 +12,7 @@ pom.xml.asc
 /.nrepl-port
 /.prepl-port
 .deploy.local.env
+deploy/dev.env
 .hgignore
 .hg/
 .clj-kondo/
