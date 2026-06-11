@@ -116,6 +116,12 @@ failures first constrain who can still hold the led suit, and the control-burn
 ratio is computed inside that smaller exact universe. Policy scoring converts
 the exact ratio to a decimal only at the final weighting step.
 
+Bot play scoring distinguishes two control-burn costs. Trump-control burn is
+the direct expected partner control burn when leading trump. Ruff-exposed burn
+is used for off-suit leads and multiplies the partner control-burn expectation
+by opponent ruff risk, so clean off-suit Aces can still be preferred while low
+off-suit leads that force a partner Ace into a likely ruff are penalized.
+
 ## Status
 
 Actively developed. Current priorities are in `TODO.md`; AI policy history

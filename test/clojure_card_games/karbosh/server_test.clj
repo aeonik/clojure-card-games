@@ -332,10 +332,13 @@
           (is (re-find #"Opp</span><b>" (:body response)))
           (is (re-find #"Any</span><b>" (:body response)))
           (is (re-find #"T burn</span><b>" (:body response)))
+          (is (re-find #"R burn</span><b>" (:body response)))
           (is (re-find #"AI view" (:body response)))
           (is (re-find #"God&apos;s eye" (:body response)))
           (is (re-find #"opponent can beat this card" (:body response)))
           (is (re-find #"force partner to spend higher trump" (:body response)))
+          (is (re-find #"off-suit partner control exposed to opponent ruffs"
+                       (:body response)))
           (is (re-find #"this team loses the trick" (:body response)))
           (is (re-find #"Exact</span><b>" (:body response)))
           (is (re-find #"Team</span><b>" (:body response)))

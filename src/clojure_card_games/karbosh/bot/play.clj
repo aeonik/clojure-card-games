@@ -286,11 +286,20 @@
   (double (or (get-in analyses [card :expected-pending-partner-control-burn])
               0)))
 
+(defn opponent-ruff-risk [analyses card]
+  (analysis/combine-event-probabilities
+   (vals (or (get-in analyses [card :prob-pending-opponent-void-and-higher-trump])
+             {}))))
+
+(defn ruff-exposed-control-burn [analyses card]
+  (* (partner-control-burn analyses card)
+     (double (opponent-ruff-risk analyses card))))
+
 (defn partner-control-burn-penalty [play-config game analyses card]
-  (if (= (:trump game) (rules/effective-suit card (:trump game)))
-    (* (:partner-control-burn-penalty play-config 0)
-       (partner-control-burn analyses card))
-    0.0))
+  (* (:partner-control-burn-penalty play-config 0)
+     (if (= (:trump game) (rules/effective-suit card (:trump game)))
+       (partner-control-burn analyses card)
+       (ruff-exposed-control-burn analyses card))))
 
 (defn preservation-lead-value [play-config game context analyses card]
   (let [{:keys [score risk] :as features} (lead-card-features game analyses card)]
@@ -563,6 +572,7 @@
                                                         card)
         spend-cost (card-spend-cost play-config game player unseen-counts card)
         partner-control-burn (partner-control-burn analyses card)
+        ruff-exposed-burn (ruff-exposed-control-burn analyses card)
         control-burn-penalty (partner-control-burn-penalty play-config game analyses card)
         value (- (+ (* (:team-ev-trick-weight play-config) team-win-prob)
                     (* (:team-ev-partner-ruff-weight play-config) partner-ruff)
@@ -579,6 +589,7 @@
      :partner-ruff-prob partner-ruff
      :opponent-ruff-prob opponent-ruff
      :partner-control-burn partner-control-burn
+     :ruff-exposed-control-burn ruff-exposed-burn
      :control-burn-penalty control-burn-penalty
      :protection-bonus protection-bonus
      :spend-cost spend-cost

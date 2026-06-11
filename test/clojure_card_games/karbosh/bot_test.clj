@@ -1,6 +1,7 @@
 (ns clojure-card-games.karbosh.bot-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure-card-games.karbosh.bot :as bot]
+            [clojure-card-games.karbosh.bot.play :as play]
             [clojure-card-games.karbosh.fixtures :as fixtures]
             [clojure-card-games.karbosh.shared.game :as game]))
 
@@ -236,6 +237,40 @@
                                   :hand-index 0}]))]
       (is (= {:type :bid :bid-type :karbosh}
              (bot/bid-action game :player3))))))
+
+(deftest control-burn-penalty-test
+  (let [config (assoc bot/default-play-config
+                      :partner-control-burn-penalty 100)
+        game {:trump :♠}
+        analyses {[:Q :♠] {:expected-pending-partner-control-burn 1/2}
+                  [:Q :♥] {:expected-pending-partner-control-burn 1/2
+                           :prob-pending-opponent-void-and-higher-trump
+                           {:player2 1/2}}
+                  [:K :♥] {:expected-pending-partner-control-burn 1/2}
+                  [:A :♥] {:expected-pending-partner-control-burn 0
+                           :prob-pending-opponent-void-and-higher-trump
+                           {:player2 1/2}}}]
+    (testing "trump control burn is penalized directly"
+      (is (= 50.0
+             (play/partner-control-burn-penalty config
+                                                game
+                                                analyses
+                                                [:Q :♠]))))
+    (testing "off-suit control burn is penalized only when exposed to ruff"
+      (is (= 25.0
+             (play/partner-control-burn-penalty config
+                                                game
+                                                analyses
+                                                [:Q :♥])))
+      (is (zero? (play/partner-control-burn-penalty config
+                                                    game
+                                                    analyses
+                                                    [:K :♥]))))
+    (testing "clean off-suit aces do not create burn penalty"
+      (is (zero? (play/partner-control-burn-penalty config
+                                                    game
+                                                    analyses
+                                                    [:A :♥]))))))
 
 (deftest card-policy-test
   (testing "bots count own cards and public played cards as seen"
