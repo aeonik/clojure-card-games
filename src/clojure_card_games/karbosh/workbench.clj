@@ -367,6 +367,7 @@
                   :created-at now
                   :coordinate coordinate
                   :note (str/trim (or note ""))
+                  :analysis (:analysis session)
                   :room room}]
     (swap! bookmarks* update (:id room) (fnil conj []) bookmark)
     (-> session
@@ -1206,6 +1207,24 @@
    (bookmark-coordinate-html bookmark)
    (when-not (str/blank? note)
      [:p note])
+   (when-let [analysis (:analysis bookmark)]
+     [:p {:class "empty"}
+      (case (:kind analysis)
+        :monte-carlo
+        (str "Saved Monte Carlo: "
+             (:accepted analysis)
+             " / "
+             (:samples analysis)
+             " samples, seed "
+             (:seed analysis)
+             ".")
+
+        :exact
+        (str "Saved exact solve: "
+             (:remaining-cards analysis)
+             " cards remaining.")
+
+        "Saved analysis attached.")])
    [:div {:class "wb-bookmark-actions"}
     [:form {:class "wb-action-form wb-bookmark-restore" :method "post"}
      [:input {:type "hidden" :name "action" :value "restore-bookmark"}]

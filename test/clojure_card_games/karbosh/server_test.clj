@@ -496,6 +496,14 @@
       (reset! server/rooms {"ABC123" room})
       (with-redefs [server/admin-user (constantly "admin")
                     server/admin-password (constantly "secret")]
+        (workbench/ensure-session! "ABC123" room)
+        (swap! workbench/sessions*
+               assoc-in
+               ["ABC123" :analysis]
+               {:kind :monte-carlo
+                :accepted 120
+                :samples 120
+                :seed 99})
         (let [response (server/handler
                         {:request-method :post
                          :uri "/karbosh/admin/workbench/ABC123"
@@ -524,6 +532,11 @@
                  coordinate))
           (is (= :player3
                  (get-in (:room bookmark) [:game :current-player])))
+          (is (= {:kind :monte-carlo
+                  :accepted 120
+                  :samples 120
+                  :seed 99}
+                 (:analysis bookmark)))
           (is (= (:id bookmark)
                  (->> (audit/room-records (server/audit-dir) "ABC123")
                       (keep workbench/bookmark-from-record)
@@ -558,6 +571,8 @@
             (is (re-find #"Hand seed" (:body view-response)))
             (is (re-find #"98765" (:body view-response)))
             (is (re-find #"12345 -&gt; 98765" (:body view-response)))
+            (is (re-find #"Saved Monte Carlo: 120 / 120 samples, seed 99"
+                         (:body view-response)))
             (is (.contains (:body view-response)
                            (str "/karbosh/admin/history/ABC123/222/"
                                 (:game-started-at room)
