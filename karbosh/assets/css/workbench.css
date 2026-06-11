@@ -8,6 +8,12 @@
   align-items: end;
   margin: 0;
 }
+.wb-inline.is-busy,
+.wb-action-form.is-busy,
+.wb-strategy-card.is-busy,
+.wb-bookmark-form.is-busy {
+  opacity: 0.72;
+}
 .wb-inline label {
   display: grid;
   gap: 3px;

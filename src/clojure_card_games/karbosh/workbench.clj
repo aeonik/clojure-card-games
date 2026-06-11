@@ -847,20 +847,17 @@
        [:strong (seat-name session player)]
        [:label
         [:span "Bid"]
-        [:select {:name "bid-strategy"
-                  :onchange "this.form.submit()"}
+        [:select {:name "bid-strategy"}
          (for [strategy (sort-by name (keys bot/bid-strategies))]
            (strategy-option (player-bid-strategy session player) strategy))]]
        [:label
         [:span "Play"]
-        [:select {:name "play-strategy"
-                  :onchange "this.form.submit()"}
+        [:select {:name "play-strategy"}
          (for [strategy (sort-by name (keys bot/play-strategies))]
            (strategy-option (player-play-strategy session player) strategy))]]
        [:label
         [:span "Ditch"]
-        [:select {:name "ditch-policy"
-                  :onchange "this.form.submit()"}
+        [:select {:name "ditch-policy"}
          (for [policy (sort-by name bot/ditch-policies)]
            (strategy-option (player-ditch-policy session player) policy))]]
        [:button {:type "submit"} "Apply"]])]])
@@ -1170,4 +1167,5 @@
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
                 :stylesheets ["admin.css" "workbench.css"]}
-               (workbench-main session)))
+               (workbench-main session)
+               [:script {:src "/karbosh/assets/js/workbench.js?v=20260610-workbench-forms"}]))

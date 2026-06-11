@@ -329,6 +329,10 @@
                        (:body response)))
           (is (re-find #"href=\"/karbosh/assets/css/workbench\.css\" rel=\"stylesheet\""
                        (:body response)))
+          (is (re-find #"src=\"/karbosh/assets/js/workbench\.js\?v=20260610-workbench-forms\""
+                       (:body response)))
+          (is (not (re-find #"this\.form\.submit\(\)"
+                            (:body response))))
           (is (re-find #"AI strategy controls" (:body response)))))
       (finally
         (reset! server/rooms old-rooms)))))
