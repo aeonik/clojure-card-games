@@ -531,6 +531,19 @@
 (defn probabilistic-card-risks [state player card actual-turn?]
   (get (probabilistic-card-risk-map state player [card] actual-turn?) card))
 
+(defn exact-trick-risk [room state player card]
+  (let [trick-finished (trick-lab/complete-trick-with-policy
+                        room
+                        (trick-lab/play-card state player card))
+        trick (peek (:completed-tricks trick-finished))
+        winner (rules/resolve-trick trick (:trump state))
+        winner-team (game/player-team state winner)
+        actor-team (game/player-team state player)]
+    {:risk (bot/round-probability (if (= player winner) 0.0 1.0))
+     :team-risk (bot/round-probability (if (= actor-team winner-team) 0.0 1.0))
+     :winner winner
+     :winner-team winner-team}))
+
 (defn exact-card-risk-map [session player cards actual-turn?]
   (let [state (get-in session [:room :game])
         analysis-state (card-analysis-state state player actual-turn?)
@@ -543,15 +556,10 @@
                [card
                 (when (contains? legal-cards card)
                   (try
-                    (let [{:keys [actor-wins? team-wins? winner winner-team]}
-                          (trick-lab/evaluate-candidate (:room session)
-                                                        analysis-state
-                                                        player
-                                                        card)]
-                      {:risk (bot/round-probability (if actor-wins? 0.0 1.0))
-                       :team-risk (bot/round-probability (if team-wins? 0.0 1.0))
-                       :winner winner
-                       :winner-team winner-team})
+                    (exact-trick-risk (:room session)
+                                      analysis-state
+                                      player
+                                      card)
                     (catch Exception _
                       nil)))])
              (distinct cards))))))
