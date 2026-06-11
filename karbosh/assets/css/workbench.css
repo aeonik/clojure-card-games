@@ -335,7 +335,7 @@
 }
 .wb-board-seat .wb-void-chip-suit {
   color: inherit;
-  font-size: 0.95rem;
+  font-size: 1.12rem;
   letter-spacing: 0;
   line-height: 1;
 }
@@ -887,7 +887,7 @@
     font-size: 0.56rem;
   }
   .wb-board-seat .wb-void-chip-suit {
-    font-size: 0.82rem;
+    font-size: 0.98rem;
   }
   .wb-felt,
   .wb-board-center {
