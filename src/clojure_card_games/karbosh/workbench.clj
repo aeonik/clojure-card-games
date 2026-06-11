@@ -464,27 +464,29 @@
                      (bot/card-analyses analysis-state player [card])
                      (catch Exception _
                        nil))
-          analysis (get analyses card)]
+          analysis (get analyses card)
+          trump (:trump analysis-state)
+          trump-lead? (= trump (rules/effective-suit card trump))
+          control-burn (:expected-pending-partner-control-burn analysis)
+          forced-follow (:prob-pending-partner-forced-higher-follow analysis)]
       {:opponent (some-> analysis
                          :prob-pending-opponent-can-beat-card
                          bot/round-probability)
        :any (some-> analysis
                     :prob-pending-player-can-beat-card
                     bot/round-probability)
-       :partner-control-burn
-       (some-> analysis
-               :expected-pending-partner-control-burn
-               bot/round-probability)
-       :partner-control-burn-exact
-       (some-> analysis
-               :expected-pending-partner-control-burn
-               str)
+       :trump-control-burn
+       (when trump-lead?
+         (some-> control-burn bot/round-probability))
+       :trump-control-burn-exact
+       (when trump-lead?
+         (some-> control-burn str))
        :partner-forced-follow
-       (some->> analysis
-                :prob-pending-partner-forced-higher-follow
-                (map (fn [[partner probability]]
-                       [partner (bot/round-probability probability)]))
-                (into {}))})))
+       (when trump-lead?
+         (some->> forced-follow
+                  (map (fn [[partner probability]]
+                         [partner (bot/round-probability probability)]))
+                  (into {})))})))
 
 (defn exact-card-risk [session player card actual-turn?]
   (let [state (get-in session [:room :game])
@@ -529,12 +531,12 @@
           (percent-label risk)
           "--")]]))
 
-(defn partner-control-title [{:keys [partner-control-burn-exact
+(defn partner-control-title [{:keys [trump-control-burn-exact
                                      partner-forced-follow]}]
   (let [forced (seq (sort-by (comp name key) partner-forced-follow))]
-    (str "Partner control burn"
-         (when partner-control-burn-exact
-           (str " exact " partner-control-burn-exact))
+    (str "Partner trump-control burn"
+         (when trump-control-burn-exact
+           (str " exact " trump-control-burn-exact))
          (when forced
            (str " / forced follow "
                 (str/join ", "
@@ -558,10 +560,11 @@
    (risk-column-html "AI view"
                      [(risk-line-html "Opp" (:opponent prob-risks))
                       (risk-line-html "Any" (:any prob-risks))
-                      (risk-line-html "Burn"
-                                      (:partner-control-burn prob-risks)
+                      (risk-line-html "T burn"
+                                      (:trump-control-burn prob-risks)
                                       :control-burn
-                                      (partner-control-title prob-risks))])
+                                      (when (:trump-control-burn prob-risks)
+                                        (partner-control-title prob-risks)))])
    (risk-column-html "God's eye"
                      [(risk-line-html "Exact" (:risk exact-risk) :god-eye)
                       (risk-line-html "Team" (:team-risk exact-risk) :god-eye)])])
@@ -773,7 +776,7 @@
      [:div {:class "wb-risk-note"}
       [:span [:b "Opp"] "AI view: opponent can beat this card"]
       [:span [:b "Any"] "AI view: any pending player can beat it"]
-      [:span [:b "Burn"] "AI view: partner may be forced to spend a higher control"]
+      [:span [:b "T burn"] "AI view: trump lead may force partner to spend higher trump"]
       [:span [:b "Exact"] "God's eye: this card loses the trick"]
       [:span [:b "Team"] "God's eye: this team loses the trick"]]
      (when inference
@@ -1318,6 +1321,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-risk-legend"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-trump-burn"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))
