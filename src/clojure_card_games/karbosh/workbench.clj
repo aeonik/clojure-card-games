@@ -73,6 +73,16 @@
                                (get-in source-room [:game :current-player])))
           (set-message "Reset from room state.")))))
 
+(defn reset-hand-start [session]
+  (let [room' (update (:room session) :game game/rewind-current-hand)]
+    (if (= (:room session) room')
+      (set-message session "Already at the beginning of this hand.")
+      (-> session
+          (push-room room')
+          (assoc :observer (or (:observer session)
+                               (get-in room' [:game :current-player])))
+          (set-message "Restarted frozen hand from its initial deal.")))))
+
 (defn update-session! [room-id f & args]
   (get (apply swap! sessions* update room-id f args) room-id))
 
@@ -427,6 +437,7 @@
       (try
         (let [updated (case action
                         "reset" (reset-from-room session source-room)
+                        "reset-hand" (reset-hand-start session)
                         "manual" (apply-manual-action session params)
                         "auto" (apply-auto-action session)
                         "undo" (undo-session session)
@@ -1084,6 +1095,7 @@
        (action-button "Auto current" {:action "auto"})
        (action-button "Undo" {:action "undo"})
        (action-button "Redo" {:action "redo"})
+       (action-button "Restart hand" {:action "reset-hand"})
        (action-button "Reset from room" {:action "reset"})]]
      [:div {:class "stats room-stats"}
       (admin/stat-card "Phase" (admin/kw-label (:phase state)))

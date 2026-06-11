@@ -76,6 +76,90 @@
     (fail "Not this player's turn"
           {:expected (:current-player game) :actual player :event event})))
 
+(defn- current-hand-summary [game]
+  (let [summary (last (:hand-history game))]
+    (when (= (:hand-index summary) (:hand-index game))
+      summary)))
+
+(defn- scores-before-summary [game summary]
+  (if summary
+    (into {}
+          (map (fn [team]
+                 [team (- (get-in game [:scores team] 0)
+                          (get-in summary [:points team] 0))]))
+          (keys (merge (:scores game) (:points summary))))
+    (:scores game)))
+
+(defn- vec-butlast [xs]
+  (vec (butlast (vec (or xs [])))))
+
+(defn- remove-current-trump [trumps trump]
+  (let [trumps (vec (or trumps []))]
+    (if (= trump (peek trumps))
+      (pop trumps)
+      trumps)))
+
+(defn- restore-player-hands [game hands]
+  (let [default-teams (teams)]
+    (assoc game
+           :players
+           (into {}
+                 (map (fn [player]
+                        (let [old-player (get-in game [:players player])]
+                          [player (assoc old-player
+                                         :hand (vec (get hands player []))
+                                         :team (or (:team old-player)
+                                                   (get default-teams player)))]))
+                      players)))))
+
+(defn rewind-current-hand
+  "Returns a pure game state reset to the beginning of the current hand.
+
+  This keeps prior completed hands and scores, restores the original deal for
+  the current hand, and removes only the bids/trump/tricks/results belonging to
+  the hand being rewound."
+  [game]
+  (let [hands (:initial-hands game)
+        hand-index (:hand-index game)
+        dealer (or (:dealer game) (first players))
+        summary (current-hand-summary game)
+        trump (:trump game)]
+    (when-not (map? hands)
+      (fail "Cannot rewind hand without initial hands" {:hand-index hand-index}))
+    (cond-> (-> game
+                (dissoc :trump
+                        :current-trick
+                        :trick-leader
+                        :winner
+                        :donation-order
+                        :discard-count
+                        :donations
+                        :current-bid)
+                (assoc :phase :bidding
+                       :history []
+                       :scores (scores-before-summary game summary)
+                       :bidding-order (players-starting-at dealer)
+                       :current-bidder-index 0
+                       :current-player dealer
+                       :active-players players
+                       :completed-tricks []
+                       :tricks-this-hand {1 0 2 0})
+                (restore-player-hands hands)
+                (update :bids #(vec (remove (fn [bid]
+                                               (= hand-index (:hand-index bid)))
+                                             (or % [])))))
+      trump
+      (update :trumps remove-current-trump trump)
+
+      summary
+      (update :hand-history vec-butlast)
+
+      summary
+      (update :tricks-per-hand vec-butlast)
+
+      summary
+      (update :points-per-hand vec-butlast))))
+
 (defn- hand-summary [game points scores]
   {:hand-index (:hand-index game)
    :bid (current-bid game)

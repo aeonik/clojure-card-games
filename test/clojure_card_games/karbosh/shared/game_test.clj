@@ -300,6 +300,42 @@
     (is (= {1 1 2 0} (:tricks summary)))
     (is (= {1 1 2 0} (:points summary)))))
 
+(deftest rewind-current-hand-test
+  (let [started (assoc one-trick-state
+                       :dealer :player1
+                       :bidding-order game/players
+                       :trumps [:♠])
+        progressed (game/apply-event started (first one-trick-events))
+        rewound (game/rewind-current-hand progressed)]
+    (is (= :bidding (:phase rewound)))
+    (is (= :player1 (:current-player rewound)))
+    (is (= game/players (:bidding-order rewound)))
+    (is (= 0 (:current-bidder-index rewound)))
+    (is (= one-trick-hands (game/player-hands rewound)))
+    (is (= [] (:history rewound)))
+    (is (= [] (:bids rewound)))
+    (is (= [] (:trumps rewound)))
+    (is (= [] (:completed-tricks rewound)))
+    (is (= {1 0 2 0} (:tricks-this-hand rewound)))
+    (is (not (contains? rewound :trump)))
+    (is (not (contains? rewound :current-trick))))
+
+  (let [started (assoc one-trick-state
+                       :dealer :player1
+                       :bidding-order game/players
+                       :trumps [:♠])
+        completed (reduce game/apply-event started one-trick-events)
+        rewound (game/rewind-current-hand completed)]
+    (is (= :hand-complete (:phase completed)))
+    (is (= {1 1 2 0} (:scores completed)))
+    (is (= :bidding (:phase rewound)))
+    (is (= {1 0 2 0} (:scores rewound)))
+    (is (= [] (:hand-history rewound)))
+    (is (= [] (:tricks-per-hand rewound)))
+    (is (= [] (:points-per-hand rewound)))
+    (is (nil? (:winner rewound)))
+    (is (= one-trick-hands (game/player-hands rewound)))))
+
 (deftest game-over-test
   (let [state (reduce game/apply-event
                       (assoc one-trick-state :scores {1 51 2 0})

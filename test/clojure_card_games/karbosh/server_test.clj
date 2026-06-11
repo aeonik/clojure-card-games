@@ -479,6 +479,53 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-restart-hand-is-undoable-test
+  (let [old-rooms @server/rooms
+        room (room/fill-bots (room/new-room "ABC123" 9))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [manual-response (server/handler
+                               {:request-method :post
+                                :uri "/karbosh/admin/workbench/ABC123"
+                                :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                          "host" "dc3systems.com"
+                                          "origin" "https://debug-browser.example"}
+                                :body "action=manual&bid-type=pass"})
+              stepped-room (get-in @workbench/sessions* ["ABC123" :room])]
+          (is (= 303 (:status manual-response)))
+          (is (= :player2 (get-in stepped-room [:game :current-player])))
+          (is (= 1 (count (get-in stepped-room [:game :bids]))))
+          (let [restart-response (server/handler
+                                  {:request-method :post
+                                   :uri "/karbosh/admin/workbench/ABC123"
+                                   :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                             "host" "dc3systems.com"
+                                             "origin" "https://debug-browser.example"}
+                                   :body "action=reset-hand"})
+                restart-session (get @workbench/sessions* "ABC123")]
+            (is (= 303 (:status restart-response)))
+            (is (= :bidding
+                   (get-in restart-session [:room :game :phase])))
+            (is (= :player1
+                   (get-in restart-session [:room :game :current-player])))
+            (is (= []
+                   (get-in restart-session [:room :game :bids])))
+            (is (= 2 (count (:undo restart-session))))
+            (let [undo-response (server/handler
+                                 {:request-method :post
+                                  :uri "/karbosh/admin/workbench/ABC123"
+                                  :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                            "host" "dc3systems.com"
+                                            "origin" "https://debug-browser.example"}
+                                  :body "action=undo"})]
+              (is (= 303 (:status undo-response)))
+              (is (= stepped-room
+                     (get-in @workbench/sessions* ["ABC123" :room])))))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-seat-click-switches-to-player-view-test
   (let [old-rooms @server/rooms
         room (-> (room/fill-bots (room/new-room "ABC123" 9))
