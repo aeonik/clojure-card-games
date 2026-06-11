@@ -771,8 +771,11 @@
       (admin/stat-card "Team 1 tricks" (get-in state [:tricks-this-hand 1] 0))
       (admin/stat-card "Team 2 tricks" (get-in state [:tricks-this-hand 2] 0))]
      [:div {:class "wb-risk-note"}
-      [:span [:b "AI view"] " Opp, Any, Burn"]
-      [:span [:b "God's eye"] " Exact, Team"]]
+      [:span [:b "Opp"] "AI view: opponent can beat this card"]
+      [:span [:b "Any"] "AI view: any pending player can beat it"]
+      [:span [:b "Burn"] "AI view: partner may be forced to spend a higher control"]
+      [:span [:b "Exact"] "God's eye: this card loses the trick"]
+      [:span [:b "Team"] "God's eye: this team loses the trick"]]
      (when inference
        (unseen-summary-html session inference))
      [:div {:class "wb-board"}
@@ -1315,6 +1318,6 @@
 
 (defn render [session]
   (page/render {:title (str "Karbosh Workbench " (get-in session [:room :id]))
-                :stylesheets ["admin.css" "workbench.css?v=20260611-risk-grid"]}
+                :stylesheets ["admin.css" "workbench.css?v=20260611-risk-legend"]}
                (workbench-main session)
                [:script {:src "/karbosh/assets/js/workbench.js?v=20260611-queued-saves"}]))

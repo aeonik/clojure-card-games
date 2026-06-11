@@ -298,22 +298,27 @@
   color: #ff9a9a;
 }
 .wb-risk-note {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 6px;
   margin: 8px 0 12px;
   color: rgba(255, 255, 255, 0.62);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0;
 }
 .wb-risk-note span {
-  padding: 4px 7px;
+  display: block;
+  min-width: 0;
+  padding: 6px 8px;
   border: 1px solid rgba(111, 208, 199, 0.16);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(5, 10, 20, 0.36);
+  line-height: 1.25;
 }
 .wb-risk-note b {
+  display: inline-block;
+  margin-right: 4px;
   color: #f5c85b;
 }
 .wb-board-voids {
