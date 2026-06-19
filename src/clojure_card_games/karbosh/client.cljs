@@ -95,12 +95,19 @@
          :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
+         :auto-play-latched? false
+         :suppress-auto-click? false
          :speed-mode initial-speed-mode
          :fast-mode? (fast-speed? initial-speed-mode)
          :last-reconnect-at 0
          :error nil}))
 
 (def reconnect-throttle-ms 1200)
+(def auto-play-hold-threshold-ms 520)
+
+(defonce ^:private auto-play-hold* (atom nil))
+
+(declare maybe-run-latched-auto-play!)
 
 (defn el [id]
   (.getElementById js/document id))
@@ -1178,14 +1185,17 @@
     :karbosh-discard
     :trick-playing})
 
-(defn auto-play-button [active? paused? pending?]
+(defn auto-play-button [active? paused? pending? latched?]
   [:button {:type "button"
-            :class "auto-play-button"
+            :class (str "auto-play-button"
+                        (when latched? " is-latched"))
             :data-auto-play true
-            :disabled (or (not active?) paused? pending?)}
-   "Auto Play"])
+            :aria-pressed (if latched? "true" "false")
+            :disabled (and (not latched?)
+                           (or (not active?) paused? pending?))}
+   (if latched? "Auto On" "Auto Play")])
 
-(defn hand-primary-action-button [view active? paused? pending?]
+(defn hand-primary-action-button [view active? paused? pending? latched?]
   (case (:phase view)
     :hand-complete
     [:button {:type "button"
@@ -1200,7 +1210,7 @@
      "New Game"]
 
     (when (auto-play-phases (:phase view))
-      (auto-play-button active? paused? pending?))))
+      (auto-play-button active? paused? pending? latched?))))
 
 (defn bid-controls [view active?]
   (when (= :bidding (:phase view))
@@ -1308,7 +1318,8 @@
 
 (defn hand-panel-html [{:keys [view pending-card hand-order card-drag
                                hand-animating? pending-auto? speed-mode
-                               trick-popup queued-trick-popup]}]
+                               trick-popup queued-trick-popup
+                               auto-play-latched?]}]
   (let [paused? (or (some? trick-popup) (some? queued-trick-popup))
         hand (displayed-hand view pending-card hand-order)
         legal-set (when (= :trick-playing (:phase view))
@@ -1325,7 +1336,8 @@
        [:span (count hand) " cards"]
        (sort-hand-button (or pending-card (empty? hand)))
        (fast-mode-button speed-mode)
-       (hand-primary-action-button view active? paused? pending-auto?)]]
+       (hand-primary-action-button view active? paused? pending-auto?
+                                   auto-play-latched?)]]
      (karbosh-callout-html view active?)
      [:div {:class (str "hand-row"
                         (when sorting? " is-sorting")
@@ -1366,6 +1378,21 @@
             :data-leave-room true}
    "Leave Room"])
 
+(defn workbench-capture-form [room-id]
+  [:form {:class "table-workbench-form"
+          :method "post"
+          :action (str "/karbosh/admin/workbench/" room-id)}
+   [:input {:type "hidden"
+            :name "action"
+            :value "capture-room"}]
+   [:input {:type "hidden"
+            :name "note"
+            :value "Captured from the game table."}]
+   [:button {:class "table-workbench-button"
+             :type "submit"
+             :title "Send this hand to the workbench"}
+    "Workbench"]])
+
 (defn room-visibility-button [view]
   (let [public? (:public? view)]
     [:button {:class "visibility-button"
@@ -1373,12 +1400,13 @@
               :data-room-public (if public? "false" "true")}
      (if public? "Make Private" "Make Public")]))
 
-(defn table-top-actions [view]
+(defn table-top-actions [view room-id]
   [:div {:class "table-top-actions"}
    [:div {:class "table-main-actions"}
     (fill-bots-button)
     (room-visibility-button view)]
    [:div {:class "table-room-actions"}
+    (workbench-capture-form room-id)
     (table-new-game-button)
     (leave-room-button)]])
 
@@ -1404,7 +1432,7 @@
        [:p {:class "status-line"}
         (phase-label (:phase view)) " / Current: "
         (player-label view (:current-player view))]
-       (table-top-actions view)]
+       (table-top-actions view room-id)]
       [:section {:class "score-summary" :aria-label "Total scores"}
        [:span {:class "score-summary-label"} "Total scores"]
        [:div {:class "score-row"}
@@ -1579,6 +1607,8 @@
          :suppress-card-click? false
          :pending-card nil
          :pending-auto? false
+         :auto-play-latched? false
+         :suppress-auto-click? false
          :error message)
   (render-recent-rooms!))
 
@@ -1661,12 +1691,14 @@
           (js/setTimeout #(clear-bid-popup! bid-popup-id) (timing-ms :bid-popup)))
         (when fireworks
           (js/setTimeout #(show-fireworks! fireworks)
-                         (fireworks-delay-ms fireworks animation popup))))
+                         (fireworks-delay-ms fireworks animation popup)))
+        (maybe-run-latched-auto-play!))
 
       :error
       (swap! app assoc
              :error (:message message)
              :pending-card nil
+             :auto-play-latched? false
              :pending-auto? false)
 
       :pong nil
@@ -1756,6 +1788,78 @@
 (defn auto-play! []
   (swap! app assoc :pending-auto? true)
   (send! {:op :auto-play}))
+
+(defn auto-play-ready? [{:keys [view pending-auto? auto-play-latched?
+                                trick-popup queued-trick-popup]}]
+  (and auto-play-latched?
+       view
+       (auto-play-phases (:phase view))
+       (= (:you view) (:current-player view))
+       (not pending-auto?)
+       (nil? trick-popup)
+       (nil? queued-trick-popup)))
+
+(defn maybe-run-latched-auto-play! []
+  (when (auto-play-ready? @app)
+    (auto-play!)))
+
+(defn clear-suppressed-auto-click! []
+  (swap! app assoc :suppress-auto-click? false))
+
+(defn suppress-next-auto-click! []
+  (swap! app assoc :suppress-auto-click? true)
+  (js/setTimeout
+   (fn []
+     (when (:suppress-auto-click? @app)
+       (clear-suppressed-auto-click!)))
+   350))
+
+(defn start-auto-play-latch! []
+  (swap! app assoc :auto-play-latched? true)
+  (maybe-run-latched-auto-play!))
+
+(defn stop-auto-play-latch! []
+  (swap! app assoc :auto-play-latched? false))
+
+(defn handle-auto-play-click! [event]
+  (cond
+    (:suppress-auto-click? @app)
+    (do
+      (.preventDefault event)
+      (clear-suppressed-auto-click!))
+
+    (:auto-play-latched? @app)
+    (do
+      (.preventDefault event)
+      (stop-auto-play-latch!))
+
+    :else
+    (auto-play!)))
+
+(defn begin-auto-play-hold! [event]
+  (when-let [node (closest (.-target event) "[data-auto-play]")]
+    (when (and (or (nil? (.-button event)) (zero? (.-button event)))
+               (not (:auto-play-latched? @app))
+               (not (disabled-button? node)))
+      (let [pointer-id (.-pointerId event)
+            timer (js/setTimeout
+                   (fn []
+                     (when (= pointer-id (:pointer-id @auto-play-hold*))
+                       (swap! auto-play-hold* assoc :fired? true)
+                       (start-auto-play-latch!)))
+                   auto-play-hold-threshold-ms)]
+        (reset! auto-play-hold* {:pointer-id pointer-id
+                                 :timer timer
+                                 :fired? false})))))
+
+(defn finish-auto-play-hold! [event]
+  (when-let [{:keys [pointer-id timer fired?]} @auto-play-hold*]
+    (when (= pointer-id (.-pointerId event))
+      (js/clearTimeout timer)
+      (reset! auto-play-hold* nil)
+      (when fired?
+        (.preventDefault event)
+        (suppress-next-auto-click!)))))
 
 (defn leave-room! []
   (send! {:op :leave-room}))
@@ -2014,11 +2118,15 @@
                                             (.getAttribute trump-target "data-trump"))})
 
                            auto-target
-                           (auto-play!)))))
+                           (handle-auto-play-click! event)))))
+  (.addEventListener (el "modal-root") "pointerdown" begin-auto-play-hold!)
   (.addEventListener (el "game-root") "pointerdown" begin-card-drag!)
+  (.addEventListener (el "game-root") "pointerdown" begin-auto-play-hold!)
   (.addEventListener js/window "pointermove" update-card-drag!)
   (.addEventListener js/window "pointerup" finish-card-drag!)
+  (.addEventListener js/window "pointerup" finish-auto-play-hold!)
   (.addEventListener js/window "pointercancel" finish-card-drag!)
+  (.addEventListener js/window "pointercancel" finish-auto-play-hold!)
   (.addEventListener js/window "resize" schedule-fit-seat-names!)
   (.addEventListener js/window "focus" reconnect-on-wake!)
   (.addEventListener js/window "pageshow" reconnect-on-wake!)
@@ -2099,7 +2207,7 @@
                                (play-card! (read-card-attr card-target))))
 
                            (.hasAttribute target "data-auto-play")
-                           (auto-play!)
+                           (handle-auto-play-click! event)
 
                            (.hasAttribute target "data-sort-hand")
                            (sort-hand!)

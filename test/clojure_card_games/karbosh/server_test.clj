@@ -528,6 +528,57 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-capture-room-bookmarks-live-state-test
+  (let [old-rooms @server/rooms
+        stale-room (-> (room/fill-bots (room/new-room "ABC123" 9))
+                       (assoc :game-index 1)
+                       (assoc-in [:game :initial-seed] 9)
+                       (assoc-in [:game :hand-index] 1)
+                       (assoc-in [:game :phase] :trick-playing)
+                       (assoc-in [:game :current-player] :player1))
+        live-room (-> stale-room
+                      (assoc :game-index 2)
+                      (assoc-in [:game :initial-seed] 99)
+                      (assoc-in [:game :hand-index] 3)
+                      (assoc-in [:game :current-player] :player5)
+                      (assoc-in [:game :completed-tricks]
+                                [[{:player :player2 :card [:A :♠]}]])
+                      (assoc-in [:game :current-trick]
+                                [{:player :player5 :card [:Q :♠]}]))]
+    (try
+      (reset! server/rooms {"ABC123" live-room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (workbench/ensure-session! "ABC123" stale-room)
+        (let [response (server/handler
+                        {:request-method :post
+                         :uri "/karbosh/admin/workbench/ABC123"
+                         :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                   "host" "dc3systems.com"}
+                         :body "action=capture-room&note=from+table"})
+              bookmark (first (get @workbench/bookmarks* "ABC123"))]
+          (is (= 303 (:status response)))
+          (is (= "/karbosh/admin/workbench/ABC123"
+                 (get-in response [:headers "Location"])))
+          (is (= :player5
+                 (get-in @workbench/sessions*
+                         ["ABC123" :room :game :current-player])))
+          (is (= 3
+                 (get-in @workbench/sessions*
+                         ["ABC123" :room :game :hand-index])))
+          (is (= "from table" (:note bookmark)))
+          (is (= 3 (get-in bookmark [:coordinate :hand-index])))
+          (is (= :player5 (get-in bookmark [:coordinate :current-player])))
+          (is (= 1 (get-in bookmark [:coordinate :completed-tricks])))
+          (is (= 1 (get-in bookmark [:coordinate :current-trick-cards])))
+          (is (= (:id bookmark)
+                 (->> (audit/room-records (server/audit-dir) "ABC123")
+                      (keep workbench/bookmark-from-record)
+                      first
+                      :id)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-seat-click-switches-to-player-view-test
   (let [old-rooms @server/rooms
         room (-> (room/fill-bots (room/new-room "ABC123" 9))

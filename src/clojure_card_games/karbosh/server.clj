@@ -1435,7 +1435,7 @@
     (if-let [room (workbench-source-room room-id)]
       (let [params (form-params request)
             session (workbench/handle-action! room-id room params)]
-        (when (= "bookmark" (:action params))
+        (when (#{"bookmark" "capture-room"} (:action params))
           (persist-workbench-bookmark! session))
         (redirect-response (str "/karbosh/admin/workbench/" room-id)))
       (response 404 "Room not found"))))

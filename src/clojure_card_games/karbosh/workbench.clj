@@ -392,6 +392,14 @@
         (assoc :last-bookmark-id (:id bookmark))
         (set-message "Bookmarked current workbench state."))))
 
+(defn capture-from-room [session source-room params]
+  (let [session' (reset-from-room session source-room)
+        note (or (:note params)
+                 "Captured from the game table.")]
+    (-> session'
+        (add-bookmark (assoc params :note note))
+        (set-message "Sent current room state to workbench."))))
+
 (defn bookmark-record [bookmark]
   {:schema bookmark-schema
    :type bookmark-record-type
@@ -445,6 +453,9 @@
                         "redo" (redo-session session)
                         "strategy" (update-strategies session params)
                         "view" (set-view session params)
+                        "capture-room" (capture-from-room session
+                                                          source-room
+                                                          params)
                         "monte-carlo" (assoc session
                                              :analysis
                                              (monte-carlo-analysis session params)

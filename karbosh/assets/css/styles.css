@@ -1753,6 +1753,8 @@ body.karbosh-ultra-fast-mode .fireworks-overlay.is-double-karbosh {
 .table-main-actions,
 .table-room-actions,
 .table-fill-bots-button,
+.table-workbench-form,
+.table-workbench-button,
 .table-new-game-button {
   display: none;
 }
@@ -1792,7 +1794,13 @@ body.has-karbosh-game .table-room-actions {
   gap: 0.5rem;
 }
 
+body.has-karbosh-game .table-workbench-form {
+  margin: 0;
+}
+
 body.has-karbosh-game .table-fill-bots-button,
+body.has-karbosh-game .table-workbench-form,
+body.has-karbosh-game .table-workbench-button,
 body.has-karbosh-game .table-top-actions .table-new-game-button,
 body.has-karbosh-game .table-top-actions .visibility-button,
 body.has-karbosh-game .table-top-actions .leave-room-button {
@@ -1804,11 +1812,23 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
 }
 
 .auto-play-button,
+.table-workbench-button,
 .table-new-game-button,
 .visibility-button,
 .leave-room-button {
   min-height: 2.35rem;
   padding: 0 0.9rem;
+}
+
+.table-workbench-button {
+  border-color: rgba(111, 208, 199, 0.56);
+  background: rgba(111, 208, 199, 0.08);
+}
+
+.table-workbench-button:hover,
+.table-workbench-button:focus-visible {
+  border-color: rgba(111, 208, 199, 0.9);
+  background: rgba(111, 208, 199, 0.16);
 }
 
 .auto-play-button {
@@ -1820,6 +1840,19 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
 .auto-play-button:focus-visible {
   border-color: rgba(111, 208, 199, 0.9);
   background: rgba(111, 208, 199, 0.16);
+}
+
+.auto-play-button.is-latched {
+  border-color: rgba(255, 143, 56, 0.92);
+  background: rgba(255, 143, 56, 0.2);
+  color: #ffd1a6;
+  box-shadow: 0 0 0 1px rgba(255, 143, 56, 0.16), 0 0 0.8rem rgba(255, 143, 56, 0.18);
+}
+
+.auto-play-button.is-latched:hover,
+.auto-play-button.is-latched:focus-visible {
+  border-color: rgba(255, 169, 86, 1);
+  background: rgba(255, 143, 56, 0.28);
 }
 
 .table-new-game-button {
@@ -2893,6 +2926,8 @@ input {
   }
 
   body.has-karbosh-game .table-fill-bots-button,
+  body.has-karbosh-game .table-workbench-form,
+  body.has-karbosh-game .table-workbench-button,
   body.has-karbosh-game .table-top-actions .table-new-game-button,
   body.has-karbosh-game .table-top-actions .visibility-button,
   body.has-karbosh-game .table-top-actions .leave-room-button {
@@ -3360,6 +3395,8 @@ input {
   }
 
   body.has-karbosh-game .table-fill-bots-button,
+  body.has-karbosh-game .table-workbench-form,
+  body.has-karbosh-game .table-workbench-button,
   body.has-karbosh-game .table-top-actions .table-new-game-button,
   body.has-karbosh-game .table-top-actions .visibility-button,
   body.has-karbosh-game .table-top-actions .leave-room-button {
