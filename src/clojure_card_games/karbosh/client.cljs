@@ -1506,7 +1506,8 @@
 
 (defn clear-trick-popup! [popup-id]
   (when (= popup-id (:id (:trick-popup @app)))
-    (swap! app assoc :trick-popup nil)))
+    (swap! app assoc :trick-popup nil)
+    (maybe-run-latched-auto-play!)))
 
 (defn show-trick-popup! [popup]
   (swap! app assoc
@@ -1519,7 +1520,9 @@
   (when (= animation-id (:id (:play-animation @app)))
     (if-let [popup (:queued-trick-popup @app)]
       (show-trick-popup! popup)
-      (swap! app assoc :play-animation nil))))
+      (do
+        (swap! app assoc :play-animation nil)
+        (maybe-run-latched-auto-play!)))))
 
 (defn bid-event [old-view new-view]
   (when old-view
@@ -1557,7 +1560,8 @@
 
 (defn clear-bid-popup! [popup-id]
   (when (= popup-id (:id (:bid-popup @app)))
-    (swap! app assoc :bid-popup nil)))
+    (swap! app assoc :bid-popup nil)
+    (maybe-run-latched-auto-play!)))
 
 (defn clear-fireworks! [fireworks-id]
   (when (= fireworks-id (:id (:fireworks @app)))
