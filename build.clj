@@ -71,6 +71,7 @@
    "--exclude" ".cpcache/"
    "--exclude" ".clj-kondo/.cache/"
    "--exclude" "target/"
+   "--exclude" "deploy/dev.env"
    "--exclude" ".DS_Store"
    "--exclude" "*.pdf"])
 
@@ -127,6 +128,7 @@
     (b/delete {:path release-dir})
     (doseq [dir ["src" "build" "deploy" "karbosh" "resources"]]
       (copy-dir-if-exists! dir (str release-dir "/" dir)))
+    (b/delete {:path (str release-dir "/deploy/dev.env")})
     (copy-file! "deps.edn" (str release-dir "/deps.edn"))
     (spit (io/file release-dir "VERSION")
           (str "release=" id "\n"
