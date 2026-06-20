@@ -66,7 +66,6 @@
                         :seats {}}
                  :analysis {:kind :monte-carlo
                             :actor :player2
-                            :actor-team 2
                             :accepted 0
                             :samples 0
                             :attempts 0

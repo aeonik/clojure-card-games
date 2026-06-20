@@ -1230,6 +1230,11 @@
 (defn actor-team-label [team]
   (str "Actor team (" (admin/team-label team) ")"))
 
+(defn analysis-actor-team [session analysis]
+  (or (:actor-team analysis)
+      (when-let [actor (:actor analysis)]
+        (game/player-team (get-in session [:room :game]) actor))))
+
 (defn mc-result-row-html
   [session {:keys [card
                    samples
@@ -1291,7 +1296,8 @@
 
 (defn analysis-panel-html [session]
   (let [analysis (:analysis session)
-        results (some-> analysis :results vals)]
+        results (some-> analysis :results vals)
+        actor-team (analysis-actor-team session analysis)]
     [:section {:class "panel wb-panel"}
       [:div {:class "section-heading"}
       [:div
@@ -1323,7 +1329,7 @@
        [:div
         [:div {:class "stats room-stats"}
          (admin/stat-card "Actor" (seat-name session (:actor analysis)))
-         (admin/stat-card "Actor team" (admin/team-label (:actor-team analysis)))
+         (admin/stat-card "Actor team" (admin/team-label actor-team))
          (admin/stat-card "Samples" (str (:accepted analysis) " / " (:samples analysis)))
          (admin/stat-card "Attempts" (:attempts analysis))
          (admin/stat-card "Seed" (:seed analysis))]
