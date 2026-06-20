@@ -10,6 +10,13 @@
                         :hand (vec (get hands player []))}]))
         game/players))
 
+(deftest workbench-sorts-hands-before-trump-test
+  (let [state {:phase :bidding
+               :trump nil}
+        hand [[:Q :♣] [:J :♠] [:A :♥] [:J :♣] [9 :♦] [:A :♠]]]
+    (is (= [[:J :♠] [:J :♣] [:A :♠] [:A :♥] [:Q :♣] [9 :♦]]
+           (workbench/sorted-hand state hand)))))
+
 (deftest ai-view-risk-includes-known-current-trick-cards-test
   (let [state {:phase :trick-playing
                :trump :♥

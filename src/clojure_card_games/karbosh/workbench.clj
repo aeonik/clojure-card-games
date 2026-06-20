@@ -753,9 +753,7 @@
       (card-risk-lines-html prob exact)])))
 
 (defn sorted-hand [state cards]
-  (if-let [trump (:trump state)]
-    (hand-order/sorted-hand cards trump)
-    cards))
+  (hand-order/sorted-hand cards (:trump state)))
 
 (defn seat-name [session player]
   (or (get-in session [:room :seats player :name])
