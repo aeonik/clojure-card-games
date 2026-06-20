@@ -1041,6 +1041,12 @@
      (cards/suit->str suit)]
     [:strong {:class "trump-symbol is-empty"} "--"]))
 
+(defn trump-watermark-html [suit]
+  (when suit
+    [:div {:class (str "trump-watermark" (suit-class suit))
+           :aria-hidden "true"}
+     (cards/suit->str suit)]))
+
 (defn table-hand-status-html [view]
   [:div {:class "table-hand-status"}
    [:div
@@ -1079,7 +1085,8 @@
                   (settled-trick (:current-trick view) animation)))]
     (into [:div {:class "table-surface"}
            (table-hand-status-html view)
-           [:div {:class "felt-oval"}]]
+           [:div {:class "felt-oval"}]
+           (trump-watermark-html (:trump view))]
           (concat
            (map #(player-seat-html view %) (:players view))
            [[:div {:class "table-center"}

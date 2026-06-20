@@ -414,6 +414,7 @@ body:not(.has-karbosh-game) .meta-grid,
 .felt-oval {
   position: absolute;
   inset: 8.1rem 7.2rem 5.2rem;
+  z-index: 0;
   border: 0.8rem solid rgba(84, 60, 124, 0.72);
   border-radius: 50%;
   background:
@@ -421,6 +422,36 @@ body:not(.has-karbosh-game) .meta-grid,
   box-shadow:
     inset 0 0 3rem rgba(255, 255, 255, 0.06),
     0 1.5rem 3rem rgba(8, 12, 26, 0.35);
+}
+
+.trump-watermark {
+  position: absolute;
+  inset: 8.1rem 7.2rem 5.2rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: rgba(246, 250, 255, 0.12);
+  font-size: clamp(13rem, 27vw, 25rem);
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0.86;
+  text-shadow:
+    0 0 2.4rem rgba(255, 255, 255, 0.1),
+    0 1rem 3rem rgba(8, 12, 26, 0.32);
+  transform: translateY(0.2rem);
+  user-select: none;
+}
+
+.trump-watermark.suit-heart,
+.trump-watermark.suit-diamond {
+  color: rgba(255, 88, 106, 0.16);
+}
+
+.trump-watermark.suit-spade,
+.trump-watermark.suit-club {
+  -webkit-text-stroke: 0.08rem rgba(255, 255, 255, 0.1);
+  paint-order: stroke fill;
 }
 
 .table-center {
@@ -2770,6 +2801,11 @@ input {
     inset: clamp(5.1rem, 12vh, 7.6rem) clamp(4rem, 8vw, 7.8rem) clamp(3.5rem, 8vh, 5.2rem);
   }
 
+  body.karbosh-fullscreen-mode .trump-watermark {
+    inset: clamp(5.1rem, 12vh, 7.6rem) clamp(4rem, 8vw, 7.8rem) clamp(3.5rem, 8vh, 5.2rem);
+    font-size: clamp(13rem, 29vw, 26rem);
+  }
+
   body.karbosh-fullscreen-mode .table-center {
     width: min(24rem, 42vw);
     min-height: clamp(11rem, 24vh, 14.5rem);
@@ -2925,6 +2961,11 @@ input {
 
   .felt-oval {
     inset: 9.2rem 1.5rem 7rem;
+  }
+
+  .trump-watermark {
+    inset: 9.2rem 1.5rem 7rem;
+    font-size: clamp(10rem, 52vw, 19rem);
   }
 
   .table-center {
@@ -3260,6 +3301,11 @@ input {
     border-width: 0.45rem;
   }
 
+  body.has-karbosh-game .trump-watermark {
+    inset: 4.6rem 0.65rem 2.9rem;
+    font-size: clamp(9rem, 54vw, 15rem);
+  }
+
   body.has-karbosh-game .table-center {
     top: calc(50% + 0.35rem);
     width: min(14.25rem, 68vw);
@@ -3498,6 +3544,11 @@ input {
     inset: 7.8rem 0.9rem 5.6rem;
   }
 
+  .trump-watermark {
+    inset: 7.8rem 0.9rem 5.6rem;
+    font-size: clamp(9rem, 52vw, 17rem);
+  }
+
   .table-center {
     top: calc(50% + 0.8rem);
     width: min(17rem, 74vw);
@@ -3671,6 +3722,11 @@ input {
   body.has-karbosh-game .felt-oval {
     inset: 2.6rem 0.6rem 1.6rem;
     border-width: 0.35rem;
+  }
+
+  body.has-karbosh-game .trump-watermark {
+    inset: 2.6rem 0.6rem 1.6rem;
+    font-size: clamp(7rem, 38vw, 12rem);
   }
 
   body.has-karbosh-game .table-center {
