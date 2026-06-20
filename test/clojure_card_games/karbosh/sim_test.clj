@@ -147,6 +147,41 @@
             [:hybrid-team-ev :hybrid-team-ev :hybrid-team-ev]]
            (mapv :play-strategies profiles)))))
 
+(deftest personality-contender-profile-selection-test
+  (let [profiles (personality/select-profiles
+                  :contenders
+                  [:probability-action-inference-team-ev
+                   :hybrid-action-inference-team-ev])]
+    (is (= [:probability-action-inference-team-ev
+            :hybrid-action-inference-team-ev]
+           (mapv :label profiles)))
+    (is (= [[:probability-action-inference-team-ev
+             :probability-action-inference-team-ev
+             :probability-action-inference-team-ev]
+            [:hybrid-action-inference-team-ev
+             :hybrid-action-inference-team-ev
+             :hybrid-action-inference-team-ev]]
+           (mapv :play-strategies profiles)))))
+
+(deftest personality-match-summary-score-margin-tiebreak-test
+  (let [summary (personality/match-summary
+                 {:label :alpha}
+                 {:label :beta}
+                 [{:policy-winner :alpha
+                   :profile-by-team {1 :alpha 2 :beta}
+                   :scores {1 10 2 5}
+                   :hands 1
+                   :stop-reason :target-score}
+                  {:policy-winner :beta
+                   :profile-by-team {1 :beta 2 :alpha}
+                   :scores {1 4 2 9}
+                   :hands 1
+                   :stop-reason :target-score}])]
+    (is (= {:alpha 1 :beta 1} (:wins summary)))
+    (is (= :alpha (:winner summary)))
+    (is (= :score-margin (:decision summary)))
+    (is (= {:alpha 19 :beta 9} (:score-totals summary)))))
+
 (deftest personality-tournament-checkpoint-test
   (let [profiles (personality/select-profiles :default
                                               [:all-hybrid
@@ -164,3 +199,17 @@
     (is (= {:unresolved 2}
            (-> step :matchups first :wins)))
     (is (contains? step :max-abs-derivative))))
+
+(deftest personality-bracket-test
+  (let [profiles (personality/select-profiles :default
+                                              [:all-hybrid
+                                               :all-hybrid-ruff-invite])
+        result (personality/bracket profiles
+                                    [1]
+                                    {:max-hands 1
+                                     :min-score -100})]
+    (is (= 1 (count (:rounds result))))
+    (is (= #{:all-hybrid :all-hybrid-ruff-invite}
+           (set (-> result :rounds first :matches first :profiles))))
+    (is (contains? #{:all-hybrid :all-hybrid-ruff-invite}
+                   (:champion result)))))

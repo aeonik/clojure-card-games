@@ -94,6 +94,37 @@ The suite includes invariant gates in
 per-action legality across seeded bot self-play, score conservation, and
 same-seed determinism. Policy changes must keep these green.
 
+## Karbosh Strategy Benchmarks
+
+Run a finite mirrored elimination bracket over the current contender play
+strategies:
+
+```sh
+clojure -M:karbosh-personality-sim \
+  --mode bracket \
+  --profile-set contenders \
+  --seed-count 50 \
+  --checkpoint-file target/karbosh-strategy-bracket.edn
+```
+
+For longer Monte Carlo-style comparison, run a checkpointed round-robin. This
+is lazy and can run indefinitely; stop it with `Ctrl-C` after the win-rate
+derivatives settle:
+
+```sh
+clojure -M:karbosh-personality-sim \
+  --mode round-robin \
+  --profile-set contenders \
+  --seed-count forever \
+  --checkpoint-seeds 25 \
+  --checkpoint-file target/karbosh-strategy-round-robin.edn
+```
+
+Use `--profile-set all-strategies` to benchmark every registered play strategy.
+Every head-to-head match swaps the two strategies across both teams on the same
+seed set, so results are driven by policy differences rather than seating or
+deal variance.
+
 ## Probability Helpers
 
 Exact hypergeometric helpers are available through:

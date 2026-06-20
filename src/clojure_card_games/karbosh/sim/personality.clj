@@ -13,6 +13,19 @@
 
 (def default-checkpoint-file "target/karbosh-personality-checkpoints.edn")
 
+(def contender-strategies
+  [:probability-action-inference-team-ev
+   :probability-team-ev
+   :probability-ruff-invite
+   :probability-preservation
+   :probability
+   :hybrid-action-inference-team-ev
+   :hybrid-team-ev
+   :hybrid-ruff-invite
+   :hybrid-preservation
+   :hybrid
+   :card-counting])
+
 (defn persona-by-name [name]
   (or (some #(when (= name (:name %)) %) room/bot-personas)
       (throw (ex-info "Unknown bot persona" {:name name}))))
@@ -68,10 +81,16 @@
    (strategy-profile :defender-exit-mix
                      [:hybrid-defender-exit :hybrid-preservation :hybrid-ruff-invite])])
 
+(defn strategy-profiles [strategies]
+  (mapv strategy-profile strategies))
+
+(def contender-profiles
+  (strategy-profiles contender-strategies))
+
 (defn all-strategy-profiles []
   (->> (keys bot/play-strategies)
        sort
-       (mapv strategy-profile)))
+       strategy-profiles))
 
 (defn profiles-by-label [profiles]
   (into {} (map (juxt :label identity) profiles)))
@@ -84,6 +103,7 @@
 
 (defn select-profiles [profile-set labels]
   (let [profiles (case profile-set
+                   :contenders contender-profiles
                    :all-strategies (all-strategy-profiles)
                    :default default-profiles)
         by-label (profiles-by-label profiles)]
@@ -252,6 +272,116 @@
   (doall (pmap #(run-matchup-job options %)
                (matchup-jobs profiles seeds))))
 
+(defn profile-score [result label]
+  (reduce +
+          (for [[team profile-label] (:profile-by-team result)
+                :when (= label profile-label)]
+            (get-in result [:scores team] 0))))
+
+(defn score-totals [labels results]
+  (into {}
+        (map (fn [label]
+               [label (reduce + (map #(profile-score % label) results))]))
+        labels))
+
+(defn score-margins [labels totals]
+  (into {}
+        (map (fn [label]
+               [label (- (get totals label 0)
+                         (reduce +
+                                 (map (fn [other]
+                                        (if (= label other)
+                                          0
+                                          (get totals other 0)))
+                                      labels)))]))
+        labels))
+
+(defn match-winner [labels wins margins]
+  (first
+   (sort-by (fn [label]
+              [(- (get wins label 0))
+               (- (get margins label 0))
+               (name label)])
+            labels)))
+
+(defn match-decision [winner labels wins margins]
+  (let [others (remove #{winner} labels)
+        winner-wins (get wins winner 0)
+        best-other-wins (reduce max 0 (map #(get wins % 0) others))
+        winner-margin (get margins winner 0)
+        best-other-margin (reduce max Long/MIN_VALUE (map #(get margins % 0) others))]
+    (cond
+      (> winner-wins best-other-wins) :wins
+      (> winner-margin best-other-margin) :score-margin
+      :else :label-tiebreak)))
+
+(defn match-summary
+  "Summarize a mirrored head-to-head profile match. Wins choose the match
+  winner first; cumulative score margin is the deterministic tie-breaker."
+  [left right results]
+  (let [labels [(:label left) (:label right)]
+        games (count results)
+        wins (frequencies (map #(or (:policy-winner %) :unresolved) results))
+        totals (score-totals labels results)
+        margins (score-margins labels totals)
+        winner (match-winner labels wins margins)]
+    {:profiles labels
+     :games games
+     :hands (reduce + (map :hands results))
+     :wins wins
+     :win-rates (into {}
+                      (map (fn [label]
+                             [label (rate (get wins label 0) games)]))
+                      labels)
+     :score-totals totals
+     :score-margins margins
+     :avg-score-margins (into {}
+                              (map (fn [label]
+                                     [label (rate (get margins label 0) games)]))
+                              labels)
+     :stop-reasons (frequencies (map :stop-reason results))
+     :winner winner
+     :decision (match-decision winner labels wins margins)}))
+
+(defn run-match [left right options seeds]
+  (match-summary left right (run-batch [left right] options seeds)))
+
+(defn bracket-pairs [profiles]
+  (partition-all 2 profiles))
+
+(defn bracket-round [round-number profiles options seeds]
+  (let [by-label (profiles-by-label profiles)
+        pairs (bracket-pairs profiles)
+        matches (mapv (fn [[left right]]
+                        (when right
+                          (run-match left right options seeds)))
+                      pairs)
+        byes (mapv (comp :label first) (filter #(= 1 (count %)) pairs))
+        winners (into (mapv #(get by-label (:winner %)) (remove nil? matches))
+                      (map first (filter #(= 1 (count %)) pairs)))]
+    {:round round-number
+     :matches (vec (remove nil? matches))
+     :byes byes
+     :advancing (mapv :label winners)
+     :advancing-profiles winners}))
+
+(defn bracket
+  "Run an elimination bracket over `profiles`. Each head-to-head match uses the
+  same mirrored seed set to reduce seat and deal variance."
+  ([profiles seeds]
+   (bracket profiles seeds sim/default-options))
+  ([profiles seeds options]
+   (loop [round-number 1
+          active (vec profiles)
+          rounds []]
+     (if (<= (count active) 1)
+       {:champion (some-> active first :label)
+        :rounds rounds}
+       (let [round (bracket-round round-number active options seeds)]
+         (recur (inc round-number)
+                (:advancing-profiles round)
+                (conj rounds (dissoc round :advancing-profiles))))))))
+
 (defn tournament-steps
   "Lazy checkpoint stream. Every checkpoint runs all profile pairs for a seed
   batch, with each pair mirrored across both teams to reduce seating bias."
@@ -304,12 +434,14 @@
    "--max-hands" [:max-hands parse-long-option]
    "--min-score" [:min-score parse-long-option]
    "--top" [:top parse-long-option]
+   "--mode" [:mode parse-keyword-option]
    "--profile-set" [:profile-set parse-keyword-option]
    "--profiles" [:profiles parse-labels]
    "--checkpoint-file" [:checkpoint-file identity]})
 
 (def default-cli-options
-  {:start-seed 0
+  {:mode :round-robin
+   :start-seed 0
    :seed-count nil
    :checkpoint-seeds 25
    :max-hands 100
@@ -325,17 +457,21 @@
    ["Usage: clojure -M:karbosh-personality-sim [options]"
     ""
     "Options:"
+    "  --mode round-robin|bracket   Default: round-robin"
     "  --seed-count N|forever       Number of seeds to run. Default: forever"
+    "                               Bracket defaults to 50 when omitted"
     "  --checkpoint-seeds N         Seeds per checkpoint. Default: 25"
     "  --start-seed N               First seed. Default: 0"
     "  --max-hands N                Simulation hand guard. Default: 100"
     "  --min-score N                Simulation negative score guard. Default: -100"
     "  --top N                      Rankings printed per checkpoint. Default: 12"
-    "  --profile-set default|all-strategies"
+    "  --profile-set default|contenders|all-strategies"
     "  --profiles a,b,c             Optional profile labels from the chosen set"
     "  --checkpoint-file PATH       EDN-lines checkpoint output"
     ""
-    "The run is lazy and checkpointed; use Ctrl-C to stop an unbounded run."]))
+    "Round-robin mode is lazy and checkpointed; use Ctrl-C to stop an unbounded run."
+    "Bracket mode runs an elimination bracket. Each match uses mirrored teams on"
+    "the same seed set, with cumulative score margin as the win-count tie-breaker."]))
 
 (defn parse-args [args]
   (loop [opts default-cli-options
@@ -380,22 +516,87 @@
     (io/make-parents file)
     (spit file (str (pr-str checkpoint) "\n") :append true)))
 
+(defn print-match! [{:keys [profiles games wins win-rates score-margins winner decision]}]
+  (let [[left right] profiles]
+    (println (format "  %-36s vs %-36s -> %-36s (%s, games=%d)"
+                     (name left)
+                     (name right)
+                     (name winner)
+                     (name decision)
+                     games))
+    (println (format "    wins: %s=%d %.1f%% | %s=%d %.1f%% | score-margin %s=%d %s=%d"
+                     (name left)
+                     (get wins left 0)
+                     (* 100.0 (get win-rates left 0.0))
+                     (name right)
+                     (get wins right 0)
+                     (* 100.0 (get win-rates right 0.0))
+                     (name left)
+                     (long (get score-margins left 0))
+                     (name right)
+                     (long (get score-margins right 0))))))
+
+(defn print-bracket! [{:keys [champion rounds]}]
+  (println)
+  (println "Karbosh strategy bracket")
+  (doseq [{:keys [round matches byes advancing]} rounds]
+    (println)
+    (println (format "Round %d" round))
+    (doseq [bye byes]
+      (println (format "  %-36s bye" (name bye))))
+    (doseq [match matches]
+      (print-match! match))
+    (println "  Advancing:" (str/join ", " (map name advancing))))
+  (println)
+  (println "Champion:" (name champion)))
+
+(defn finite-bracket-seeds [{:keys [start-seed seed-count]}]
+  (seed-seq start-seed (or seed-count 50)))
+
+(defn sim-options [opts]
+  (assoc sim/default-options
+    :max-hands (:max-hands opts)
+    :min-score (:min-score opts)))
+
+(defn run-round-robin-cli! [opts profiles]
+  (when (< (count profiles) 2)
+    (throw (ex-info "Need at least two profiles" {:profiles (mapv :label profiles)})))
+  (println "Karbosh personality tournament")
+  (println "Profiles:" (str/join ", " (map (comp name :label) profiles)))
+  (println "Checkpoint file:" (:checkpoint-file opts))
+  (doseq [checkpoint (tournament-steps
+                      profiles
+                      (seed-seq (:start-seed opts) (:seed-count opts))
+                      (sim-options opts)
+                      {:checkpoint-seeds (:checkpoint-seeds opts)})]
+    (print-checkpoint! opts checkpoint)
+    (append-checkpoint! (:checkpoint-file opts) checkpoint)))
+
+(defn run-bracket-cli! [opts profiles]
+  (when (< (count profiles) 2)
+    (throw (ex-info "Need at least two profiles" {:profiles (mapv :label profiles)})))
+  (let [seed-count (or (:seed-count opts) 50)
+        seeds (finite-bracket-seeds opts)
+        result (bracket profiles seeds (sim-options opts))]
+    (println "Profiles:" (str/join ", " (map (comp name :label) profiles)))
+    (println "Seeds:" (:start-seed opts) "through" (+ (:start-seed opts) seed-count -1))
+    (print-bracket! result)
+    (append-checkpoint! (:checkpoint-file opts)
+                        (assoc result
+                               :mode :bracket
+                               :profile-definitions
+                               (mapv profile-definition profiles)
+                               :seed-range [(:start-seed opts)
+                                            (+ (:start-seed opts) seed-count -1)]))))
+
 (defn run-cli! [opts]
   (let [profiles (select-profiles (:profile-set opts) (:profiles opts))]
-    (when (< (count profiles) 2)
-      (throw (ex-info "Need at least two profiles" {:profiles (mapv :label profiles)})))
-    (println "Karbosh personality tournament")
-    (println "Profiles:" (str/join ", " (map (comp name :label) profiles)))
-    (println "Checkpoint file:" (:checkpoint-file opts))
-    (doseq [checkpoint (tournament-steps
-                        profiles
-                        (seed-seq (:start-seed opts) (:seed-count opts))
-                        (assoc sim/default-options
-                          :max-hands (:max-hands opts)
-                          :min-score (:min-score opts))
-                        {:checkpoint-seeds (:checkpoint-seeds opts)})]
-      (print-checkpoint! opts checkpoint)
-      (append-checkpoint! (:checkpoint-file opts) checkpoint))))
+    (case (:mode opts)
+      :round-robin (run-round-robin-cli! opts profiles)
+      :bracket (run-bracket-cli! opts profiles)
+      (throw (ex-info "Unknown tournament mode"
+                      {:mode (:mode opts)
+                       :available [:round-robin :bracket]})))))
 
 (defn -main [& args]
   (let [opts (parse-args args)]
