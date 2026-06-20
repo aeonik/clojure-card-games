@@ -67,6 +67,8 @@
     (is (re-find #"✅" rendered))
     (is (re-find #"Final tricks \(Team 1 / Team 2\)" rendered))
     (is (re-find #"Actor team makes bid\\?" rendered))
+    (is (< (.indexOf rendered "Actor team makes bid?")
+           (.indexOf rendered "Final tricks (Team 1 / Team 2)")))
     (is (re-find #"Final score \(Team 1 / Team 2\)" rendered))))
 
 (deftest monte-carlo-panel-renders-actor-team-test

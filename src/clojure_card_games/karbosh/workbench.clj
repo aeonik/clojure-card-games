@@ -1291,12 +1291,12 @@
      (admin/table-cell "Current trick team" (admin/team-label winner-team))
      (admin/table-cell "Actor team takes current trick?"
                        (outcome-glyph team-wins?))
-     (admin/table-cell "Final tricks (Team 1 / Team 2)"
-                       (trick-counts-label (:tricks final-hand)))
      (admin/table-cell "Actor team makes bid?"
                        (if (some? actor-bid-made?)
                          (outcome-glyph actor-bid-made?)
                          "--"))
+     (admin/table-cell "Final tricks (Team 1 / Team 2)"
+                       (trick-counts-label (:tricks final-hand)))
      (admin/table-cell "Final score (Team 1 / Team 2)"
                        (score-counts-label (:scores final-hand)))]))
 
@@ -1308,8 +1308,8 @@
      [:th "Current trick winner"]
      [:th "Current trick team"]
      [:th "Actor team takes current trick?"]
-     [:th "Final tricks (Team 1 / Team 2)"]
      [:th "Actor team makes bid?"]
+     [:th "Final tricks (Team 1 / Team 2)"]
      [:th "Final score (Team 1 / Team 2)"]]]
    [:tbody
     (for [result baseline]
