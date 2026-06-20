@@ -654,9 +654,10 @@
     [:span (phase-label phase)]]
    [:div {:class "public-room-details"}
     [:em {:class "public-room-occupancy"}
-     player-count " / 6 players"
-     (when (pos? connected-count)
-       (str " / " connected-count " online"))]
+     player-count " / 6 players"]
+    (when (pos? connected-count)
+      [:span {:class "public-room-online"}
+       connected-count " online"])
     [:span {:class "public-room-available"}
      available-count " available"]]
    [:button {:type "button"

@@ -2543,6 +2543,7 @@ input {
 .public-room-main,
 .public-room-details,
 .public-room-occupancy,
+.public-room-online,
 .public-room-available {
   min-width: 0;
 }
@@ -2560,20 +2561,28 @@ input {
 
 .public-room-main span,
 .public-room-occupancy,
+.public-room-online,
 .public-room-available {
   line-height: 1.2;
 }
 
 .public-room-details {
   grid-column: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.18rem 0.55rem;
-  align-items: center;
+  display: grid;
+  gap: 0.16rem;
+  align-items: start;
 }
 
 .public-room-occupancy {
   overflow-wrap: anywhere;
+}
+
+.public-room-online {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .public-room-available {
