@@ -59,3 +59,20 @@
     (is (re-find #"Actor team wins trick\\?" rendered))
     (is (re-find #"Final tricks \(Team 1 / Team 2\)" rendered))
     (is (re-find #"Actor team \(Team 2\) final tricks" rendered))))
+
+(deftest monte-carlo-panel-renders-actor-team-test
+  (let [session {:room {:game {:phase :trick-playing
+                               :players (player-states {})}
+                        :seats {}}
+                 :analysis {:kind :monte-carlo
+                            :actor :player2
+                            :actor-team 2
+                            :accepted 0
+                            :samples 0
+                            :attempts 0
+                            :seed 0
+                            :baseline []
+                            :results {}}}
+        rendered (pr-str (workbench/analysis-panel-html session))]
+    (is (re-find #"Actor team" rendered))
+    (is (re-find #"Team 2" rendered))))

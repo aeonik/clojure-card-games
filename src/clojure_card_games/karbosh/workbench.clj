@@ -285,6 +285,7 @@
                                                                options)]
         {:kind :monte-carlo
          :actor actor
+         :actor-team (game/player-team state actor)
          :samples (:samples options)
          :accepted (count worlds)
          :attempts attempts
@@ -322,6 +323,7 @@
                                           (:trump state))]
         {:kind :exact
          :actor actor
+         :actor-team team
          :team team
          :remaining-cards cards-left
          :results (mapv (fn [card]
