@@ -76,4 +76,4 @@
 
  :strategies
  {:bid :karbosh-probability
-  :play :hybrid-preservation}}
+  :play :hybrid-action-inference-team-ev}}

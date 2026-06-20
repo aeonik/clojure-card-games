@@ -36,7 +36,7 @@
                  :catchphrase "The adorable card-dealing bot."}
         normalized (assoc persona
                           :style :preservation
-                          :play-strategy :hybrid-preservation
+                          :play-strategy :hybrid-action-inference-team-ev
                           :ditch-policy :future-suit-equity)
         state (room/seat-bot (room/new-room "ABC123" 9) :player1 persona)]
     (is (= normalized (get-in state [:seats :player1 :persona])))
@@ -55,7 +55,7 @@
             :icon "BG"
             :catchphrase "Oops! I Bid It Again"
             :style :preservation
-            :play-strategy :hybrid-preservation
+            :play-strategy :hybrid-action-inference-team-ev
             :ditch-policy :future-suit-equity}
            bidney))
     (is (not (contains? names "Bidney Spears")))
@@ -89,10 +89,10 @@
                 :catchphrase "Tuned bot."
                 :style :aggressive
                 :play-strategy :hybrid})]
-    (is (= :hybrid-preservation bot/default-play-strategy))
-    (is (= :hybrid-ruff-invite room/default-auto-play-strategy))
+    (is (= :hybrid-action-inference-team-ev bot/default-play-strategy))
+    (is (= :hybrid-action-inference-team-ev room/default-auto-play-strategy))
     (is (= :preservation (:style deal-e)))
-    (is (= :hybrid-preservation (:play-strategy deal-e)))
+    (is (= :hybrid-action-inference-team-ev (:play-strategy deal-e)))
     (is (= :aggressive (:style trumpelstiltskin)))
     (is (= :hybrid (:play-strategy trumpelstiltskin)))
     (is (= :aggressive (:style heart-vader)))
@@ -103,7 +103,7 @@
     (is (= :preservation (:style hal-52)))
     (is (= :hybrid-action-inference-team-ev (:play-strategy hal-52)))
     (is (= :future-suit-equity (:ditch-policy hal-52)))
-    (is (= 14 (count action-inference-names)))
+    (is (= 33 (count action-inference-names)))
     (is (every? action-inference-names
                 ["Clank Sinatra"
                  "HAL 52"
@@ -142,12 +142,14 @@
     (is (= :hybrid (get-in state [:seats :player2 :play-strategy])))
     (is (= :future-suit-equity (get-in state [:seats :player2 :ditch-policy])))
     (is (= :aggressive (get-in state [:seats :player2 :style])))
-    (is (= :hybrid-preservation (get-in state [:seats :player3 :play-strategy])))
+    (is (= :hybrid-action-inference-team-ev
+           (get-in state [:seats :player3 :play-strategy])))
     (is (= :future-suit-equity (get-in state [:seats :player3 :ditch-policy])))
     (is (= :preservation (get-in state [:seats :player3 :style])))
     (is (= :hybrid (room/bot-play-strategy state :player2)))
     (is (= :future-suit-equity (room/bot-ditch-policy state :player2)))
-    (is (= :hybrid-preservation (room/bot-play-strategy state :player3)))))
+    (is (= :hybrid-action-inference-team-ev
+           (room/bot-play-strategy state :player3)))))
 
 (deftest bot-turn-binds-seat-play-strategy
   (let [aggressive (some #(when (= "Trumpelstiltskin" (:name %)) %)
@@ -363,8 +365,8 @@
             event (-> advanced :game :history first)]
         (is (= :bid (:type event)))
         (is (= :player1 (:player event)))
-        (is (= :hybrid-ruff-invite (get-in event [:ai :policy])))
-        (is (= :hybrid-ruff-invite @observed-strategy))))))
+        (is (= :hybrid-action-inference-team-ev (get-in event [:ai :policy])))
+        (is (= :hybrid-action-inference-team-ev @observed-strategy))))))
 
 (deftest new-game-preserves-completed-game-history
   (let [completed (-> (room/new-room "ABC123" 9)

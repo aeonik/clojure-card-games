@@ -6,16 +6,24 @@
 
 (def room-id-chars "ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
 
-(def default-bot-play-strategy :hybrid-preservation)
+(def default-bot-play-strategy :hybrid-action-inference-team-ev)
 (def aggressive-bot-play-strategy :hybrid)
 (def ruff-invite-bot-play-strategy :hybrid-ruff-invite)
 (def action-inference-bot-play-strategy :hybrid-action-inference-team-ev)
-(def default-auto-play-strategy ruff-invite-bot-play-strategy)
+(def default-auto-play-strategy action-inference-bot-play-strategy)
 
 (def classic-ditch-bot-names
   #{"Bid Zeppelin"
     "C-3P-Oh No"
     "Trick-182"})
+
+(def legacy-preservation-bot-names
+  #{"C-3P-Oh No"
+    "Deckard Cain't"
+    "Kernel Panic Jack"
+    "Null Pointer Jackception"
+    "Robo-Cop-a-Card"
+    "Regex Rex"})
 
 (def aggressive-bot-names
   #{"Cardi-Bot"
@@ -76,6 +84,9 @@
 
         (contains? ruff-invite-bot-names (:name persona))
         ruff-invite-bot-play-strategy
+
+        (contains? legacy-preservation-bot-names (:name persona))
+        :hybrid-preservation
 
         :else
         (case (persona-style persona)
