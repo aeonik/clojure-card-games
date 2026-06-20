@@ -425,20 +425,20 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .trump-watermark {
-  --trump-watermark-y: -0.65rem;
+  --trump-watermark-y: -1.35rem;
   position: absolute;
   inset: 8.1rem 7.2rem 5.2rem;
   z-index: 1;
   display: grid;
   place-items: center;
   pointer-events: none;
-  color: rgba(246, 250, 255, 0.18);
+  color: rgba(246, 250, 255, 0.24);
   font-size: clamp(13rem, 27vw, 25rem);
   font-weight: 900;
   line-height: 1;
-  opacity: 0.94;
+  opacity: 1;
   text-shadow:
-    0 0 2.4rem rgba(255, 255, 255, 0.13),
+    0 0 2.4rem rgba(255, 255, 255, 0.16),
     0 1rem 3rem rgba(8, 12, 26, 0.32);
   transform: translateY(var(--trump-watermark-y));
   user-select: none;
@@ -446,12 +446,13 @@ body:not(.has-karbosh-game) .meta-grid,
 
 .trump-watermark.suit-heart,
 .trump-watermark.suit-diamond {
-  color: rgba(255, 88, 106, 0.24);
+  color: rgba(255, 78, 100, 0.34);
 }
 
 .trump-watermark.suit-spade,
 .trump-watermark.suit-club {
-  -webkit-text-stroke: 0.08rem rgba(255, 255, 255, 0.16);
+  color: rgba(11, 16, 28, 0.38);
+  -webkit-text-stroke: 0.08rem rgba(255, 255, 255, 0.22);
   paint-order: stroke fill;
 }
 
@@ -3303,7 +3304,7 @@ input {
   }
 
   body.has-karbosh-game .trump-watermark {
-    --trump-watermark-y: -0.25rem;
+    --trump-watermark-y: -0.58rem;
     inset: 4.6rem 0.65rem 2.9rem;
     font-size: clamp(9rem, 54vw, 15rem);
   }
@@ -3727,7 +3728,7 @@ input {
   }
 
   body.has-karbosh-game .trump-watermark {
-    --trump-watermark-y: -0.18rem;
+    --trump-watermark-y: -0.42rem;
     inset: 2.6rem 0.6rem 1.6rem;
     font-size: clamp(7rem, 38vw, 12rem);
   }
