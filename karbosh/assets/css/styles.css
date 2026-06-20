@@ -2499,8 +2499,8 @@ input {
 .recent-room-row,
 .public-room-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: 0.75rem;
+  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, auto) minmax(5rem, auto) auto;
+  gap: 0.55rem 0.75rem;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2538,6 +2538,31 @@ input {
 .recent-room-row strong,
 .public-room-row strong {
   overflow-wrap: anywhere;
+}
+
+.public-room-main,
+.public-room-occupancy,
+.public-room-available {
+  min-width: 0;
+}
+
+.public-room-main strong {
+  color: var(--accent);
+  font-size: 1rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.public-room-main span,
+.public-room-occupancy,
+.public-room-available {
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.public-room-available {
+  color: var(--accent-3);
+  text-align: right;
 }
 
 .recent-room-actions {
@@ -2941,6 +2966,30 @@ input {
   .public-room-row {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .public-room-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem 0.6rem;
+  }
+
+  .public-room-main {
+    grid-column: 1;
+  }
+
+  .public-room-available {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    text-align: right;
+  }
+
+  .public-room-occupancy {
+    grid-column: 1 / -1;
+  }
+
+  .public-room-join {
+    grid-column: 1 / -1;
   }
 
   .recent-room-actions,

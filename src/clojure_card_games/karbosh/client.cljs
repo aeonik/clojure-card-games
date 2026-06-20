@@ -649,15 +649,17 @@
 
 (defn public-room-html [{:keys [room-id phase player-count connected-count available-count]}]
   [:article {:class "public-room-row"}
-   [:div
+   [:div {:class "public-room-main"}
     [:strong room-id]
     [:span (phase-label phase)]]
-   [:em
+   [:em {:class "public-room-occupancy"}
     player-count " / 6 players"
     (when (pos? connected-count)
       (str " / " connected-count " online"))]
-   [:span available-count " available"]
+   [:span {:class "public-room-available"}
+    available-count " available"]
    [:button {:type "button"
+             :class "public-room-join"
              :data-public-room room-id}
     "Join"]])
 
