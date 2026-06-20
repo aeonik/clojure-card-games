@@ -1333,7 +1333,7 @@
          (admin/stat-card "Samples" (str (:accepted analysis) " / " (:samples analysis)))
          (admin/stat-card "Attempts" (:attempts analysis))
          (admin/stat-card "Seed" (:seed analysis))]
-        [:h3 "Exact current-hand baseline"]
+        [:h3 "Current-hand policy rollout"]
         (baseline-table-html session (:baseline analysis))
         [:h3 "Monte Carlo sampled worlds"]
         [:table {:class "admin-table"}
