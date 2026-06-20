@@ -1238,38 +1238,21 @@
       (when-let [actor (:actor analysis)]
         (game/player-team (get-in session [:room :game]) actor))))
 
-(defn bid-result-label [state final-hand]
+(defn outcome-glyph [success?]
+  (if success? "✅" "❌"))
+
+(defn bid-made? [bid-type value bid-tricks]
+  (case bid-type
+    :bid (>= bid-tricks value)
+    (:karbosh :double-karbosh) (= 8 bid-tricks)
+    false))
+
+(defn actor-team-makes-bid? [state final-hand actor-team]
   (let [{:keys [bid-type player value]} (game/current-bid state)
         bid-team (when player (game/player-team state player))
         bid-tricks (get-in final-hand [:tricks bid-team] 0)]
-    (case bid-type
-      :bid
-      (str (admin/team-label bid-team)
-           " "
-           (if (>= bid-tricks value) "made" "failed")
-           " bid "
-           value
-           " ("
-           bid-tricks
-           " tricks)")
-
-      :karbosh
-      (str (admin/team-label bid-team)
-           " "
-           (if (= 8 bid-tricks) "made" "failed")
-           " karbosh ("
-           bid-tricks
-           " tricks)")
-
-      :double-karbosh
-      (str (admin/team-label bid-team)
-           " "
-           (if (= 8 bid-tricks) "made" "failed")
-           " double karbosh ("
-           bid-tricks
-           " tricks)")
-
-      "--")))
+    (when (= actor-team bid-team)
+      (bid-made? bid-type value bid-tricks))))
 
 (defn mc-result-row-html
   [session {:keys [card
@@ -1300,19 +1283,20 @@
   [session {:keys [card winner winner-team actor-team team-wins? final-hand]}]
   (let [state (get-in session [:room :game])
         view (game/admin-view state
-                              (get-in session [:room :seats]))]
+                              (get-in session [:room :seats]))
+        actor-bid-made? (actor-team-makes-bid? state final-hand actor-team)]
     [:tr
      (admin/table-cell "Card" (admin/card-html card))
      (admin/table-cell "Current trick winner" (admin/player-label view winner))
      (admin/table-cell "Current trick team" (admin/team-label winner-team))
      (admin/table-cell "Actor team takes current trick?"
-                       (if team-wins? "Yes" "No"))
+                       (outcome-glyph team-wins?))
      (admin/table-cell "Final tricks (Team 1 / Team 2)"
                        (trick-counts-label (:tricks final-hand)))
-     (admin/table-cell (str (actor-team-label actor-team) " final tricks")
-                       (:actor-team-tricks final-hand))
-     (admin/table-cell "Bid result"
-                       (bid-result-label state final-hand))
+     (admin/table-cell "Actor team makes bid?"
+                       (if (some? actor-bid-made?)
+                         (outcome-glyph actor-bid-made?)
+                         "--"))
      (admin/table-cell "Final score (Team 1 / Team 2)"
                        (score-counts-label (:scores final-hand)))]))
 
@@ -1325,8 +1309,7 @@
      [:th "Current trick team"]
      [:th "Actor team takes current trick?"]
      [:th "Final tricks (Team 1 / Team 2)"]
-     [:th "Actor team final tricks"]
-     [:th "Bid result"]
+     [:th "Actor team makes bid?"]
      [:th "Final score (Team 1 / Team 2)"]]]
    [:tbody
     (for [result baseline]

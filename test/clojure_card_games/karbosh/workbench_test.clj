@@ -64,9 +64,9 @@
                                 :actor-team-tricks 5}}]
         rendered (pr-str (workbench/baseline-table-html session baseline))]
     (is (re-find #"Actor team takes current trick\\?" rendered))
+    (is (re-find #"✅" rendered))
     (is (re-find #"Final tricks \(Team 1 / Team 2\)" rendered))
-    (is (re-find #"Actor team \(Team 2\) final tricks" rendered))
-    (is (re-find #"Team 2 made bid 4 \(5 tricks\)" rendered))
+    (is (re-find #"Actor team makes bid\\?" rendered))
     (is (re-find #"Final score \(Team 1 / Team 2\)" rendered))))
 
 (deftest monte-carlo-panel-renders-actor-team-test
