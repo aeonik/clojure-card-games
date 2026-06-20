@@ -1276,7 +1276,13 @@
 (defn trick-anchor [index]
   (str "trick-" (inc index)))
 
-(declare trick-analysis-url)
+(declare trick-analysis-url workbench-hand-url)
+
+(defn hand-workbench-link-html [snapshot-base-url hand label]
+  (when-let [url (workbench-hand-url snapshot-base-url hand)]
+    [:a {:class "hand-workbench-link"
+         :href url}
+     label]))
 
 (defn trick-detail-html [view snapshot-base-url hand trump index trick]
   (let [winner (trick-winner trump trick)]
@@ -1286,20 +1292,25 @@
       [:div
        [:strong (str "Trick " (inc index))]
        [:span (str "Winner: " (player-label view winner))]]
-      [:a {:class "trick-analysis-link"
-           :href (trick-analysis-url snapshot-base-url hand index)}
-       "Analyze"]]
+      [:div {:class "trick-actions"}
+       [:a {:class "trick-analysis-link"
+            :href (trick-analysis-url snapshot-base-url hand index)}
+        "Analyze"]
+       (hand-workbench-link-html snapshot-base-url hand "Load hand")]]
      [:div {:class "trick"}
       (for [play trick]
         (trick-card-html view trump winner play))]]))
 
-(defn current-trick-detail-html [view trump trick]
+(defn current-trick-detail-html [view snapshot-base-url hand trump trick]
   (when (seq trick)
     [:article {:id "current-trick"
                :class "trick-detail current-trick-detail"}
      [:div {:class "trick-heading"}
-      [:strong "Current trick"]
-      [:span "In progress"]]
+      [:div
+       [:strong "Current trick"]
+       [:span "In progress"]]
+      [:div {:class "trick-actions"}
+       (hand-workbench-link-html snapshot-base-url hand "Load hand")]]
      [:div {:class "trick"}
       (for [play trick]
         (trick-card-html view trump nil play))]]))
@@ -1411,7 +1422,8 @@
    [:span (str "Score " (score-label (:scores-after hand)))]
    [:a {:class "hand-explain-link"
         :href (hand-detail-url snapshot-base-url hand)}
-    "Explain"]])
+    "Explain"]
+   (hand-workbench-link-html snapshot-base-url hand "Load")])
 
 (defn hand-summary-card-html [view snapshot-base-url hand]
   [:article {:class "hand-summary-card"}
@@ -1455,7 +1467,11 @@
      [:div {:class "trick-timeline"}
       (for [[index trick] (map-indexed vector (:completed-tricks hand))]
         (trick-detail-html view snapshot-base-url hand (:trump hand) index trick))
-      (current-trick-detail-html view (:trump hand) (:current-trick hand))]
+      (current-trick-detail-html view
+                                 snapshot-base-url
+                                 hand
+                                 (:trump hand)
+                                 (:current-trick hand))]
      [:p {:class "empty"} "No cards have been played."])
    (initial-hands-html view (:initial-hands hand))])
 
@@ -1631,6 +1647,9 @@
                  " Hand " (inc hand-index)
                  " Trick " (inc trick-index))]]
       [:div {:class "admin-actions"}
+       (hand-workbench-link-html snapshot-base-url
+                                 {:hand-index hand-index}
+                                 "Load hand")
        [:a {:href (hand-detail-url snapshot-base-url {:hand-index hand-index})}
         "Hand detail"]
        [:a {:href snapshot-base-url} "Room snapshot"]

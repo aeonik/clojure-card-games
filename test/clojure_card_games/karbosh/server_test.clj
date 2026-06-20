@@ -710,6 +710,53 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-live-hand-detail-loads-in-progress-hand-into-workbench-test
+  (let [old-rooms @server/rooms
+        room (-> (room/fill-bots (room/new-room "ABC123" 909))
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :trump] :♠)
+                 (assoc-in [:game :current-player] :player3)
+                 (assoc-in [:game :current-trick]
+                           [{:player :player1 :card [:A :♠]}
+                            {:player :player2 :card [10 :♠]}])
+                 (assoc-in [:game :completed-tricks]
+                           [[{:player :player4 :card [:J :♠]}
+                             {:player :player5 :card [:Q :♠]}
+                             {:player :player6 :card [9 :♠]}]])
+                 (assoc-in [:game :tricks-this-hand] {1 0 2 1}))]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (let [detail-response (server/handler
+                               {:request-method :get
+                                :uri "/karbosh/admin/rooms/ABC123/snapshot/hands/0"
+                                :headers {"host" "dc3systems.com"}})]
+          (is (= 200 (:status detail-response)))
+          (is (re-find #"Current trick" (:body detail-response)))
+          (is (re-find #"In progress" (:body detail-response)))
+          (is (re-find #"Load hand" (:body detail-response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/ABC123\?hand=0\""
+                       (:body detail-response))))
+        (let [workbench-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/workbench/ABC123"
+                                   :query-string "hand=0"
+                                   :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                             "host" "dc3systems.com"}})
+              state (get-in @workbench/sessions* ["ABC123" :room :game])]
+          (is (= 200 (:status workbench-response)))
+          (is (= :bidding (:phase state)))
+          (is (= 0 (:hand-index state)))
+          (is (= :player1 (:current-player state)))
+          (is (not (contains? state :trump)))
+          (is (not (contains? state :current-trick)))
+          (is (= [] (:completed-tricks state)))
+          (is (= (:initial-hands (:game room))
+                 (game/player-hands state)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-seat-click-switches-to-player-view-test
   (let [old-rooms @server/rooms
         room (-> (room/fill-bots (room/new-room "ABC123" 9))
@@ -1101,6 +1148,8 @@
           (is (re-find #"Explain" (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0\""
                        (:body response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/ABC123\?hand=0\""
+                       (:body response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0#trick-1\""
                        (:body response)))
           (is (re-find #"T1" (:body response)))
@@ -1135,6 +1184,9 @@
           (is (re-find #"starting-hand-row" (:body detail-response)))
           (is (re-find #"Analyze" (:body detail-response)))
           (is (re-find #"href=\"/karbosh/admin/rooms/ABC123/snapshot/hands/0/tricks/0/analysis\""
+                       (:body detail-response)))
+          (is (re-find #"Load hand" (:body detail-response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/ABC123\?hand=0\""
                        (:body detail-response)))
           (is (re-find #"Trick 1" (:body detail-response)))
           (is (re-find #"id=\"trick-1\"" (:body detail-response)))
