@@ -1227,6 +1227,9 @@
 (defn trick-counts-label [tricks]
   (str (get tricks 1 0) " / " (get tricks 2 0)))
 
+(defn score-counts-label [scores]
+  (str (get scores 1 0) " / " (get scores 2 0)))
+
 (defn actor-team-label [team]
   (str "Actor team (" (admin/team-label team) ")"))
 
@@ -1234,6 +1237,39 @@
   (or (:actor-team analysis)
       (when-let [actor (:actor analysis)]
         (game/player-team (get-in session [:room :game]) actor))))
+
+(defn bid-result-label [state final-hand]
+  (let [{:keys [bid-type player value]} (game/current-bid state)
+        bid-team (when player (game/player-team state player))
+        bid-tricks (get-in final-hand [:tricks bid-team] 0)]
+    (case bid-type
+      :bid
+      (str (admin/team-label bid-team)
+           " "
+           (if (>= bid-tricks value) "made" "failed")
+           " bid "
+           value
+           " ("
+           bid-tricks
+           " tricks)")
+
+      :karbosh
+      (str (admin/team-label bid-team)
+           " "
+           (if (= 8 bid-tricks) "made" "failed")
+           " karbosh ("
+           bid-tricks
+           " tricks)")
+
+      :double-karbosh
+      (str (admin/team-label bid-team)
+           " "
+           (if (= 8 bid-tricks) "made" "failed")
+           " double karbosh ("
+           bid-tricks
+           " tricks)")
+
+      "--")))
 
 (defn mc-result-row-html
   [session {:keys [card
@@ -1250,9 +1286,9 @@
         [top-winner top-n] (first (sort-by (comp - val) winners))]
     [:tr
      (admin/table-cell "Card" (admin/card-html card))
-     (admin/table-cell "Team wins" (rate team-wins))
+     (admin/table-cell "Actor team wins current trick" (rate team-wins))
      (admin/table-cell "Actor wins" (rate actor-wins))
-     (admin/table-cell "Avg team tricks"
+     (admin/table-cell "Avg actor-team tricks"
                        (average-label actor-team-tricks-total samples))
      (admin/table-cell "Top winner" (if top-winner
                                       (str (admin/player-label view top-winner)
@@ -1262,29 +1298,36 @@
 
 (defn baseline-row-html
   [session {:keys [card winner winner-team actor-team team-wins? final-hand]}]
-  (let [view (game/admin-view (get-in session [:room :game])
+  (let [state (get-in session [:room :game])
+        view (game/admin-view state
                               (get-in session [:room :seats]))]
     [:tr
      (admin/table-cell "Card" (admin/card-html card))
-     (admin/table-cell "Trick winner" (admin/player-label view winner))
-     (admin/table-cell "Winner team" (admin/team-label winner-team))
-     (admin/table-cell "Actor team wins trick?"
+     (admin/table-cell "Current trick winner" (admin/player-label view winner))
+     (admin/table-cell "Current trick team" (admin/team-label winner-team))
+     (admin/table-cell "Actor team takes current trick?"
                        (if team-wins? "Yes" "No"))
      (admin/table-cell "Final tricks (Team 1 / Team 2)"
                        (trick-counts-label (:tricks final-hand)))
      (admin/table-cell (str (actor-team-label actor-team) " final tricks")
-                       (:actor-team-tricks final-hand))]))
+                       (:actor-team-tricks final-hand))
+     (admin/table-cell "Bid result"
+                       (bid-result-label state final-hand))
+     (admin/table-cell "Final score (Team 1 / Team 2)"
+                       (score-counts-label (:scores final-hand)))]))
 
 (defn baseline-table-html [session baseline]
   [:table {:class "admin-table wb-baseline-table"}
    [:thead
     [:tr
      [:th "Card"]
-     [:th "Trick winner"]
-     [:th "Winner team"]
-     [:th "Actor team wins trick?"]
+     [:th "Current trick winner"]
+     [:th "Current trick team"]
+     [:th "Actor team takes current trick?"]
      [:th "Final tricks (Team 1 / Team 2)"]
-     [:th "Actor team final tricks"]]]
+     [:th "Actor team final tricks"]
+     [:th "Bid result"]
+     [:th "Final score (Team 1 / Team 2)"]]]
    [:tbody
     (for [result baseline]
       (baseline-row-html session result))]])
@@ -1340,7 +1383,7 @@
          [:thead
           [:tr
            [:th "Card"]
-           [:th "Actor team wins trick"]
+           [:th "Actor team wins current trick"]
            [:th "Actor wins"]
            [:th "Avg actor-team tricks"]
            [:th "Top winner"]]]

@@ -46,6 +46,12 @@
 (deftest baseline-table-labels-actor-team-perspective-test
   (let [state {:phase :trick-playing
                :trump :♥
+               :hand-index 0
+               :bids [{:hand-index 0
+                       :type :bid
+                       :player :player2
+                       :bid-type :bid
+                       :value 4}]
                :players (player-states {})}
         session {:room {:game state :seats {}}}
         baseline [{:card [9 :♣]
@@ -54,11 +60,14 @@
                    :actor-team 2
                    :team-wins? true
                    :final-hand {:tricks {1 3 2 5}
+                                :scores {1 15 2 5}
                                 :actor-team-tricks 5}}]
         rendered (pr-str (workbench/baseline-table-html session baseline))]
-    (is (re-find #"Actor team wins trick\\?" rendered))
+    (is (re-find #"Actor team takes current trick\\?" rendered))
     (is (re-find #"Final tricks \(Team 1 / Team 2\)" rendered))
-    (is (re-find #"Actor team \(Team 2\) final tricks" rendered))))
+    (is (re-find #"Actor team \(Team 2\) final tricks" rendered))
+    (is (re-find #"Team 2 made bid 4 \(5 tricks\)" rendered))
+    (is (re-find #"Final score \(Team 1 / Team 2\)" rendered))))
 
 (deftest monte-carlo-panel-renders-actor-team-test
   (let [session {:room {:game {:phase :trick-playing
