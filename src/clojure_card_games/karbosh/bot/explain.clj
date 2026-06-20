@@ -17,6 +17,8 @@
    :hybrid-defender-exit :probability-defender-exit
    :hybrid-preservation :probability-preservation
    :hybrid-ruff-invite :probability-ruff-invite
+   :hybrid-action-inference-preservation :probability-action-inference-preservation
+   :hybrid-action-inference-ruff-invite :probability-action-inference-ruff-invite
    :hybrid-team-ev :probability-team-ev
    :hybrid-action-inference-team-ev :probability-action-inference-team-ev})
 
@@ -110,8 +112,12 @@
 
         (#{:probability-preservation
            :probability-ruff-invite
+           :probability-action-inference-preservation
+           :probability-action-inference-ruff-invite
            :hybrid-preservation
-           :hybrid-ruff-invite} engine)
+           :hybrid-ruff-invite
+           :hybrid-action-inference-preservation
+           :hybrid-action-inference-ruff-invite} engine)
         :lead-preserve-high-trump
 
         (#{:probability-team-ev

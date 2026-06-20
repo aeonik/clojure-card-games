@@ -16,12 +16,16 @@
 (def contender-strategies
   [:probability-action-inference-team-ev
    :probability-team-ev
+   :probability-action-inference-ruff-invite
    :probability-ruff-invite
+   :probability-action-inference-preservation
    :probability-preservation
    :probability
    :hybrid-action-inference-team-ev
    :hybrid-team-ev
+   :hybrid-action-inference-ruff-invite
    :hybrid-ruff-invite
+   :hybrid-action-inference-preservation
    :hybrid-preservation
    :hybrid
    :card-counting])

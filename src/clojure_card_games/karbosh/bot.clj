@@ -205,6 +205,22 @@
 (defn action-inference-team-ev-probability-card-action [game player]
   (with-action-inference team-ev-probability-card-action game player))
 
+(defn action-inference-preservation-probability-card-action [game player]
+  (with-action-inference preservation-probability-card-action game player))
+
+(defn action-inference-ruff-invite-probability-card-action [game player]
+  (with-action-inference ruff-invite-preservation-card-action game player))
+
+(defn action-inference-preservation-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (action-inference-preservation-probability-card-action game player)))
+
+(defn action-inference-ruff-invite-hybrid-card-action [game player]
+  (if (special-contract? (game/current-bid game))
+    (card-counting-card-action game player)
+    (action-inference-ruff-invite-probability-card-action game player)))
+
 (defn action-inference-team-ev-hybrid-card-action [game player]
   (with-action-inference team-ev-hybrid-card-action game player))
 
@@ -215,6 +231,8 @@
    :probability-defender-exit defender-exit-probability-card-action
    :probability-preservation preservation-probability-card-action
    :probability-ruff-invite ruff-invite-preservation-card-action
+   :probability-action-inference-preservation action-inference-preservation-probability-card-action
+   :probability-action-inference-ruff-invite action-inference-ruff-invite-probability-card-action
    :probability-team-ev team-ev-probability-card-action
    :probability-action-inference-team-ev action-inference-team-ev-probability-card-action
    :hybrid-threshold hybrid-threshold-card-action
@@ -222,6 +240,8 @@
    :hybrid-defender-exit defender-exit-hybrid-card-action
    :hybrid-preservation preservation-hybrid-card-action
    :hybrid-ruff-invite ruff-invite-hybrid-card-action
+   :hybrid-action-inference-preservation action-inference-preservation-hybrid-card-action
+   :hybrid-action-inference-ruff-invite action-inference-ruff-invite-hybrid-card-action
    :hybrid-team-ev team-ev-hybrid-card-action
    :hybrid-action-inference-team-ev action-inference-team-ev-hybrid-card-action})
 

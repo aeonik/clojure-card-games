@@ -151,13 +151,33 @@
   (let [profiles (personality/select-profiles
                   :contenders
                   [:probability-action-inference-team-ev
+                   :probability-action-inference-preservation
+                   :probability-action-inference-ruff-invite
+                   :hybrid-action-inference-preservation
+                   :hybrid-action-inference-ruff-invite
                    :hybrid-action-inference-team-ev])]
     (is (= [:probability-action-inference-team-ev
+            :probability-action-inference-preservation
+            :probability-action-inference-ruff-invite
+            :hybrid-action-inference-preservation
+            :hybrid-action-inference-ruff-invite
             :hybrid-action-inference-team-ev]
            (mapv :label profiles)))
     (is (= [[:probability-action-inference-team-ev
              :probability-action-inference-team-ev
              :probability-action-inference-team-ev]
+            [:probability-action-inference-preservation
+             :probability-action-inference-preservation
+             :probability-action-inference-preservation]
+            [:probability-action-inference-ruff-invite
+             :probability-action-inference-ruff-invite
+             :probability-action-inference-ruff-invite]
+            [:hybrid-action-inference-preservation
+             :hybrid-action-inference-preservation
+             :hybrid-action-inference-preservation]
+            [:hybrid-action-inference-ruff-invite
+             :hybrid-action-inference-ruff-invite
+             :hybrid-action-inference-ruff-invite]
             [:hybrid-action-inference-team-ev
              :hybrid-action-inference-team-ev
              :hybrid-action-inference-team-ev]]

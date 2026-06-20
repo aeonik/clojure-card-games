@@ -394,6 +394,14 @@
       (is (= {:type :play-card :card [:A :♥]}
              (bot/card-action game :player1 :hybrid)))
       (is (fn? (bot/resolve-play-strategy
+                :probability-action-inference-preservation)))
+      (is (fn? (bot/resolve-play-strategy
+                :probability-action-inference-ruff-invite)))
+      (is (fn? (bot/resolve-play-strategy
+                :hybrid-action-inference-preservation)))
+      (is (fn? (bot/resolve-play-strategy
+                :hybrid-action-inference-ruff-invite)))
+      (is (fn? (bot/resolve-play-strategy
                 :hybrid-action-inference-team-ev)))))
 
   (testing "risk-adjusted fallback leads an ace over a doomed low card"
