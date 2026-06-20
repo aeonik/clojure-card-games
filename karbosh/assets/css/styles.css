@@ -2499,8 +2499,8 @@ input {
 .recent-room-row,
 .public-room-row {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, auto) minmax(5rem, auto) auto;
-  gap: 0.55rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem 0.65rem;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2541,9 +2541,14 @@ input {
 }
 
 .public-room-main,
+.public-room-details,
 .public-room-occupancy,
 .public-room-available {
   min-width: 0;
+}
+
+.public-room-main {
+  grid-column: 1;
 }
 
 .public-room-main strong {
@@ -2557,12 +2562,30 @@ input {
 .public-room-occupancy,
 .public-room-available {
   line-height: 1.2;
-  white-space: nowrap;
+}
+
+.public-room-details {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.18rem 0.55rem;
+  align-items: center;
+}
+
+.public-room-occupancy {
+  overflow-wrap: anywhere;
 }
 
 .public-room-available {
   color: var(--accent-3);
-  text-align: right;
+  white-space: nowrap;
+}
+
+.public-room-join {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  justify-self: end;
 }
 
 .recent-room-actions {
@@ -2973,28 +2996,14 @@ input {
     gap: 0.45rem 0.6rem;
   }
 
-  .public-room-main {
-    grid-column: 1;
-  }
-
-  .public-room-available {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    text-align: right;
-  }
-
-  .public-room-occupancy {
-    grid-column: 1 / -1;
-  }
-
   .public-room-join {
-    grid-column: 1 / -1;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: auto;
   }
 
   .recent-room-actions,
-  .recent-room-row button,
-  .public-room-row button {
+  .recent-room-row button {
     width: 100%;
   }
 
