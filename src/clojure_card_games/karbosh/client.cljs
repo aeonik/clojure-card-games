@@ -7,6 +7,7 @@
             [replicant.dom :as d]))
 
 (def fast-mode-storage-key "karbosh-fast-mode")
+(def fullscreen-storage-key "karbosh-fullscreen-layout")
 (def room-history-storage-key "karbosh-room-history")
 (def max-room-history 10)
 
@@ -70,7 +71,20 @@
     (catch :default _
       nil)))
 
+(defn stored-fullscreen? []
+  (try
+    (= "true" (.getItem js/localStorage fullscreen-storage-key))
+    (catch :default _
+      false)))
+
+(defn persist-fullscreen! [fullscreen?]
+  (try
+    (.setItem js/localStorage fullscreen-storage-key (if fullscreen? "true" "false"))
+    (catch :default _
+      nil)))
+
 (def initial-speed-mode (stored-speed-mode))
+(def initial-fullscreen? (stored-fullscreen?))
 
 (defonce app
   (atom {:socket nil
@@ -99,6 +113,7 @@
          :suppress-auto-click? false
          :speed-mode initial-speed-mode
          :fast-mode? (fast-speed? initial-speed-mode)
+         :fullscreen? initial-fullscreen?
          :last-reconnect-at 0
          :error nil}))
 
@@ -1948,6 +1963,7 @@
             :fast-mode? (fast-speed? mode)})))
 
 (defn enter-fullscreen! []
+  (persist-fullscreen! true)
   (swap! app assoc :fullscreen? true)
   (when-let [root (or (el "app")
                       (.-documentElement js/document))]
@@ -1957,6 +1973,7 @@
           (.catch (fn [_] nil))))))
 
 (defn exit-fullscreen! []
+  (persist-fullscreen! false)
   (swap! app assoc :fullscreen? false)
   (when (native-fullscreen?)
     (when-let [exit (or (.-exitFullscreen js/document)
@@ -2090,7 +2107,9 @@
   (maybe-fit-seat-names!))
 
 (defn sync-native-fullscreen! []
-  (swap! app assoc :fullscreen? (native-fullscreen?)))
+  (let [native? (native-fullscreen?)]
+    (persist-fullscreen! native?)
+    (swap! app assoc :fullscreen? native?)))
 
 (defonce ^:private render-scheduled? (volatile! false))
 
