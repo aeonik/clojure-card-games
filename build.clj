@@ -46,17 +46,24 @@
 (defn- ssh-port []
   (not-empty (System/getenv "KARBOSH_SSH_PORT")))
 
+(defn- ssh-config-file []
+  (not-empty (System/getenv "KARBOSH_SSH_CONFIG_FILE")))
+
 (defn- ssh-args []
   (cond-> ["ssh"]
+    (ssh-config-file) (conj "-F" (ssh-config-file))
     (ssh-port) (conj "-p" (ssh-port))))
+
+(defn- ssh-rsh []
+  (str/join " " (map printable-arg (ssh-args))))
 
 (defn- rsync-command []
   (cond
     (not-empty (System/getenv "KARBOSH_RSYNC_RSH"))
     ["rsync" "-e" (System/getenv "KARBOSH_RSYNC_RSH")]
 
-    (ssh-port)
-    ["rsync" "-e" (str "ssh -p " (ssh-port))]
+    (or (ssh-config-file) (ssh-port))
+    ["rsync" "-e" (ssh-rsh)]
 
     :else
     ["rsync"]))

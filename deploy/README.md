@@ -169,6 +169,7 @@ Useful deploy environment overrides:
 ```text
 KARBOSH_DEPLOY_HOST=dc3systems.com
 KARBOSH_SSH_PORT=22122
+KARBOSH_SSH_CONFIG_FILE=/dev/null
 KARBOSH_RSYNC_RSH='ssh -p 22122'
 KARBOSH_APP_DIR=~/apps/clojure-card-games/
 KARBOSH_STATIC_DIR=/var/www/dc3systems.com/public_html/karbosh/

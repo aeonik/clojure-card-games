@@ -22,6 +22,7 @@ Commands:
 Useful environment:
   KARBOSH_DEPLOY_HOST      Default: dc3systems.com
   KARBOSH_SSH_PORT         SSH port, for example 22122
+  KARBOSH_SSH_CONFIG_FILE  Optional SSH config file, for example /dev/null
   KARBOSH_RSYNC_RSH        Full rsync SSH transport override, for example "ssh -p 22122"
   KARBOSH_APP_DIR          Remote canonical source dir
   KARBOSH_STATIC_DIR       Remote public static karbosh dir
