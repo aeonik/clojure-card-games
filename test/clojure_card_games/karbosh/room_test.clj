@@ -72,6 +72,11 @@
                                   room/bot-personas)
         hal-52 (some #(when (= "HAL 52" (:name %)) %)
                      room/bot-personas)
+        action-inference-names (->> room/bot-personas
+                                    (filter #(= :hybrid-action-inference-team-ev
+                                                (:play-strategy %)))
+                                    (map :name)
+                                    set)
         c-3p-oh-no (some #(when (= "C-3P-Oh No" (:name %)) %)
                          room/bot-personas)
         bid-zeppelin (some #(when (= "Bid Zeppelin" (:name %)) %)
@@ -91,13 +96,29 @@
     (is (= :aggressive (:style trumpelstiltskin)))
     (is (= :hybrid (:play-strategy trumpelstiltskin)))
     (is (= :aggressive (:style heart-vader)))
-    (is (= :hybrid-ruff-invite (:play-strategy heart-vader)))
+    (is (= :hybrid-action-inference-team-ev (:play-strategy heart-vader)))
     (is (= :aggressive (:style karbosh-kardashian)))
     (is (= :hybrid-action-inference-team-ev
            (:play-strategy karbosh-kardashian)))
     (is (= :preservation (:style hal-52)))
-    (is (= :hybrid-ruff-invite (:play-strategy hal-52)))
+    (is (= :hybrid-action-inference-team-ev (:play-strategy hal-52)))
     (is (= :future-suit-equity (:ditch-policy hal-52)))
+    (is (= 14 (count action-inference-names)))
+    (is (every? action-inference-names
+                ["Clank Sinatra"
+                 "HAL 52"
+                 "JackGPT"
+                 "Queen Latifah-Bot"
+                 "Optimus Prime Suit"
+                 "Heart Vader"
+                 "Karbosh Kardashian"
+                 "The Great Cardini"
+                 "The Bid Lebowski"
+                 "Decks Machina"
+                 "Tony Starkboard"
+                 "Cache Money"
+                 "Sir Shufflesworth"
+                 "Stack Overflower"]))
     (is (= :preservation (:style c-3p-oh-no)))
     (is (= :hybrid-preservation (:play-strategy c-3p-oh-no)))
     (is (= :classic (:ditch-policy c-3p-oh-no)))
@@ -198,7 +219,7 @@
            (get-in state [:seats :player2 :ditch-policy])))
     (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
 
-(deftest legacy-preservation-ruff-invite-bot-personas-get-strategy-metadata
+(deftest legacy-action-inference-bot-personas-get-strategy-metadata
   (let [state (-> (room/new-room "ABC123" 9)
                   (assoc-in [:seats :player2]
                             {:name "HAL 52"
@@ -209,11 +230,12 @@
                                        :catchphrase "Calm voice, murders your strategy."}})
                   (room/ensure-bot-personas))]
     (is (= :preservation (get-in state [:seats :player2 :style])))
-    (is (= :hybrid-ruff-invite
+    (is (= :hybrid-action-inference-team-ev
            (get-in state [:seats :player2 :play-strategy])))
     (is (= :future-suit-equity
            (get-in state [:seats :player2 :ditch-policy])))
-    (is (= :hybrid-ruff-invite (room/bot-play-strategy state :player2)))))
+    (is (= :hybrid-action-inference-team-ev
+           (room/bot-play-strategy state :player2)))))
 
 (deftest room-visibility-defaults-to-private
   (is (false? (:public? (room/new-room "ABC123" 9))))

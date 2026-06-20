@@ -47,11 +47,20 @@
     "Decks Machina"})
 
 (def action-inference-bot-names
-  #{"Karbosh Kardashian"
+  #{"Clank Sinatra"
+    "HAL 52"
+    "JackGPT"
+    "Queen Latifah-Bot"
+    "Optimus Prime Suit"
+    "Heart Vader"
+    "Karbosh Kardashian"
     "The Great Cardini"
+    "The Bid Lebowski"
     "Decks Machina"
     "Tony Starkboard"
-    "Cache Money"})
+    "Cache Money"
+    "Sir Shufflesworth"
+    "Stack Overflower"})
 
 (defn persona-style [persona]
   (or (:style persona)
