@@ -6,7 +6,6 @@
   Functions here never read policy configuration dynamically; anything
   config-dependent takes the config map explicitly."
   (:require [clojure-card-games.karbosh.analysis :as analysis]
-            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.shared.game :as game]
             [clojure-card-games.karbosh.shared.rules :as rules]))
 
@@ -90,8 +89,7 @@
         population-size (count unseen)
         counts (analysis/effective-suit-counts trump unseen)]
     (into {}
-          (parallel/mapv-maybe-parallel
-           6
+          (mapv
            (fn [card]
              [card
               (analysis/card-defeat-analysis game

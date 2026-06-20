@@ -5,7 +5,6 @@
             [clojure-card-games.karbosh.analysis :as analysis]
             [clojure-card-games.karbosh.bot :as bot]
             [clojure-card-games.karbosh.page :as page]
-            [clojure-card-games.karbosh.parallel :as parallel]
             [clojure-card-games.karbosh.room :as room]
             [clojure-card-games.karbosh.shared.cards :as cards]
             [clojure-card-games.karbosh.shared.game :as game]
@@ -598,8 +597,7 @@
         legal-cards (set (trick-lab/legal-cards analysis-state player))]
     (when (:trump analysis-state)
       (into {}
-            (parallel/mapv-maybe-parallel
-             4
+            (mapv
              (fn [card]
                [card
                 (when (contains? legal-cards card)

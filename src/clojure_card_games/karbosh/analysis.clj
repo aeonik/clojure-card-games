@@ -306,43 +306,54 @@
   The result is a count, not a probability. Dividing two counts gives an exact
   ratio while preserving the known-void conditioning in the denominator."
   [high-count low-count other-count players hand-sizes voids lead target]
-  (letfn [(step [high-count low-count other-count players]
-            (if (empty? players)
-              (if (and (zero? high-count)
-                       (zero? low-count)
-                       (zero? other-count))
-                1N
-                0N)
-              (let [player (first players)
-                    hand-size (get hand-sizes player 0)
-                    void? (contains? (get voids player #{}) lead)]
-                (reduce
-                 +
-                 (for [high-draw (if void?
-                                    [0]
-                                    (range 0 (inc (min hand-size high-count))))
-                       low-draw (if void?
-                                  [0]
-                                  (range 0 (inc (min (- hand-size high-draw)
-                                                     low-count))))
-                       :let [other-draw (- hand-size high-draw low-draw)]
-                       :when (and (<= 0 other-draw other-count)
-                                  (or (not= player target)
-                                      (and (pos? high-draw)
-                                           (zero? low-draw))))
-                       :let [ways (category-choice-count high-count
-                                                         low-count
-                                                         other-count
-                                                         high-draw
-                                                         low-draw
-                                                         other-draw)]
-                       :when (pos? ways)]
-                   (*' ways
-                       (step (- high-count high-draw)
-                             (- low-count low-draw)
-                             (- other-count other-draw)
-                             (rest players))))))))]
-    (step high-count low-count other-count players)))
+  (let [players (vec players)
+        player-count (count players)
+        memo* (atom {})]
+    (letfn [(step [high-count low-count other-count player-idx]
+              (let [memo-key [high-count low-count other-count player-idx]]
+                (if-let [cached (find @memo* memo-key)]
+                  (val cached)
+                  (let [result
+                        (if (= player-idx player-count)
+                          (if (and (zero? high-count)
+                                   (zero? low-count)
+                                   (zero? other-count))
+                            1N
+                            0N)
+                          (let [player (nth players player-idx)
+                                hand-size (get hand-sizes player 0)
+                                void? (contains? (get voids player #{}) lead)]
+                            (reduce
+                             +
+                             (for [high-draw (if void?
+                                                [0]
+                                                (range 0 (inc (min hand-size
+                                                                   high-count))))
+                                   low-draw (if void?
+                                              [0]
+                                              (range 0 (inc (min (- hand-size
+                                                                    high-draw)
+                                                                 low-count))))
+                                   :let [other-draw (- hand-size high-draw low-draw)]
+                                   :when (and (<= 0 other-draw other-count)
+                                              (or (not= player target)
+                                                  (and (pos? high-draw)
+                                                       (zero? low-draw))))
+                                   :let [ways (category-choice-count high-count
+                                                                     low-count
+                                                                     other-count
+                                                                     high-draw
+                                                                     low-draw
+                                                                     other-draw)]
+                                   :when (pos? ways)]
+                               (*' ways
+                                   (step (- high-count high-draw)
+                                         (- low-count low-draw)
+                                         (- other-count other-draw)
+                                         (inc player-idx)))))))]
+                    (swap! memo* assoc memo-key result)
+                    result))))]
+      (step high-count low-count other-count 0))))
 
 (defn forced-higher-follow-probability-for
   "Exact probability that `target` must burn a higher follow-suit control.
