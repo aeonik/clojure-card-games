@@ -481,7 +481,93 @@
           (workbench-room-row record))]]
       [:p {:class "empty"} "No loaded or archived rooms found."])))
 
-(defn render-workbench-index-main [{:keys [rooms records]}]
+(defn workbench-bookmark-value [value]
+  (cond
+    (nil? value) "--"
+    (keyword? value) (kw-label value)
+    (sequential? value) (if (seq value)
+                          (str/join " -> " (map str value))
+                          "--")
+    :else (str value)))
+
+(defn workbench-bookmark-hand-url
+  [{:keys [room-id game-seed game-started-at hand-index]}]
+  (when (and room-id game-seed game-started-at (some? hand-index))
+    (str "/karbosh/admin/history/"
+         room-id
+         "/"
+         game-seed
+         "/"
+         game-started-at
+         "/snapshot/hands/"
+         hand-index)))
+
+(defn workbench-bookmark-summary
+  [{:keys [analysis]}]
+  (case (:kind analysis)
+    :monte-carlo
+    (str "Monte Carlo "
+         (:accepted analysis)
+         " / "
+         (:samples analysis)
+         " samples, seed "
+         (:seed analysis))
+
+    :exact
+    (str "Exact solve, "
+         (:remaining-cards analysis)
+         " cards remaining")
+
+    nil))
+
+(defn workbench-bookmark-row [{:keys [id created-at note coordinate] :as bookmark}]
+  (let [{:keys [room-id game-index game-seed hand-number phase current-player
+                trick-number completed-tricks current-trick-cards]} coordinate]
+    [:article {:class "workbench-bookmark"}
+     [:header
+      [:div
+       [:strong (str room-id
+                     " / Game "
+                     (inc (or game-index 0))
+                     " / Hand "
+                     (workbench-bookmark-value hand-number))]
+       [:span (str "Created " (time-label created-at))]]
+      [:span {:class "bookmark-id"} id]]
+     [:dl {:class "bookmark-grid"}
+      [:div [:dt "Seed"] [:dd (workbench-bookmark-value game-seed)]]
+      [:div [:dt "Phase"] [:dd (workbench-bookmark-value phase)]]
+      [:div [:dt "Current"] [:dd (workbench-bookmark-value current-player)]]
+      [:div
+       [:dt "Trick"]
+       [:dd (str (workbench-bookmark-value trick-number)
+                 " ("
+                 (or completed-tricks 0)
+                 " complete, "
+                 (or current-trick-cards 0)
+                 " played)")]]]
+     (when-not (str/blank? note)
+       [:p note])
+     (when-let [summary (workbench-bookmark-summary bookmark)]
+       [:p {:class "empty"} summary])
+     [:div {:class "bookmark-actions"}
+      [:a {:href (str "/karbosh/admin/workbench/" room-id)}
+       "Open workbench"]
+      [:form {:method "post"
+              :action (str "/karbosh/admin/workbench/" room-id)}
+       [:input {:type "hidden" :name "action" :value "restore-bookmark"}]
+       [:input {:type "hidden" :name "bookmark-id" :value id}]
+       [:button {:type "submit"} "Restore"]]
+      (when-let [url (workbench-bookmark-hand-url coordinate)]
+        [:a {:href url} "Immutable hand"])]]))
+
+(defn workbench-bookmark-list [bookmarks]
+  (if (seq bookmarks)
+    [:div {:class "workbench-bookmarks"}
+     (for [bookmark bookmarks]
+       (workbench-bookmark-row bookmark))]
+    [:p {:class "empty"} "No saved workbench bookmarks found."]))
+
+(defn render-workbench-index-main [{:keys [rooms records bookmarks]}]
   [:main {:id "admin-main"}
    [:div {:class "top"}
     [:div
@@ -508,6 +594,12 @@
      [:button {:type "submit"} "Open workbench"]]
     [:p {:class "empty"}
      "Create or join multiplayer rooms from the game page, then open an active or archived room here. The workbench uses a frozen debug copy."]]
+   [:section {:class "panel"}
+    [:div {:class "section-heading"}
+     [:div
+      [:p "Review"]
+      [:h2 "Saved bookmarks"]]]
+    (workbench-bookmark-list bookmarks)]
    [:section {:class "panel"}
     [:div {:class "section-heading"}
      [:div
@@ -1747,8 +1839,9 @@
                (render-history-main {:rooms rooms
                                      :records records})))
 
-(defn render-workbench-index [{:keys [rooms records]}]
+(defn render-workbench-index [{:keys [rooms records bookmarks]}]
   (page/render {:title "Karbosh AI Workbench"
                 :stylesheets ["admin.css" "workbench-index.css"]}
                (render-workbench-index-main {:rooms rooms
-                                             :records records})))
+                                             :records records
+                                             :bookmarks bookmarks})))

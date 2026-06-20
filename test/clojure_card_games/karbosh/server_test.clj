@@ -398,6 +398,51 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-workbench-index-renders-saved-bookmarks-test
+  (let [old-rooms @server/rooms
+        room (-> (room/fill-bots (room/new-room "BOOK01" 111))
+                 (assoc :game-index 1)
+                 (assoc-in [:game :initial-seed] 222)
+                 (assoc-in [:game :hand-index] 2)
+                 (assoc-in [:game :phase] :trick-playing)
+                 (assoc-in [:game :current-player] :player4)
+                 (assoc-in [:game :completed-tricks]
+                           [[{:player :player1 :card [:A :♠]}]])
+                 (assoc-in [:game :current-trick]
+                           [{:player :player2 :card [:Q :♠]}]))]
+    (try
+      (reset! server/rooms {"BOOK01" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (workbench/ensure-session! "BOOK01" room)
+        (let [bookmarked-session (workbench/add-bookmark
+                                  (get @workbench/sessions* "BOOK01")
+                                  {:note "study this lead"})
+              bookmark (workbench/bookmark-by-id
+                        "BOOK01"
+                        (:last-bookmark-id bookmarked-session))
+              _ (audit/append-record! (server/audit-dir)
+                                      (workbench/bookmark-record bookmark))]
+          (workbench/clear!)
+          (let [response (server/handler
+                          {:request-method :get
+                           :uri "/karbosh/admin/workbench/"
+                           :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                     "host" "dc3systems.com"}})]
+            (is (= 200 (:status response)))
+            (is (re-find #"Saved bookmarks" (:body response)))
+            (is (re-find #"study this lead" (:body response)))
+            (is (re-find #"BOOK01 / Game 2 / Hand 3" (:body response)))
+            (is (re-find #"action=\"/karbosh/admin/workbench/BOOK01\""
+                         (:body response)))
+            (is (re-find #"Restore" (:body response)))
+            (is (.contains (:body response)
+                           (str "/karbosh/admin/history/BOOK01/222/"
+                                (:game-started-at room)
+                                "/snapshot/hands/2"))))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-index-room-query-redirects-test
   (with-redefs [server/admin-user (constantly "admin")
                 server/admin-password (constantly "secret")]

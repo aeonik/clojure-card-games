@@ -1390,6 +1390,17 @@
                                                   bookmark-id)]
       (audit/append-record! (audit-dir) (workbench/bookmark-record bookmark)))))
 
+(defn workbench-bookmarks []
+  (->> (concat (keep workbench/bookmark-from-record
+                     (audit/all-room-records (audit-dir)))
+               (mapcat val @workbench/bookmarks*))
+       (reduce (fn [bookmarks bookmark]
+                 (assoc bookmarks (:id bookmark) bookmark))
+               {})
+       vals
+       (sort-by #(or (:created-at %) 0) >)
+       vec))
+
 (defn admin-workbench-index-response [request]
   (cond
     (not (admin-password))
@@ -1405,7 +1416,8 @@
       (redirect-response (str "/karbosh/admin/workbench/" room-id))
       (html-response
        (admin/render-workbench-index {:rooms @rooms
-                                      :records (historical-room-records)})))))
+                                      :records (historical-room-records)
+                                      :bookmarks (workbench-bookmarks)})))))
 
 (defn admin-workbench-response [request room-id]
   (cond

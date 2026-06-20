@@ -15,3 +15,62 @@
   padding: 0 10px;
   text-transform: uppercase;
 }
+.workbench-bookmarks {
+  display: grid;
+  gap: 10px;
+}
+.workbench-bookmark {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+}
+.workbench-bookmark header,
+.bookmark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.workbench-bookmark header span,
+.bookmark-id {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+.bookmark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.bookmark-grid div {
+  min-width: 0;
+}
+.bookmark-grid dt {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bookmark-grid dd {
+  margin: 2px 0 0;
+  color: #f7f8ff;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.workbench-bookmark p {
+  margin: 8px 0;
+}
+.bookmark-actions {
+  justify-content: flex-start;
+}
+.bookmark-actions a {
+  color: #6fd0c7;
+  font-weight: 800;
+}
+.bookmark-actions form {
+  margin: 0;
+}
