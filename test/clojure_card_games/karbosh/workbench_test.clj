@@ -42,3 +42,20 @@
         risks (workbench/probabilistic-card-risks state :player3 [9 :♠] true)]
     (is (= 1.0 (:any risks)))
     (is (= 0.0 (:opponent risks)))))
+
+(deftest baseline-table-labels-actor-team-perspective-test
+  (let [state {:phase :trick-playing
+               :trump :♥
+               :players (player-states {})}
+        session {:room {:game state :seats {}}}
+        baseline [{:card [9 :♣]
+                   :winner :player4
+                   :winner-team 2
+                   :actor-team 2
+                   :team-wins? true
+                   :final-hand {:tricks {1 3 2 5}
+                                :actor-team-tricks 5}}]
+        rendered (pr-str (workbench/baseline-table-html session baseline))]
+    (is (re-find #"Actor team wins trick\\?" rendered))
+    (is (re-find #"Final tricks \(Team 1 / Team 2\)" rendered))
+    (is (re-find #"Actor team \(Team 2\) final tricks" rendered))))

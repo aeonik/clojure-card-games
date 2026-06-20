@@ -1225,6 +1225,9 @@
 (defn trick-counts-label [tricks]
   (str (get tricks 1 0) " / " (get tricks 2 0)))
 
+(defn actor-team-label [team]
+  (str "Actor team (" (admin/team-label team) ")"))
+
 (defn mc-result-row-html
   [session {:keys [card
                    samples
@@ -1250,16 +1253,19 @@
                                            top-n)
                                       "--"))]))
 
-(defn baseline-row-html [session {:keys [card winner winner-team final-hand]}]
+(defn baseline-row-html
+  [session {:keys [card winner winner-team actor-team team-wins? final-hand]}]
   (let [view (game/admin-view (get-in session [:room :game])
                               (get-in session [:room :seats]))]
     [:tr
      (admin/table-cell "Card" (admin/card-html card))
      (admin/table-cell "Trick winner" (admin/player-label view winner))
      (admin/table-cell "Winner team" (admin/team-label winner-team))
-     (admin/table-cell "Final tricks"
+     (admin/table-cell "Actor team wins trick?"
+                       (if team-wins? "Yes" "No"))
+     (admin/table-cell "Final tricks (Team 1 / Team 2)"
                        (trick-counts-label (:tricks final-hand)))
-     (admin/table-cell "Actor team tricks"
+     (admin/table-cell (str (actor-team-label actor-team) " final tricks")
                        (:actor-team-tricks final-hand))]))
 
 (defn baseline-table-html [session baseline]
@@ -1269,8 +1275,9 @@
      [:th "Card"]
      [:th "Trick winner"]
      [:th "Winner team"]
-     [:th "Final tricks"]
-     [:th "Actor team tricks"]]]
+     [:th "Actor team wins trick?"]
+     [:th "Final tricks (Team 1 / Team 2)"]
+     [:th "Actor team final tricks"]]]
    [:tbody
     (for [result baseline]
       (baseline-row-html session result))]])
@@ -1314,6 +1321,7 @@
        [:div
         [:div {:class "stats room-stats"}
          (admin/stat-card "Actor" (seat-name session (:actor analysis)))
+         (admin/stat-card "Actor team" (admin/team-label (:actor-team analysis)))
          (admin/stat-card "Samples" (str (:accepted analysis) " / " (:samples analysis)))
          (admin/stat-card "Attempts" (:attempts analysis))
          (admin/stat-card "Seed" (:seed analysis))]
@@ -1324,9 +1332,9 @@
          [:thead
           [:tr
            [:th "Card"]
-           [:th "Team wins"]
+           [:th "Actor team wins trick"]
            [:th "Actor wins"]
-           [:th "Avg team tricks"]
+           [:th "Avg actor-team tricks"]
            [:th "Top winner"]]]
          [:tbody
           (for [result (sort-by (fn [{:keys [samples team-wins]}]
