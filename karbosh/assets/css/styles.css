@@ -2598,15 +2598,22 @@ input {
 }
 
 .recent-room-actions {
+  grid-column: 1 / -1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-wrap: nowrap;
+  gap: 0.32rem;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .recent-room-actions button {
-  min-height: 2.25rem;
-  padding: 0 0.65rem;
+  flex: 0 1 auto;
+  min-height: 1.95rem;
+  min-width: 0;
+  padding: 0 0.5rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .recent-room-actions .recent-room-forget {
@@ -3011,13 +3018,15 @@ input {
     width: auto;
   }
 
-  .recent-room-actions,
-  .recent-room-row button {
-    width: 100%;
+  .recent-room-actions {
+    justify-content: flex-start;
+    width: auto;
   }
 
-  .recent-room-actions {
-    justify-content: stretch;
+  .recent-room-actions button {
+    width: auto;
+    padding: 0 0.42rem;
+    font-size: 0.58rem;
   }
 
   .trick-row {
