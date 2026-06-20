@@ -624,6 +624,92 @@
       (finally
         (reset! server/rooms old-rooms)))))
 
+(deftest admin-hand-detail-loads-hand-start-into-workbench-test
+  (let [old-rooms @server/rooms
+        prior-hand {:hand-index 0
+                    :bid {:type :bid
+                          :player :player1
+                          :bid-type :bid
+                          :value 4}
+                    :trump :♠
+                    :tricks {1 4 2 4}
+                    :points {1 4 2 0}
+                    :scores-after {1 4 2 0}
+                    :initial-hands completed-initial-hands
+                    :history [{:type :bid
+                               :player :player1
+                               :bid-type :bid
+                               :value 4}]
+                    :completed-tricks [completed-trick]}
+        selected-hands (assoc completed-initial-hands
+                              :player1 [[:A :♣] [:K :♣] [:Q :♣] [:J :♣]
+                                        [10 :♣] [9 :♣] [:A :♦] [:K :♦]])
+        selected-hand {:hand-index 1
+                       :bid {:type :bid
+                             :player :player2
+                             :bid-type :bid
+                             :value 5}
+                       :trump :♣
+                       :tricks {1 3 2 5}
+                       :points {1 0 2 5}
+                       :scores-after {1 4 2 5}
+                       :initial-hands selected-hands
+                       :deals [{:hand-index 1
+                                :seed 4242
+                                :hands selected-hands}]
+                       :history [{:type :bid
+                                  :player :player2
+                                  :bid-type :bid
+                                  :value 5}]
+                       :completed-tricks [completed-trick]}
+        room (-> (room/fill-bots (room/new-room "ABC123" 777))
+                 (assoc :game-started-at 1000)
+                 (assoc-in [:game :phase] :game-over)
+                 (assoc-in [:game :winner] 2)
+                 (assoc-in [:game :scores] {1 4 2 5})
+                 (assoc-in [:game :hand-history] [prior-hand selected-hand]))
+        stale-room (assoc-in room [:game :hand-index] 9)]
+    (try
+      (reset! server/rooms {"ABC123" room})
+      (with-redefs [server/admin-user (constantly "admin")
+                    server/admin-password (constantly "secret")]
+        (workbench/ensure-session! "ABC123" stale-room)
+        (let [detail-response (server/handler
+                               {:request-method :get
+                                :uri "/karbosh/admin/rooms/ABC123/snapshot/hands/1"
+                                :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                          "host" "dc3systems.com"}})]
+          (is (= 200 (:status detail-response)))
+          (is (re-find #"Load in workbench" (:body detail-response)))
+          (is (re-find #"href=\"/karbosh/admin/workbench/ABC123\?hand=1\""
+                       (:body detail-response))))
+        (let [workbench-response (server/handler
+                                  {:request-method :get
+                                   :uri "/karbosh/admin/workbench/ABC123"
+                                   :query-string "hand=1"
+                                   :headers {"authorization" "Basic YWRtaW46c2VjcmV0"
+                                             "host" "dc3systems.com"}})
+              session (get @workbench/sessions* "ABC123")
+              state (get-in session [:room :game])]
+          (is (= 200 (:status workbench-response)))
+          (is (= "Loaded hand 2 at the beginning of the hand."
+                 (:message session)))
+          (is (= :bidding (:phase state)))
+          (is (= 1 (:hand-index state)))
+          (is (= :player2 (:dealer state)))
+          (is (= :player2 (:current-player state)))
+          (is (= {1 4 2 0} (:scores state)))
+          (is (= [prior-hand] (:hand-history state)))
+          (is (= selected-hands (:initial-hands state)))
+          (is (= selected-hands (game/player-hands state)))
+          (is (= [] (:completed-tricks state)))
+          (is (= [{:hand-index 1
+                   :seed 4242
+                   :hands selected-hands}]
+                 (:hand-deals state)))))
+      (finally
+        (reset! server/rooms old-rooms)))))
+
 (deftest admin-workbench-seat-click-switches-to-player-view-test
   (let [old-rooms @server/rooms
         room (-> (room/fill-bots (room/new-room "ABC123" 9))

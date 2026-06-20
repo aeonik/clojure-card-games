@@ -1352,6 +1352,25 @@
 (defn hand-detail-url [snapshot-base-url hand]
   (str snapshot-base-url "/hands/" (:hand-index hand)))
 
+(defn workbench-hand-url [snapshot-base-url hand]
+  (let [hand-index (:hand-index hand)]
+    (when (some? hand-index)
+      (or (when-let [[_ room-id]
+                      (re-matches #"/karbosh/admin/rooms/([^/]+)/snapshot"
+                                  snapshot-base-url)]
+            (str "/karbosh/admin/workbench/" room-id "?hand=" hand-index))
+          (when-let [[_ room-id seed started-at]
+                      (re-matches #"/karbosh/admin/history/([^/]+)/([^/]+)(?:/([^/]+))?/snapshot"
+                                  snapshot-base-url)]
+            (str "/karbosh/admin/workbench/"
+                 room-id
+                 "?hand="
+                 hand-index
+                 "&seed="
+                 seed
+                 (when started-at
+                   (str "&started-at=" started-at))))))))
+
 (defn trick-detail-url [snapshot-base-url hand index]
   (str (hand-detail-url snapshot-base-url hand) "#" (trick-anchor index)))
 
@@ -1445,17 +1464,20 @@
 
 (defn room-hand-detail-main [room hand-index snapshot-base-url]
   (let [state (:game room)
-        view (game/admin-view state (:seats room))]
+        view (game/admin-view state (:seats room))
+        hand (room-hand room hand-index)]
     [:main {:id "admin-main"}
      [:div {:class "top"}
       [:div
        [:p "Karbosh hand detail"]
        [:h1 (str "Room " (:id room) " Hand " (inc hand-index))]]
       [:div {:class "admin-actions"}
+       (when-let [url (some->> hand (workbench-hand-url snapshot-base-url))]
+         [:a {:href url} "Load in workbench"])
        [:a {:href snapshot-base-url} "Room snapshot"]
        [:a {:href (str snapshot-base-url ".edn")} "Raw EDN"]
        [:a {:href "/karbosh/"} "Back to game"]]]
-     (if-let [hand (room-hand room hand-index)]
+     (if hand
        (hand-play-by-play-html view snapshot-base-url hand)
        [:section {:class "panel"}
         [:p {:class "empty"} "Hand not found."]])]))

@@ -1375,9 +1375,15 @@
           (response 404 "Hand not found")))
       (response 404 "Room not found"))))
 
-(defn workbench-source-room [room-id]
-  (or (room-by-id room-id)
-      (some-> (historical-room-record room-id) :room)))
+(defn workbench-source-room
+  ([room-id]
+   (or (room-by-id room-id)
+       (some-> (historical-room-record room-id) :room)))
+  ([room-id {:keys [seed started-at timestamp]}]
+   (if (str/blank? (str seed))
+     (workbench-source-room room-id)
+     (some-> (game-history-record room-id seed (or started-at timestamp))
+             :room))))
 
 (defn load-workbench-bookmarks! [room-id]
   (doseq [record (audit/room-records (audit-dir) room-id)]
@@ -1428,12 +1434,19 @@
     (admin-login-redirect-response request)
 
     :else
-    (if-let [room (workbench-source-room room-id)]
-      (do
-        (load-workbench-bookmarks! room-id)
-        (html-response
-         (workbench/render (workbench/ensure-session! room-id room))))
-      (response 404 "Room not found"))))
+    (let [params (query-params (:query-string request))]
+      (if-let [room (workbench-source-room room-id params)]
+        (do
+          (load-workbench-bookmarks! room-id)
+          (if-let [hand-index (some-> (:hand params) parse-hand-index)]
+            (if-let [session (workbench/ensure-hand-session! room-id
+                                                             room
+                                                             hand-index)]
+              (html-response (workbench/render session))
+              (response 404 "Hand not found"))
+            (html-response
+             (workbench/render (workbench/ensure-session! room-id room)))))
+        (response 404 "Room not found")))))
 
 (defn admin-workbench-action-response [request room-id]
   (cond

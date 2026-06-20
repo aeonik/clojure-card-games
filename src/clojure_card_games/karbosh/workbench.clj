@@ -44,6 +44,74 @@
    :analysis nil
    :message "Frozen from room state."})
 
+(defn- scores-before-hand [{:keys [points scores-after]}]
+  (if (and (map? points) (map? scores-after))
+    (into {}
+          (map (fn [team]
+                 [team (- (get scores-after team 0)
+                          (get points team 0))]))
+          (keys (merge {1 0 2 0} scores-after points)))
+    {1 0 2 0}))
+
+(defn- dealer-for-hand [hand-index]
+  (nth (cycle game/players) (or hand-index 0)))
+
+(defn- player-states-from-hands [game hands]
+  (let [default-teams (game/teams)]
+    (into {}
+          (map (fn [player]
+                 (let [old-player (get-in game [:players player])]
+                   [player {:hand (vec (get hands player []))
+                            :team (or (:team old-player)
+                                      (get default-teams player))}]))
+               game/players))))
+
+(defn- deals-for-hand [{:keys [hand-index deals initial-hands]}]
+  (let [deals (filterv #(= hand-index (:hand-index %)) deals)]
+    (if (seq deals)
+      deals
+      [{:hand-index hand-index
+        :hands initial-hands}])))
+
+(defn- hand-start-game [game {:keys [hand-index initial-hands] :as hand}]
+  (let [dealer (dealer-for-hand hand-index)
+        prior-hands (filterv #(< (:hand-index %) hand-index)
+                             (:hand-history game))]
+    (-> game
+        (dissoc :trump
+                :current-trick
+                :trick-leader
+                :winner
+                :donation-order
+                :discard-count
+                :donations
+                :current-bid)
+        (assoc :phase :bidding
+               :history []
+               :scores (scores-before-hand hand)
+               :bidding-order (game/players-starting-at dealer)
+               :current-bidder-index 0
+               :current-player dealer
+               :active-players game/players
+               :completed-tricks []
+               :tricks-this-hand {1 0 2 0}
+               :hand-history prior-hands
+               :tricks-per-hand (mapv :tricks prior-hands)
+               :points-per-hand (mapv :points prior-hands)
+               :bids []
+               :trumps (mapv :trump prior-hands)
+               :hand-deals (deals-for-hand hand)
+               :hand-index hand-index
+               :dealer dealer
+               :initial-hands initial-hands
+               :players (player-states-from-hands game initial-hands)))))
+
+(defn room-at-hand-start [room hand-index]
+  (when-let [hand (admin/room-hand room hand-index)]
+    (if (:current? hand)
+      (update room :game game/rewind-current-hand)
+      (assoc room :game (hand-start-game (:game room) hand)))))
+
 (defn ensure-session! [room-id room]
   (get (swap! sessions*
               (fn [sessions]
@@ -51,6 +119,14 @@
                   sessions
                   (assoc sessions room-id (initial-session room)))))
        room-id))
+
+(defn ensure-hand-session! [room-id room hand-index]
+  (when-let [room' (room-at-hand-start room hand-index)]
+    (let [session (-> (initial-session room')
+                      (assoc :message (str "Loaded hand "
+                                           (inc hand-index)
+                                           " at the beginning of the hand.")))]
+      (get (swap! sessions* assoc room-id session) room-id))))
 
 (defn push-room [session room']
   (-> session
