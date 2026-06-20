@@ -180,11 +180,16 @@
        (vreset! perf-stats empty-perf-stats))
      1000)))
 
-(defn active-game-layout! [{:keys [view speed-mode]}]
+(defn native-fullscreen? []
+  (some? (or (.-fullscreenElement js/document)
+             (.-webkitFullscreenElement js/document))))
+
+(defn active-game-layout! [{:keys [view speed-mode fullscreen?]}]
   (let [classes (.-classList (.-body js/document))]
     (.toggle classes "has-karbosh-game" (some? view))
     (.toggle classes "karbosh-fast-mode" (fast-speed? speed-mode))
-    (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? speed-mode))))
+    (.toggle classes "karbosh-ultra-fast-mode" (ultra-fast-speed? speed-mode))
+    (.toggle classes "karbosh-fullscreen-mode" (and (some? view) fullscreen?))))
 
 (defn public-rooms-visible? [{:keys [view join-modal]}]
   (and (nil? view)
@@ -1400,11 +1405,20 @@
               :data-room-public (if public? "false" "true")}
      (if public? "Make Private" "Make Public")]))
 
-(defn table-top-actions [view room-id]
+(defn fullscreen-button [fullscreen?]
+  [:button {:class (str "fullscreen-button"
+                        (when fullscreen? " is-active"))
+            :type "button"
+            :data-fullscreen-toggle true
+            :aria-pressed (if fullscreen? "true" "false")}
+   (if fullscreen? "Exit Full" "Full Screen")])
+
+(defn table-top-actions [view room-id fullscreen?]
   [:div {:class "table-top-actions"}
    [:div {:class "table-main-actions"}
     (fill-bots-button)
-    (room-visibility-button view)]
+    (room-visibility-button view)
+    (fullscreen-button fullscreen?)]
    [:div {:class "table-room-actions"}
     (workbench-capture-form room-id)
     (table-new-game-button)
@@ -1422,7 +1436,7 @@
       (trump-picker-html view (= (:you view) (:current-player view))))))
 
 (defn game-hiccup [{:keys [view room-id play-animation trick-popup queued-trick-popup
-                           fireworks] :as state}]
+                           fireworks fullscreen?] :as state}]
   (when view
     [:section {:class "table-grid"}
      [:div {:class "panel table-panel"}
@@ -1432,7 +1446,7 @@
        [:p {:class "status-line"}
         (phase-label (:phase view)) " / Current: "
         (player-label view (:current-player view))]
-       (table-top-actions view room-id)]
+       (table-top-actions view room-id fullscreen?)]
       [:section {:class "score-summary" :aria-label "Total scores"}
        [:span {:class "score-summary-label"} "Total scores"]
        [:div {:class "score-row"}
@@ -1926,6 +1940,28 @@
             :speed-mode mode
             :fast-mode? (fast-speed? mode)})))
 
+(defn enter-fullscreen! []
+  (swap! app assoc :fullscreen? true)
+  (when-let [root (or (el "app")
+                      (.-documentElement js/document))]
+    (when-let [request (or (.-requestFullscreen root)
+                           (.-webkitRequestFullscreen root))]
+      (-> (.call request root)
+          (.catch (fn [_] nil))))))
+
+(defn exit-fullscreen! []
+  (swap! app assoc :fullscreen? false)
+  (when (native-fullscreen?)
+    (when-let [exit (or (.-exitFullscreen js/document)
+                        (.-webkitExitFullscreen js/document))]
+      (-> (.call exit js/document)
+          (.catch (fn [_] nil))))))
+
+(defn toggle-fullscreen! []
+  (if (:fullscreen? @app)
+    (exit-fullscreen!)
+    (enter-fullscreen!)))
+
 (def drag-threshold-px 8)
 
 (defn read-card-attr [node]
@@ -2046,6 +2082,9 @@
                      (public-rooms-hiccup (:public-rooms state)))))
   (maybe-fit-seat-names!))
 
+(defn sync-native-fullscreen! []
+  (swap! app assoc :fullscreen? (native-fullscreen?)))
+
 (defonce ^:private render-scheduled? (volatile! false))
 
 (defn- schedule-render!
@@ -2132,6 +2171,8 @@
   (.addEventListener js/window "pointercancel" finish-card-drag!)
   (.addEventListener js/window "pointercancel" finish-auto-play-hold!)
   (.addEventListener js/window "resize" schedule-fit-seat-names!)
+  (.addEventListener js/document "fullscreenchange" sync-native-fullscreen!)
+  (.addEventListener js/document "webkitfullscreenchange" sync-native-fullscreen!)
   (.addEventListener js/window "focus" reconnect-on-wake!)
   (.addEventListener js/window "pageshow" reconnect-on-wake!)
   (.addEventListener js/document "visibilitychange" reconnect-on-wake!)
@@ -2223,6 +2264,9 @@
 
                            (.hasAttribute target "data-fill-bots")
                            (fill-bots!)
+
+                           (.hasAttribute target "data-fullscreen-toggle")
+                           (toggle-fullscreen!)
 
                            (.hasAttribute target "data-leave-room")
                            (leave-room!)

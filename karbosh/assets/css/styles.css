@@ -1755,7 +1755,8 @@ body.karbosh-ultra-fast-mode .fireworks-overlay.is-double-karbosh {
 .table-fill-bots-button,
 .table-workbench-form,
 .table-workbench-button,
-.table-new-game-button {
+.table-new-game-button,
+.fullscreen-button {
   display: none;
 }
 
@@ -1801,6 +1802,7 @@ body.has-karbosh-game .table-workbench-form {
 body.has-karbosh-game .table-fill-bots-button,
 body.has-karbosh-game .table-workbench-form,
 body.has-karbosh-game .table-workbench-button,
+body.has-karbosh-game .table-top-actions .fullscreen-button,
 body.has-karbosh-game .table-top-actions .table-new-game-button,
 body.has-karbosh-game .table-top-actions .visibility-button,
 body.has-karbosh-game .table-top-actions .leave-room-button {
@@ -1814,10 +1816,24 @@ body.has-karbosh-game .table-top-actions .leave-room-button {
 .auto-play-button,
 .table-workbench-button,
 .table-new-game-button,
+.fullscreen-button,
 .visibility-button,
 .leave-room-button {
   min-height: 2.35rem;
   padding: 0 0.9rem;
+}
+
+.fullscreen-button {
+  border-color: rgba(230, 189, 90, 0.66);
+  background: rgba(230, 189, 90, 0.09);
+  color: #ffeac0;
+}
+
+.fullscreen-button:hover,
+.fullscreen-button:focus-visible,
+.fullscreen-button.is-active {
+  border-color: rgba(255, 220, 145, 0.96);
+  background: rgba(230, 189, 90, 0.18);
 }
 
 .table-workbench-button {
@@ -2619,6 +2635,234 @@ input {
   margin-top: 1rem;
 }
 
+@media screen and (min-width: 981px) {
+  body.has-karbosh-game .section-inner {
+    width: min(100%, 104rem);
+    padding: clamp(1.35rem, 2.2vw, 2.4rem);
+  }
+
+  body.karbosh-fullscreen-mode {
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  body.karbosh-fullscreen-mode .sidebar,
+  body.karbosh-fullscreen-mode .top-strip,
+  body.karbosh-fullscreen-mode .section-secondary,
+  body.karbosh-fullscreen-mode .meta-grid,
+  body.karbosh-fullscreen-mode .connection-pill,
+  body.karbosh-fullscreen-mode .mobile-seat-roster {
+    display: none;
+  }
+
+  body.karbosh-fullscreen-mode .page-shell {
+    margin-left: 0;
+    min-height: 100vh;
+  }
+
+  body.karbosh-fullscreen-mode .section-primary,
+  body.karbosh-fullscreen-mode .section-inner {
+    min-height: 0;
+    height: 100vh;
+  }
+
+  body.karbosh-fullscreen-mode #game-root,
+  body.karbosh-fullscreen-mode .table-grid,
+  body.karbosh-fullscreen-mode .table-panel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  body.karbosh-fullscreen-mode .section-inner {
+    width: 100%;
+    padding: clamp(0.65rem, 1vw, 1rem);
+    overflow: hidden;
+  }
+
+  body.karbosh-fullscreen-mode .table-grid {
+    gap: 0;
+  }
+
+  body.karbosh-fullscreen-mode .table-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: clamp(0.42rem, 0.8vh, 0.7rem);
+    overflow: hidden;
+    padding: clamp(0.7rem, 1vw, 1rem);
+  }
+
+  body.karbosh-fullscreen-mode .panel-heading {
+    margin: 0;
+    padding-bottom: 0.5rem;
+  }
+
+  body.karbosh-fullscreen-mode .table-panel > .panel-heading {
+    grid-template-columns: minmax(12rem, 1fr) auto;
+    gap: 0.2rem 0.75rem;
+  }
+
+  body.karbosh-fullscreen-mode .table-panel > .panel-heading .eyebrow {
+    display: none;
+  }
+
+  body.karbosh-fullscreen-mode .table-panel > .panel-heading h1 {
+    font-size: clamp(1.05rem, 1.7vw, 1.55rem);
+  }
+
+  body.karbosh-fullscreen-mode .status-line {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+  }
+
+  body.karbosh-fullscreen-mode .table-top-actions {
+    grid-row: 1 / span 2;
+    gap: 0.38rem;
+  }
+
+  body.karbosh-fullscreen-mode .table-main-actions,
+  body.karbosh-fullscreen-mode .table-room-actions {
+    gap: 0.38rem;
+  }
+
+  body.karbosh-fullscreen-mode .table-fill-bots-button,
+  body.karbosh-fullscreen-mode .table-workbench-button,
+  body.karbosh-fullscreen-mode .table-top-actions .fullscreen-button,
+  body.karbosh-fullscreen-mode .table-top-actions .table-new-game-button,
+  body.karbosh-fullscreen-mode .table-top-actions .visibility-button,
+  body.karbosh-fullscreen-mode .table-top-actions .leave-room-button {
+    min-height: 2rem;
+    padding: 0 0.72rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+
+  body.karbosh-fullscreen-mode .score-summary {
+    display: grid;
+    grid-template-columns: auto minmax(14rem, 24rem);
+    gap: 0.65rem;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  body.karbosh-fullscreen-mode .score-row {
+    gap: 0.45rem;
+  }
+
+  body.karbosh-fullscreen-mode .score-row span {
+    min-width: 6rem;
+    padding: 0.42rem 0.6rem;
+    line-height: 1.05;
+  }
+
+  body.karbosh-fullscreen-mode .score-row strong {
+    font-size: 1.05rem;
+  }
+
+  body.karbosh-fullscreen-mode .table-surface {
+    min-height: 0;
+    height: 100%;
+    margin: 0;
+  }
+
+  body.karbosh-fullscreen-mode .felt-oval {
+    inset: clamp(5.1rem, 12vh, 7.6rem) clamp(4rem, 8vw, 7.8rem) clamp(3.5rem, 8vh, 5.2rem);
+  }
+
+  body.karbosh-fullscreen-mode .table-center {
+    width: min(24rem, 42vw);
+    min-height: clamp(11rem, 24vh, 14.5rem);
+  }
+
+  body.karbosh-fullscreen-mode .trick-pile {
+    min-height: clamp(11rem, 24vh, 14.5rem);
+  }
+
+  body.karbosh-fullscreen-mode .player-seat {
+    width: clamp(9.8rem, 12vw, 12rem);
+    min-height: 3.65rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  body.karbosh-fullscreen-mode .player-seat strong {
+    font-size: clamp(0.72rem, 0.95vw, 0.9rem);
+  }
+
+  body.karbosh-fullscreen-mode .bid-chip {
+    margin-top: 0.25rem;
+    font-size: 0.58rem;
+  }
+
+  body.karbosh-fullscreen-mode .play-controls-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+    min-height: 0;
+  }
+
+  body.karbosh-fullscreen-mode .hand-panel {
+    margin: 0;
+    padding-top: 0.55rem;
+  }
+
+  body.karbosh-fullscreen-mode .hand-heading {
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  body.karbosh-fullscreen-mode .hand-actions {
+    gap: 0.4rem;
+  }
+
+  body.karbosh-fullscreen-mode .hand-heading h2 {
+    font-size: 1.05rem;
+  }
+
+  body.karbosh-fullscreen-mode .sort-hand-button,
+  body.karbosh-fullscreen-mode .fast-mode-button,
+  body.karbosh-fullscreen-mode .hand-actions .auto-play-button {
+    min-height: 1.8rem;
+    padding: 0 0.7rem;
+    font-size: 0.58rem;
+  }
+
+  body.karbosh-fullscreen-mode .hand-row {
+    flex-wrap: nowrap;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    scrollbar-width: thin;
+  }
+
+  body.karbosh-fullscreen-mode .card-button {
+    flex: 0 0 3.15rem;
+    width: 3.15rem;
+    min-width: 3.15rem;
+    height: 4.08rem;
+    font-size: 1.18rem;
+  }
+
+  body.karbosh-fullscreen-mode .controls {
+    gap: 0.45rem;
+    margin: 0;
+  }
+
+  body.karbosh-fullscreen-mode .controls::before {
+    display: none;
+  }
+
+  body.karbosh-fullscreen-mode .controls > .control-group:not(.auto-play-control):not(.room-visibility-control):not(.leave-room-control) {
+    gap: 0.38rem;
+  }
+
+  body.karbosh-fullscreen-mode .controls button {
+    min-height: 2rem;
+    padding: 0 0.8rem;
+    font-size: 0.62rem;
+  }
+}
+
 @media screen and (max-width: 980px) {
   .sidebar {
     position: relative;
@@ -2928,6 +3172,7 @@ input {
   body.has-karbosh-game .table-fill-bots-button,
   body.has-karbosh-game .table-workbench-form,
   body.has-karbosh-game .table-workbench-button,
+  body.has-karbosh-game .table-top-actions .fullscreen-button,
   body.has-karbosh-game .table-top-actions .table-new-game-button,
   body.has-karbosh-game .table-top-actions .visibility-button,
   body.has-karbosh-game .table-top-actions .leave-room-button {
@@ -2956,6 +3201,10 @@ input {
   body.has-karbosh-game .table-top-actions .table-new-game-button {
     border-color: rgba(255, 206, 112, 0.66);
     background: rgba(255, 206, 112, 0.09);
+  }
+
+  body.has-karbosh-game .table-top-actions .fullscreen-button {
+    display: none;
   }
 
   body.has-karbosh-game .score-summary {
@@ -3397,6 +3646,7 @@ input {
   body.has-karbosh-game .table-fill-bots-button,
   body.has-karbosh-game .table-workbench-form,
   body.has-karbosh-game .table-workbench-button,
+  body.has-karbosh-game .table-top-actions .fullscreen-button,
   body.has-karbosh-game .table-top-actions .table-new-game-button,
   body.has-karbosh-game .table-top-actions .visibility-button,
   body.has-karbosh-game .table-top-actions .leave-room-button {
@@ -3408,6 +3658,10 @@ input {
   body.has-karbosh-game .table-top-actions .table-new-game-button {
     border-color: rgba(255, 206, 112, 0.66);
     background: rgba(255, 206, 112, 0.09);
+  }
+
+  body.has-karbosh-game .table-top-actions .fullscreen-button {
+    display: none;
   }
 
   body.has-karbosh-game .score-summary {
