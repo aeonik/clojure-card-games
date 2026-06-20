@@ -3364,7 +3364,22 @@ input {
   body.has-karbosh-game .trump-watermark {
     --trump-watermark-y: -0.58rem;
     inset: 4.6rem 0.65rem 2.9rem;
-    font-size: clamp(9rem, 54vw, 15rem);
+    z-index: 1;
+    font-size: clamp(11rem, 68vw, 19rem);
+    text-shadow:
+      0 0 1.8rem rgba(255, 255, 255, 0.13),
+      0 0.7rem 2.2rem rgba(8, 12, 26, 0.26);
+  }
+
+  body.has-karbosh-game .trump-watermark.suit-heart,
+  body.has-karbosh-game .trump-watermark.suit-diamond {
+    color: rgba(255, 78, 100, 0.4);
+  }
+
+  body.has-karbosh-game .trump-watermark.suit-spade,
+  body.has-karbosh-game .trump-watermark.suit-club {
+    color: rgba(8, 13, 24, 0.44);
+    -webkit-text-stroke-color: rgba(255, 255, 255, 0.25);
   }
 
   body.has-karbosh-game .table-center {
@@ -3788,7 +3803,7 @@ input {
   body.has-karbosh-game .trump-watermark {
     --trump-watermark-y: -0.42rem;
     inset: 2.6rem 0.6rem 1.6rem;
-    font-size: clamp(7rem, 38vw, 12rem);
+    font-size: clamp(8.5rem, 44vw, 15rem);
   }
 
   body.has-karbosh-game .table-center {
