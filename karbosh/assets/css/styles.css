@@ -425,7 +425,7 @@ body:not(.has-karbosh-game) .meta-grid,
 }
 
 .trump-watermark {
-  --trump-watermark-y: 0.85rem;
+  --trump-watermark-y: -0.65rem;
   position: absolute;
   inset: 8.1rem 7.2rem 5.2rem;
   z-index: 1;
@@ -3303,7 +3303,7 @@ input {
   }
 
   body.has-karbosh-game .trump-watermark {
-    --trump-watermark-y: 0.3rem;
+    --trump-watermark-y: -0.25rem;
     inset: 4.6rem 0.65rem 2.9rem;
     font-size: clamp(9rem, 54vw, 15rem);
   }
@@ -3727,7 +3727,7 @@ input {
   }
 
   body.has-karbosh-game .trump-watermark {
-    --trump-watermark-y: 0.24rem;
+    --trump-watermark-y: -0.18rem;
     inset: 2.6rem 0.6rem 1.6rem;
     font-size: clamp(7rem, 38vw, 12rem);
   }
